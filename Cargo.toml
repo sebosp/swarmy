@@ -9,8 +9,8 @@ edition = "2021"
 bevy = { version = "0.9.1", features = ["dynamic"] }
 bevy-inspector-egui = "0.17.0"
 colored = "2.0.0"
-nom-mpq = { path = "../nom-mpq" }
-s2protocol = { path = "../s2protocol-rs" }
+nom-mpq = "0.1.0"
+s2protocol = "0.1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
