@@ -14,6 +14,8 @@ use s2protocol::versions::read_tracker_events;
 use std::convert::From;
 use std::time::Duration;
 
+pub const GAME_SCALE: f32 = 100.;
+
 /// A unit that can spawn other units, the units
 #[derive(Reflect, Component, Default, Clone)]
 #[reflect(Component)]
@@ -63,9 +65,9 @@ struct Unit {
     /// The name of the unit
     name: String,
     /// The current unit position in x axis
-    x: u32,
+    x: f32,
     /// The current unit position in y axis
-    y: u32,
+    y: f32,
     /// The player in control of the unit.
     /// This can change ownership but the event is not handled yet.
     player: Player,
@@ -112,8 +114,8 @@ impl From<UnitBornEvent> for Unit {
         Unit {
             idx: evt.unit_tag_index,
             name: evt.unit_type_name,
-            x: evt.x as u32,
-            y: evt.y as u32,
+            x: evt.x as f32 / GAME_SCALE,
+            y: evt.y as f32 / GAME_SCALE,
             player: Player {
                 id: evt.control_player_id,
                 ..Default::default()
@@ -165,12 +167,31 @@ pub struct GameLoopEvent {
 #[reflect(Resource)]
 pub struct GameAssets {
     ike_scene: Handle<Scene>,
+    cartman_scene: Handle<Scene>,
+    kyle_scene: Handle<Scene>,
+    kenny_scene: Handle<Scene>,
+    tweek_scene: Handle<Scene>,
+    sp_church_scene: Handle<Scene>,
+    wendy_scene: Handle<Scene>,
 }
 
 fn asset_loading(mut commands: Commands, assets: ResMut<AssetServer>) {
-    let mut ike_asset: Handle<Scene> = assets.load("south_park_canada_ike.glb#Scene0");
+    let ike_asset: Handle<Scene> = assets.load("south_park_canada_ike.glb#Scene0");
+    let cartman_asset: Handle<Scene> = assets.load("cartman.glb#Scene0");
+    let kyle_asset: Handle<Scene> = assets.load("south_park_kyle_broflovski.glb#Scene0");
+    let kenny_asset: Handle<Scene> = assets.load("kenny.glb#Scene0");
+    let tweek_asset: Handle<Scene> =
+        assets.load("nintendo_64_-_south_park_rally_-_tweek.glb#Scene0");
+    let sp_church_asset: Handle<Scene> = assets.load("sp_church.glb#Scene0");
+    let wendy_asset: Handle<Scene> = assets.load("wendy_testaburger.glb#Scene0");
     commands.insert_resource(GameAssets {
         ike_scene: ike_asset,
+        cartman_scene: cartman_asset,
+        kyle_scene: kyle_asset,
+        kenny_scene: kenny_asset,
+        tweek_scene: tweek_asset,
+        sp_church_scene: sp_church_asset,
+        wendy_scene: wendy_asset,
     });
 }
 
@@ -276,8 +297,8 @@ fn unit_born(
                 emissive: unit_color.into(),
                 ..default()
             };
-            let evt_x = event.x;
-            let evt_y = event.y;
+            let evt_x = event.x as f32 / GAME_SCALE;
+            let evt_y = event.y as f32 / GAME_SCALE;
             let mut unit = Unit::from(event);
             let unit_name = bevy::core::Name::new(unit.name.clone());
             unit.size = unit_size;
@@ -285,12 +306,71 @@ fn unit_born(
                 commands
                     .spawn(SceneBundle {
                         scene: game_assets.ike_scene.clone(),
-                        transform: Transform::from_translation(Vec3::new(
-                            evt_x.into(),
-                            evt_y.into(),
-                            0.6,
-                        ))
-                        .with_scale(Vec3::new(0.05, 0.05, 0.05)),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.))
+                            .with_scale(Vec3::new(0.0005, 0.0005, 0.0005)),
+                        ..default()
+                    })
+                    .insert(unit)
+                    .insert(unit_name);
+            } else if unit.name == "Overlord" {
+                commands
+                    .spawn(SceneBundle {
+                        scene: game_assets.wendy_scene.clone(),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.))
+                            .with_scale(Vec3::new(0.02, 0.02, 0.02)),
+                        ..default()
+                    })
+                    .insert(unit)
+                    .insert(unit_name);
+            } else if unit.name == "SiegeTank" {
+                commands
+                    .spawn(SceneBundle {
+                        scene: game_assets.cartman_scene.clone(),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.))
+                            .with_scale(Vec3::new(0.0005, 0.0005, 0.0005)),
+                        ..default()
+                    })
+                    .insert(unit)
+                    .insert(unit_name);
+            } else if unit.name == "Marine" {
+                commands
+                    .spawn(SceneBundle {
+                        scene: game_assets.kyle_scene.clone(),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.))
+                            .with_scale(Vec3::new(0.0005, 0.0005, 0.0005)),
+                        ..default()
+                    })
+                    .insert(unit)
+                    .insert(unit_name);
+            } else if unit.name == "Zergling" {
+                commands
+                    .spawn(SceneBundle {
+                        scene: game_assets.tweek_scene.clone(),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.))
+                            .with_scale(Vec3::new(0.1, 0.1, 0.1)),
+                        ..default()
+                    })
+                    .insert(unit)
+                    .insert(unit_name);
+            } else if unit.name == "Hatchery"
+                || unit.name == "Nexus"
+                || unit.name == "CommandCenter"
+            {
+                commands
+                    .spawn(SceneBundle {
+                        scene: game_assets.sp_church_scene.clone(),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.))
+                            .with_scale(Vec3::new(0.005, 0.005, 0.005)),
+                        ..default()
+                    })
+                    .insert(unit)
+                    .insert(unit_name);
+            } else if unit.name == "Baneling" {
+                commands
+                    .spawn(SceneBundle {
+                        scene: game_assets.kenny_scene.clone(),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.))
+                            .with_scale(Vec3::new(0.0005, 0.0005, 0.0005)),
                         ..default()
                     })
                     .insert(unit)
@@ -298,13 +378,11 @@ fn unit_born(
             } else {
                 commands
                     .spawn(PbrBundle {
-                        mesh: meshes.add(shape::Circle::new(unit_size).into()).into(),
+                        mesh: meshes
+                            .add(shape::Circle::new(unit_size / 100.).into())
+                            .into(),
                         material: materials.add(unit_material),
-                        transform: Transform::from_translation(Vec3::new(
-                            evt_x.into(),
-                            evt_y.into(),
-                            0.,
-                        )),
+                        transform: Transform::from_translation(Vec3::new(evt_x, evt_y, 0.)),
                         ..default()
                     })
                     .insert(unit)
@@ -325,19 +403,19 @@ fn unit_dead(
     time: Res<Time>,
     mut commands: Commands,
     mut timer: ResMut<ReplayTimer>,
-    mut game_loop_query: Query<(Entity, &mut GameLoopEvent)>,
-    mut unit_query: Query<&mut Unit>,
+    mut game_loop_query: Query<(Entity, &mut GameLoopEvent, &mut Unit)>,
 ) {
     if !timer.current.tick(time.delta()).just_finished() {
         return;
     }
-    for (entity, mut tracker_event) in game_loop_query.iter_mut() {
+    for (entity, mut tracker_event, mut unit) in game_loop_query.iter_mut() {
         let game_loop_time = (tracker_event.game_loop as f32 / GAME_LOOP_SPEED).floor() as i32;
         if (!tracker_event.processed && timer.last_updated > game_loop_time)
             || timer.last_updated - 1 == game_loop_time
         {
             match &tracker_event.evt.event {
                 ReplayTrackerEvent::UnitDied(event) => {
+                    unit.state = UnitState::Dead;
                     commands.entity(entity).despawn_recursive();
                     tracing::info!("UnitDied: {:?}", event);
                 }
@@ -345,9 +423,6 @@ fn unit_dead(
             }
             tracker_event.processed = true;
         }
-    }
-    for mut unit in &mut unit_query.iter_mut() {
-        unit.state = UnitState::Dead;
     }
     timer.last_updated = time.elapsed_seconds() as i32;
 }
@@ -362,7 +437,7 @@ fn unit_move(
     if !timer.current.tick(time.delta()).just_finished() {
         return;
     }
-    let mut new_units_positions: HashMap<u32, (u32, u32)> = HashMap::new();
+    let mut new_units_positions: HashMap<u32, (f32, f32)> = HashMap::new();
     for (entity, mut tracker_event) in game_loop_query.iter_mut() {
         let game_loop_time = (tracker_event.game_loop as f32 / GAME_LOOP_SPEED).floor() as i32;
         if (!tracker_event.processed && timer.last_updated > game_loop_time)
@@ -374,7 +449,13 @@ fn unit_move(
             };
             let unit_positions = event.to_unit_positions_vec();
             for unit_pos in unit_positions {
-                new_units_positions.insert(unit_pos.tag, (unit_pos.x as u32, unit_pos.y as u32));
+                new_units_positions.insert(
+                    unit_pos.tag,
+                    (
+                        unit_pos.x as f32 / GAME_SCALE,
+                        unit_pos.y as f32 / GAME_SCALE,
+                    ),
+                );
             }
             commands.entity(entity).despawn_recursive();
             tracker_event.processed = true;
@@ -383,7 +464,7 @@ fn unit_move(
     for (mut unit, mut transform) in &mut unit_query.iter_mut() {
         if let Some((x, y)) = new_units_positions.remove(&unit.idx) {
             unit.colored_term(&time);
-            transform.translation = Vec3::new((x as f32) / 4., (y as f32) / 4., 1.);
+            transform.translation = Vec3::new(x, y, 1.);
             //transform.scale = Vec3::new(10., 10., 10.);
             unit.x = x;
             unit.y = y;
@@ -400,30 +481,24 @@ fn add_tracker_events(
     // plane
     commands
         .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(200., 200.)))),
+            mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(2., 2.)))),
             material: materials.add(StandardMaterial {
-                base_color: bevy::prelude::Color::rgb(0.88, 0.89, 0.72),
+                base_color: bevy::prelude::Color::rgba(0., 0., 0., 0.8),
                 metallic: 1.,
                 ..default()
             }),
-            transform: Transform::from_translation(Vec3::new(125., 100., -5.)),
+            transform: Transform::from_translation(Vec3::new(1.25, 1., -0.4)),
             ..default()
         })
         .insert(bevy::core::Name::new("Plane"));
     // light
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 5500.0,
-            shadows_enabled: false,
-            ..default()
-        },
-        transform: Transform::from_xyz(100.0, 100.0, 20.0),
-        ..default()
+    commands.insert_resource(AmbientLight {
+        color: bevy::prelude::Color::WHITE,
+        brightness: 1.0,
     });
     // camera
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(100., 100., 250.0)
-            .looking_at(Vec3::new(100., 100., 0.), Vec3::Y),
+        transform: Transform::from_xyz(1., 1., 2.5).looking_at(Vec3::new(1., 1., 0.), Vec3::Y),
         ..default()
     });
     let file_contents =
@@ -431,7 +506,7 @@ fn add_tracker_events(
     let (_input, mpq) = parser::parse(&file_contents).unwrap();
     let tracker_events = read_tracker_events(&mpq, &file_contents);
     let mut game_loop = 0u32;
-    let mut max_items = 500usize;
+    let mut max_items = 5000usize;
     for evt in tracker_events {
         game_loop += evt.delta;
         commands
