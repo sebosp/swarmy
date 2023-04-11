@@ -1,266 +1,339 @@
-use bevy::prelude::*;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use colored::*;
+use clap::Parser;
 use nom_mpq::parser;
-use nom_mpq::*;
-use s2protocol::tracker_events::read_tracker_events;
-use s2protocol::versions::protocol87702::{ReplayTrackerEEventId, ReplayTrackerSUnitBornEvent};
-use std::str;
+use rerun::{
+    components::{
+        Box3D, ColorRGBA, Point3D, Quaternion, Radius, Rigid3, Scalar, TextEntry, Transform, Vec3D,
+    },
+    time,
+    time::Timeline,
+    MsgSender,
+};
+use s2protocol::game_events::ReplayGameEvent;
+use s2protocol::versions::read_game_events;
+use s2protocol::versions::read_tracker_events;
+use s2protocol::{game_events::GameSCmdData, tracker_events::ReplayTrackerEvent};
+use tracing_subscriber;
 
-#[derive(Component)]
-struct SC2TrackerEvent;
-
-#[derive(Component)]
-struct SC2UnitBorn {
-    game_loop: u32,
-    unit_name: String,
-    evt: ReplayTrackerSUnitBornEvent,
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Sets a custom config file
+    #[arg(short, long, value_name = "FILE")]
+    source: String,
 }
 
-#[derive(Resource, Debug)]
-struct SC2ReplayTimer {
-    last_updated: u32,
-    current: Timer,
-}
+// Some colors I really liked from a Freya Holmer presentation:
+// https://www.youtube.com/watch?v=kfM-yu0iQBk
+pub const FREYA_ORANGE: ColorRGBA = ColorRGBA(0xeb790700);
+pub const FREYA_GOLD: ColorRGBA = ColorRGBA(0xea9e3600);
+pub const FREYA_RED: ColorRGBA = ColorRGBA(0xf8105300);
+pub const FREYA_BLUE: ColorRGBA = ColorRGBA(0x30b5f700);
+pub const FREYA_GREEN: ColorRGBA = ColorRGBA(0x0aeb9f00);
+pub const FREYA_LIGHT_BLUE: ColorRGBA = ColorRGBA(0x72c5dd00);
+pub const FREYA_GRAY: ColorRGBA = ColorRGBA(0xb2c5c500);
+pub const FREYA_PINK: ColorRGBA = ColorRGBA(0xeaa48300);
+pub const FREYA_LIGHT_GRAY: ColorRGBA = ColorRGBA(0xf4f5f800);
+pub const FREYA_DARK_BLUE: ColorRGBA = ColorRGBA(0x4da7c200);
+pub const FREYA_DARK_GREEN: ColorRGBA = ColorRGBA(0x37bda900);
+pub const FREYA_DARK_RED: ColorRGBA = ColorRGBA(0xae204400);
+pub const FREYA_VIOLET: ColorRGBA = ColorRGBA(0xa401ed00);
+pub const FREYA_WHITE: ColorRGBA = ColorRGBA(0xfaf8fb00);
+pub const FREYA_YELLOW: ColorRGBA = ColorRGBA(0xf7d45400);
+pub const FREYA_LIGHT_YELLOW: ColorRGBA = ColorRGBA(0xead8ad00);
+pub const FREYA_LIGHT_GREEN: ColorRGBA = ColorRGBA(0x6ec29c00);
 
-#[derive(Component)]
-struct Player {
-    name: String,
-    id: u32,
-}
+// This was observed in a game with max game_loop = 13735 and a duration of 15:42 = 942 seconds.
+// nanos 942000000000 / 13735 game_loops = 68583909 nanoseconds per game_loop
+pub const GAME_LOOP_SPEED_NANOS: i64 = 68_583_909;
 
-#[derive(Component)]
-struct Upkeep {
-    current: usize,
-    max: usize,
-}
+pub const TRACKER_SPEED_RATIO: f32 = 0.70996;
 
-// This resource holds information about the game:
-#[derive(Resource, Default)]
-struct GameState {
-    current_loop: u32,
-    timer: Timer,
-    total_players: usize,
-    player_units: Vec<SC2UnitBorn>,
-}
-
-pub const GAME_LOOP_SPEED: f32 = 2240.0f32;
-
-fn game_loop(
-    time: Res<Time>,
-    mut commands: Commands,
-    mut timer: ResMut<SC2ReplayTimer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    query: Query<&SC2UnitBorn, With<SC2TrackerEvent>>,
-) {
-    if timer.current.tick(time.delta()).just_finished() {
-        for tracker_event in query.iter() {
-            if timer.last_updated - 1
-                == (tracker_event.game_loop as f32 / GAME_LOOP_SPEED).floor() as u32
-            {
-                commands.spawn(PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-                    material: materials.add(bevy::prelude::Color::rgb(0.1, 0.9, 0.1).into()),
-                    transform: Transform::from_xyz(
-                        tracker_event.evt.m_x as f32,
-                        tracker_event.evt.m_y as f32,
-                        tracker_event.game_loop as f32 / GAME_LOOP_SPEED / 10.,
-                    ),
-                    ..default()
-                });
-                let player = match tracker_event.evt.m_control_player_id {
-                    1 => "1".blue(),
-                    2 => "2".yellow(),
-                    _ => "_".white(),
-                };
-                let m_creat_tag_idx = match tracker_event.evt.m_creator_unit_tag_index {
-                    Some(val) => format!("{:>4}", val),
-                    None => String::from("    "),
-                };
-                let m_creat_tag_rcycl = match tracker_event.evt.m_creator_unit_tag_recycle {
-                    Some(val) => format!("{}", val),
-                    None => String::from("    "),
-                };
-                println!(
-                    "{}[{:>3}={:>6}] Upkeep: {:>4} unit(idx: {:>4}, rcycl: {:}), pos: ({:>4},{:>4}), mcreat: (unit(idx:{}, rcycl: {})) Born [{:>32}]",
-                    player,
-                    time.elapsed_seconds().floor(),
-                    tracker_event.game_loop,
-                    tracker_event.evt.m_upkeep_player_id,
-                    tracker_event.evt.m_unit_tag_index.to_string().green(),
-                    tracker_event.evt.m_unit_tag_recycle,
-                    tracker_event.evt.m_x,
-                    tracker_event.evt.m_y,
-                    m_creat_tag_idx.green(),
-                    m_creat_tag_rcycl,
-                    tracker_event.unit_name,
-                );
-            }
+// Returns the expected size of units depending on their type
+pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, ColorRGBA) {
+    let mut unit_size = 0.075;
+    let color = match unit_name {
+        "VespeneEDyser" => FREYA_LIGHT_GREEN,
+        "SpacePlatformGeyser" => FREYA_LIGHT_GREEN,
+        "LabMineralField" => {
+            unit_size = 0.04;
+            FREYA_LIGHT_BLUE
         }
-    }
-    timer.last_updated = time.elapsed_seconds() as u32;
+        "LabMineralField750" => {
+            unit_size = 0.06;
+            FREYA_LIGHT_BLUE
+        }
+        "MineralField" => {
+            unit_size = 0.08;
+            FREYA_LIGHT_BLUE
+        }
+        "MineralField450" => {
+            unit_size = 0.1;
+            FREYA_LIGHT_BLUE
+        }
+        "MineralField750" => {
+            unit_size = 0.12;
+            FREYA_LIGHT_BLUE
+        }
+        "RichMineralField" => FREYA_GOLD,
+        "RichMineralField750" => FREYA_ORANGE,
+        "DestructibleDebris6x6" => {
+            unit_size = 0.3;
+            FREYA_GRAY
+        }
+        "UnbuildablePlatesDestructible" => {
+            unit_size = 0.1;
+            FREYA_LIGHT_GRAY
+        }
+        "Overlord" => {
+            unit_size = 0.0;
+            FREYA_YELLOW
+        }
+        "SCV" | "Drone" | "Probe" => {
+            unit_size = 0.05;
+            FREYA_LIGHT_GRAY
+        }
+        "Hatchery" | "CommandCenter" | "Nexus" => {
+            unit_size = 0.2;
+            FREYA_PINK
+        }
+        "Broodling" => {
+            unit_size = 0.01;
+            FREYA_LIGHT_GRAY
+        }
+        _ => {
+            println!("Unknown unit name: '{}'", unit_name);
+            // Fallback to user color
+            user_color(user_id)
+        }
+    };
+    (unit_size, color)
 }
 
-pub struct SC2ReplayPlugin;
-
-impl Plugin for SC2ReplayPlugin {
-    fn build(&self, app: &mut App) {
-        app.insert_resource(SC2ReplayTimer {
-            last_updated: 0u32,
-            current: Timer::from_seconds(1.0, TimerMode::Repeating),
-        })
-        .add_startup_system(add_tracker_events)
-        .add_system(game_loop);
+fn user_color(user_id: i64) -> ColorRGBA {
+    match user_id {
+        0 => FREYA_LIGHT_GREEN,
+        1 => FREYA_LIGHT_BLUE,
+        2 => FREYA_LIGHT_GRAY,
+        _ => FREYA_WHITE,
     }
 }
 
-// Try to get a printable representation of the _name
-fn printable(input: &[u8]) -> String {
-    match str::from_utf8(&input) {
-        Ok(val) => val.to_string(),
-        Err(_) => parser::peek_hex(&input),
-    }
-}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt::init();
+    let cli = Cli::parse();
+    let mut session = rerun::SessionBuilder::new("swarmy-rerun").buffered();
 
-fn add_tracker_events(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // plane
-    commands
-        .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(200., 200.)))),
-            material: materials.add(StandardMaterial {
-                base_color: bevy::prelude::Color::rgb(0.88, 0.89, 0.72),
-                metallic: 0.,
-                ..default()
-            }),
-            transform: Transform::from_translation(Vec3::new(125., 100., -5.)),
-            ..default()
-        })
-        .insert(bevy::core::Name::new("Plane"));
-    // light
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 1500.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        transform: Transform::from_xyz(100.0, 100.0, 20.0),
-        ..default()
-    });
-    // camera
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(100., 100., 250.0)
-            .looking_at(Vec3::new(100., 100., 0.), Vec3::Y),
-        ..default()
-    });
-    let file_contents =
-        parser::read_file("/home/seb/git/nom-mpq/assets/SC2-Patch_4.12-2v2AI.SC2Replay");
+    let file_contents = parser::read_file(&cli.source);
     let (_input, mpq) = parser::parse(&file_contents).unwrap();
+    let game_events = read_game_events(&mpq, &file_contents);
     let tracker_events = read_tracker_events(&mpq, &file_contents);
-    let mut max_items = 500usize;
-    for read_evt in tracker_events {
-        if let ReplayTrackerEEventId::EUnitPosition(unit_position) = read_evt.event {
-            tracing::info!("Position: {:?}", unit_position);
-        } else if let ReplayTrackerEEventId::EUnitBorn(unit_born_event) = read_evt.event {
-            let unit_type_name = printable(&unit_born_event.m_unit_type_name);
-            let unit_name_with_creator_ability = match &unit_born_event.m_creator_ability_name {
-                Some(val) => {
-                    let mut m_creator = printable(val);
-                    // Add some context to what ability created this unit.
-                    if !m_creator.is_empty() && m_creator != unit_type_name {
-                        m_creator.push_str(">");
-                        m_creator.push_str(&unit_type_name);
-                    }
-                    m_creator
-                }
-                None => unit_type_name,
-            };
-            let mut unit_size = 0.75;
-            let unit_color = match unit_name_with_creator_ability.as_ref() {
-                "VespeneGeyser" => bevy::prelude::Color::LIME_GREEN,
-                "SpacePlatformGeyser" => bevy::prelude::Color::GREEN,
-                "LabMineralField" => {
-                    unit_size = 0.4;
-                    bevy::prelude::Color::TEAL
-                }
-                "LabMineralField750" => {
-                    unit_size = 0.6;
-                    bevy::prelude::Color::TEAL
-                }
-                "MineralField" => {
-                    unit_size = 0.8;
-                    bevy::prelude::Color::TEAL
-                }
-                "MineralField450" => {
-                    unit_size = 1.0;
-                    bevy::prelude::Color::TEAL
-                }
-                "MineralField750" => {
-                    unit_size = 1.2;
-                    bevy::prelude::Color::TEAL
-                }
-                "RichMineralField" => bevy::prelude::Color::GOLD,
-                "RichMineralField750" => bevy::prelude::Color::ORANGE_RED,
-                "DestructibleDebris6x6" => {
-                    unit_size = 3.;
-                    bevy::prelude::Color::GRAY
-                }
-                "UnbuildablePlatesDestructible" => {
-                    unit_size = 1.0;
-                    bevy::prelude::Color::GRAY
-                }
-                _ => {
-                    tracing::error!("Unknown unit name: '{}'", unit_name_with_creator_ability);
-                    bevy::prelude::Color::WHITE
-                }
-            };
-            let unit_material = StandardMaterial {
-                emissive: unit_color.into(),
-                ..default()
-            };
-            if read_evt.game_loop == 0 {
-                // Circle
-                commands
-                    .spawn(PbrBundle {
-                        mesh: meshes.add(shape::Circle::new(unit_size).into()).into(),
-                        material: materials.add(unit_material),
-                        transform: Transform::from_translation(Vec3::new(
-                            unit_born_event.m_x.into(),
-                            unit_born_event.m_y.into(),
+    let mut game_loop = 0i64;
+    let game_timeline = Timeline::new("game_timeline", time::TimeType::Sequence);
+    for game_step in game_events {
+        game_loop += game_step.delta as i64;
+        if let ReplayGameEvent::CameraUpdate(ref camera_update) = game_step.event {
+            if let Some(target) = &camera_update.m_target {
+                MsgSender::new(format!("Unit/999{}/Player", game_step.user_id))
+                    .with_time(game_timeline, game_loop)
+                    .with_splat(Box3D::new(0.8, 0.8, 0.0))?
+                    .with_splat(Transform::Rigid3(Rigid3 {
+                        rotation: Quaternion::new(0., 0., 0., 0.),
+                        translation: Vec3D::new(
+                            (target.x as f32 / 1500f32) - 0.3,
+                            (-1. * target.y as f32 / 1500f32) - 0.3,
                             0.,
-                        )),
-                        ..default()
-                    })
-                    .insert(bevy::core::Name::new(
-                        unit_name_with_creator_ability.clone(),
-                    ));
+                        ),
+                    }))?
+                    .with_splat(user_color(game_step.user_id))?
+                    .send(&mut session)?;
             }
-            if unit_born_event.m_control_player_id == 1 {
-                commands.spawn((
-                    SC2TrackerEvent,
-                    SC2UnitBorn {
-                        game_loop: read_evt.game_loop,
-                        evt: unit_born_event,
-                        unit_name: unit_name_with_creator_ability,
-                    },
-                ));
-                max_items -= 1;
+        } else if let ReplayGameEvent::Cmd(ref game_cmd) = game_step.event {
+            if let GameSCmdData::TargetPoint(target) = &game_cmd.m_data {
+                MsgSender::new(format!("Target/{}/Camera", game_step.user_id))
+                    .with_time(game_timeline, game_loop)
+                    .with_splat(Point3D::new(
+                        target.x as f32 / 27_000f32,
+                        -1. * target.y as f32 / 27_000f32,
+                        target.z as f32 / 27_000f32,
+                    ))?
+                    .with_splat(user_color(game_step.user_id))?
+                    .with_splat(Radius(0.5))?
+                    .send(&mut session)?;
+            } else if let GameSCmdData::TargetUnit(target) = &game_cmd.m_data {
+                MsgSender::new(format!(
+                    "Target/{}/Unit/{}",
+                    target.m_snapshot_control_player_id.unwrap_or_default(),
+                    target.m_tag,
+                ))
+                .with_time(game_timeline, game_loop)
+                .with_splat(Point3D::new(
+                    target.m_snapshot_point.x as f32 / 27_000f32,
+                    -1. * target.m_snapshot_point.y as f32 / 27_000f32,
+                    target.m_snapshot_point.z as f32 / 27_000f32,
+                ))?
+                .with_splat(FREYA_RED)?
+                .with_splat(Radius(0.1))?
+                .send(&mut session)?;
             }
-        }
-        if max_items < 1 {
-            break;
+        } else if let ReplayGameEvent::CmdUpdateTargetPoint(ref target_point) = game_step.event {
+            MsgSender::new(format!("Target/{}", game_step.user_id))
+                .with_time(game_timeline, game_loop)
+                .with_splat(Point3D::new(
+                    target_point.m_target.x as f32 / 27_000f32,
+                    -1. * target_point.m_target.y as f32 / 27_000f32,
+                    target_point.m_target.z as f32 / 27_000f32,
+                ))?
+                .with_splat(user_color(game_step.user_id))?
+                .with_splat(Radius(0.5))?
+                .send(&mut session)?;
+        } else if let ReplayGameEvent::CmdUpdateTargetUnit(ref target_unit) = game_step.event {
+            MsgSender::new(format!("Unit/{}/UpdateTarget", target_unit.m_target.m_tag))
+                .with_time(game_timeline, game_loop)
+                .with_splat(Point3D::new(
+                    target_unit.m_target.m_snapshot_point.x as f32 / 27_000f32,
+                    -1. * target_unit.m_target.m_snapshot_point.y as f32 / 27_000f32,
+                    target_unit.m_target.m_snapshot_point.z as f32 / 27_000f32,
+                ))?
+                .with_splat(FREYA_WHITE)?
+                .with_splat(Radius(0.08))?
+                .send(&mut session)?;
         }
     }
-}
+    println!("Final Game loop: {}", game_loop);
+    game_loop = 0i64;
+    for game_step in tracker_events {
+        game_loop += game_step.delta as i64;
+        if let ReplayTrackerEvent::UnitInit(ref unit_init) = game_step.event {
+            MsgSender::new(format!(
+                "Unit/{}/Init",
+                s2protocol::tracker_events::unit_tag(
+                    unit_init.unit_tag_index,
+                    unit_init.unit_tag_recycle
+                )
+            ))
+            .with_time(
+                game_timeline,
+                (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+            )
+            .with_splat(Point3D::new(
+                unit_init.x as f32 / 6f32,
+                -1. * unit_init.y as f32 / 6f32,
+                0.,
+            ))?
+            .with_splat(FREYA_PINK)? // Find the user_id related to this m_tag
+            .with_splat(TextEntry::new(&unit_init.unit_type_name, None))? // Find the user_id related to this m_tag
+            .with_splat(Radius(0.125))?
+            .send(&mut session)?;
+        } else if let ReplayTrackerEvent::UnitDied(ref unit_dead) = game_step.event {
+            MsgSender::new(format!(
+                "Unit/{}/Died",
+                s2protocol::tracker_events::unit_tag(
+                    unit_dead.unit_tag_index,
+                    unit_dead.unit_tag_recycle
+                )
+            ))
+            .with_time(
+                game_timeline,
+                (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+            )
+            .with_splat(Point3D::new(
+                unit_dead.x as f32 / 6f32,
+                -1. * unit_dead.y as f32 / 6f32,
+                0.,
+            ))?
+            .with_splat(FREYA_DARK_RED)? // Find the user_id related to this m_tag
+            .with_splat(Radius(0.125))?
+            .send(&mut session)?;
+            MsgSender::new(format!(
+                "Death/{}/{}",
+                s2protocol::tracker_events::unit_tag(
+                    unit_dead.unit_tag_index,
+                    unit_dead.unit_tag_recycle
+                ),
+                game_loop
+            ))
+            .with_time(
+                game_timeline,
+                (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+            )
+            .with_splat(Point3D::new(
+                unit_dead.x as f32 / 6f32,
+                -1. * unit_dead.y as f32 / 6f32,
+                game_loop as f32 / 100.,
+            ))?
+            .with_splat(FREYA_DARK_RED)? // Find the user_id related to this m_tag
+            .with_splat(Radius(0.125))?
+            .send(&mut session)?;
+        } else if let ReplayTrackerEvent::UnitBorn(ref unit_born) = game_step.event {
+            let unit_type_name = &unit_born.unit_type_name;
+            let unit_name_with_creator_ability = match &unit_born.creator_ability_name {
+                Some(val) => {
+                    let mut creator = val.clone();
+                    // Add some context to what ability created this unit.
+                    if !creator.is_empty() && val != unit_type_name {
+                        creator.push_str(">");
+                        creator.push_str(&unit_type_name);
+                    }
+                    creator
+                }
+                None => unit_type_name.clone(),
+            };
+            let (unit_size, unit_color) = get_unit_sized_color(
+                &unit_name_with_creator_ability,
+                unit_born.control_player_id as i64,
+            );
+            MsgSender::new(format!(
+                "Unit/{}/Born",
+                s2protocol::tracker_events::unit_tag(
+                    unit_born.unit_tag_index,
+                    unit_born.unit_tag_recycle
+                )
+            ))
+            .with_time(
+                game_timeline,
+                (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+            )
+            .with_splat(Point3D::new(
+                unit_born.x as f32 / 6f32,
+                -1. * unit_born.y as f32 / 6f32,
+                0.,
+            ))?
+            .with_splat(unit_color)? // Find the user_id related to this m_tag
+            .with_splat(TextEntry::new(&unit_born.unit_type_name, None))? // Find the user_id related to this m_tag
+            .with_splat(Radius(unit_size))?
+            .send(&mut session)?;
+        } else if let ReplayTrackerEvent::UnitPosition(unit_pos) = game_step.event {
+            for unit_pos_item in unit_pos.to_unit_positions_vec() {
+                MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag,))
+                    .with_time(
+                        game_timeline,
+                        (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+                    )
+                    .with_splat(Point3D::new(
+                        unit_pos_item.x as f32 / 24.,
+                        -1. * unit_pos_item.y as f32 / 24.,
+                        0.,
+                    ))?
+                    .send(&mut session)?;
+            }
+        } else if let ReplayTrackerEvent::PlayerStats(ref player_stats) = game_step.event {
+            for stat_entity_value in player_stats.stats.as_prop_name_value_vec() {
+                MsgSender::new(format!(
+                    "Player/Stats/{}/{}",
+                    stat_entity_value.0, player_stats.player_id,
+                ))
+                .with_time(
+                    game_timeline,
+                    (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+                )
+                .with_splat(Scalar::from(stat_entity_value.1 as f64))?
+                .with_splat(FREYA_LIGHT_YELLOW)? // Find the user_id related to this m_tag
+                .send(&mut session)?;
+            }
+        }
+    }
+    println!("Final Tracker loop: {}", game_loop);
+    rerun::native_viewer::show(&session)?;
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugin(WorldInspectorPlugin)
-        .add_plugin(SC2ReplayPlugin)
-        .run();
+    Ok(())
 }
