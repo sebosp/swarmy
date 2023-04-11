@@ -1,19 +1,38 @@
 # swarmy
-Starcraft 2 Replay in Bevy
+Starcraft 2 Replay in Rerun
 
+## Running on native.
+
+For now this has been tested on Linux.
+
+[Install Rust](https://www.rust-lang.org/tools/install)
+Clone this repo.
+
+```shell
+# Clone this repository.
+$ cargo run -r -- --source <FILE>
+# The first time the code is compiled it will take a few minutes.
+# Subsequent runs should not need compilation.
+```
+
+## Running in browser.
+
+Running in browser requires exporting the `.rrd` file from the previous step.
+Basically load the Rerun viewer, in the menu Export the RRD and download.
+
+```shell
+$ cargo install rerun
+$ rerun --web-viewer my-downloaded-file.rrd
+```
 
 ## Status
 Very basic initial setup.
 
-A 2v2 game on Heavy Artillery on build 87702.
-
 The minerals are recognized and drawn.
-
-The units being borned are shown in dark green.
 
 The drones are visible in their initial position.
 
-![Initial preview](https://user-images.githubusercontent.com/873436/218337062-083b71d1-4a5a-45bc-883f-14da06f0f840.png)
+![Initial preview](https://user-images.githubusercontent.com/873436/231281746-40fde3f1-fec6-49fe-8cf1-5fbd197589b7.png)
 
 ## Motivation:
 
@@ -39,4 +58,4 @@ One of the first uses I'll add is a helper for Casters.
   you would have to follow the same operations/steps the Pro-player and you can be graded in timing/accuracy/etc.
 
 ## TODO:
-Everything, this is super early state, all input is welcome.
+Everything, this is super early state, all suggestions are welcome.
