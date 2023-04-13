@@ -11,6 +11,8 @@ Clone this repo.
 ```shell
 # Clone this repository.
 $ cargo run -r -- --source <FILE>
+# To run the example file provided in this repo:
+# cargo run -- --source assets/2023-04-08-2v2AI.SC2Replay
 # The first time the code is compiled it will take a few minutes.
 # Subsequent runs should not need compilation.
 ```
