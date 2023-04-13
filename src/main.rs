@@ -1,4 +1,5 @@
 use clap::Parser;
+use rerun::time;
 use swarmy::*;
 use tracing_subscriber;
 
@@ -16,8 +17,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut session = rerun::SessionBuilder::new("swarmy-rerun").buffered();
     let (mpq, file_contents) = read_mpq(&cli.source);
     let game_timeline = rerun::time::Timeline::new("game_timeline", time::TimeType::Sequence);
-    add_game_events(&mpq, &file_contents, &mut session, &game_timeline);
-    add_tracker_events(&mpq, &file_contents, &mut session, &game_timeline);
+    add_game_events(&mpq, &file_contents, &mut session, &game_timeline)?;
+    add_tracker_events(&mpq, &file_contents, &mut session, &game_timeline)?;
     rerun::native_viewer::show(&session)?;
     Ok(())
 }
