@@ -3,6 +3,12 @@ use rerun::time;
 use swarmy::*;
 use tracing_subscriber;
 
+use rerun::external::re_memory::AccountingAllocator;
+
+#[global_allocator]
+static GLOBAL: AccountingAllocator<mimalloc::MiMalloc> =
+    AccountingAllocator::new(mimalloc::MiMalloc);
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
