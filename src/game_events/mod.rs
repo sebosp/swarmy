@@ -1,12 +1,10 @@
 //! Game Events drawing
 
 use super::*;
-use nom_mpq::{parser, MPQ};
+use nom_mpq::MPQ;
 use rerun::Session;
 use rerun::{
-    components::{
-        Box3D, ColorRGBA, Point3D, Quaternion, Radius, Rigid3, Scalar, TextEntry, Transform, Vec3D,
-    },
+    components::{Box3D, Point3D, Quaternion, Radius, Rigid3, Transform, Vec3D},
     time::Timeline,
     MsgSender,
 };

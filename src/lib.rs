@@ -4,9 +4,7 @@
 use nom_mpq::{parser, MPQ};
 use rerun::Session;
 use rerun::{
-    components::{
-        Box3D, ColorRGBA, Point3D, Quaternion, Radius, Rigid3, Scalar, TextEntry, Transform, Vec3D,
-    },
+    components::{ColorRGBA, Point3D, Radius, Scalar, TextEntry},
     time::Timeline,
     MsgSender,
 };
