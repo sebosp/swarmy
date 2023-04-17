@@ -84,19 +84,51 @@ pub struct SC2Unit {
     age: f32,
 }
 
-pub struct SC2Replay {
-    /// The registered units state as they change through time.
-    units: HashMap<i64, SC2Unit>,
-    /// The absolute GameEvevnt loop timeline, the tracker loop should be relative to it.
-    timeline: Timeline,
-    /// The rerun session to display data.
-    rerun_session: Session,
-    /// The MPQ file being read.
-    mpq: MPQ,
-    /// The contents of the file
-    file_contents: Vec<u8>,
+/// A set of filters to apply to the rerun session.
+#[derive(Debug, Default, Clone)]
+pub struct SC2ReplayFilters {
+    /// Filters a specific user id.
+    pub user_id: Option<i64>,
+
+    /// Filters a specific unit tag.
+    pub unit_tag: Option<i64>,
+
+    /// Allows setting up a min event loop, in game_event units
+    pub min_loop: Option<i64>,
+
+    /// Allows setting up a max event loop
+    pub max_loop: Option<i64>,
+
+    /// Only show game of specific types
+    pub event_type: Option<String>,
+
+    /// Only show game of specific types
+    pub unit_name: Option<String>,
 }
-impl SC2Replay {
+
+pub struct SC2Rerun {
+    /// The registered units state as they change through time.
+    pub units: HashMap<i64, SC2Unit>,
+
+    /// The absolute GameEvevnt loop timeline, the tracker loop should be relative to it.
+    pub timeline: Timeline,
+
+    /// The rerun session to display data.
+    pub rerun_session: Session,
+
+    /// The MPQ file being read.
+    pub mpq: MPQ,
+
+    /// The contents of the file
+    pub file_contents: Vec<u8>,
+
+    /// The filters to be applied to the collection.
+    pub filters: SC2ReplayFilters,
+
+    /// Whether or not the PlayerStats event should be shown. To be replaced by a proper filter
+    pub include_stats: bool,
+}
+impl SC2Rerun {
     pub fn new(file_path: &str) -> Result<Self, SwarmyError> {
         let rerun_session = rerun::SessionBuilder::new("swarmy-rerun").buffered();
         let (mpq, file_contents) = read_mpq(file_path);
@@ -107,27 +139,28 @@ impl SC2Replay {
             rerun_session,
             mpq,
             file_contents,
+            filters: SC2ReplayFilters::default(),
+            include_stats: false,
         })
     }
 
     pub fn add_events(&mut self) -> Result<usize, SwarmyError> {
         let mut total_events = 0usize;
-        total_events += add_game_events(
-            &self.mpq,
-            &self.file_contents,
-            &mut self.session,
-            &self.timeline,
-        )?;
-        total_events += add_tracker_events(
-            &self.mpq,
-            &self.file_contents,
-            &mut self.session,
-            &self.timeline,
-        )?;
+        total_events += add_game_events(&self)?;
+        total_events += add_tracker_events(&self)?;
         Ok(total_events)
     }
 
     pub fn show(&self) -> Result<(), SwarmyError> {
         Ok(rerun::native_viewer::show(&self.rerun_session)?)
+    }
+
+    pub fn with_filters(&mut self, filters: SC2ReplayFilters) {
+        self.filters = filters;
+    }
+
+    /// Sets the include_stats value to true,
+    pub fn include_stats(&mut self) {
+        self.include_stats = true;
     }
 }

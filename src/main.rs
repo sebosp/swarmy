@@ -11,34 +11,52 @@ static GLOBAL: AccountingAllocator<mimalloc::MiMalloc> =
 // TODO: There a ratio between tracker events and game events.
 // This ratio is still to be verified.
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     /// Source file, the SC2Replay extension usually.
     #[arg(short, long, value_name = "FILE")]
     source: String,
 
+    /// Whether to include the player stats. This should be later move into a filter where specific
+    /// event types can be excluded/included but for now this is just clutter.
+    #[arg(short, long, default_value_t = false)]
+    include_stats: bool,
+
     /// Filters a specific user id.
-    #[arg(short, long, value_name = "USER_ID")]
     filter_user_id: Option<i64>,
 
     /// Filters a specific unit tag.
-    #[arg(short, long, value_name = "UNIT_TAG")]
     filter_unit_tag: Option<i64>,
 
     /// Allows setting up a min event loop, in game_event units
-    #[arg(short, long, value_name = "MIN")]
-    min: Option<i64>,
+    filter_min_loop: Option<i64>,
 
     /// Allows setting up a max event loop
-    #[arg(short, long, value_name = "MAX")]
-    max: Option<i64>,
+    filter_max_loop: Option<i64>,
+
+    /// Only show game of specific types
+    filter_event_type: Option<String>,
+
+    /// Only show game of specific types
+    filter_unit_name: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
-    let mut sc2_replay = SC2Replay::new(&cli.source)?;
-    sc2_replay.show()?;
+    let mut sc2_rerun = SC2Rerun::new(&cli.source)?;
+    sc2_rerun.include_stats();
+    let filters = SC2ReplayFilters {
+        user_id: cli.filter_user_id,
+        unit_tag: cli.filter_unit_tag,
+        min_loop: cli.filter_min_loop,
+        max_loop: cli.filter_max_loop,
+        event_type: cli.filter_event_type,
+        unit_name: cli.filter_unit_name,
+    };
+    sc2_rerun.with_filters(filters);
+    sc2_rerun.add_events()?;
+    sc2_rerun.show()?;
     Ok(())
 }
