@@ -1,27 +1,30 @@
 //! Tracker Event registration.
 use super::*;
 use convert_case::{Case, Casing};
-use nom_mpq::MPQ;
 use rerun::{
     components::{Point3D, Radius, Scalar, TextEntry},
-    time::Timeline,
-    MsgSender, Session,
+    MsgSender,
 };
 use s2protocol::tracker_events::*;
 use s2protocol::versions::read_tracker_events;
 
 pub fn register_unit_init(
-    unit_init: &UnitInitEvent,
-    rerun_session: &Session,
-    game_timeline: &Timeline,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+    unit_init: &UnitInitEvent,
+) -> Result<usize, SwarmyError> {
+    let unit_name_filter = &sc2_rerun.filters.unit_name;
+    if let Some(unit_name_filter) = unit_name_filter {
+        if unit_name_filter != &unit_init.unit_type_name {
+            return Ok(0usize);
+        }
+    }
     MsgSender::new(format!(
         "Unit/{}/Init",
         s2protocol::tracker_events::unit_tag(unit_init.unit_tag_index, unit_init.unit_tag_recycle)
     ))
     .with_time(
-        *game_timeline,
+        sc2_rerun.timeline,
         (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
     )
     .with_splat(Point3D::new(
@@ -32,16 +35,21 @@ pub fn register_unit_init(
     .with_splat(FREYA_PINK)?
     .with_splat(TextEntry::new(&unit_init.unit_type_name, None))?
     .with_splat(Radius(0.125))?
-    .send(rerun_session)?;
-    Ok(())
+    .send(&sc2_rerun.rerun_session)?;
+    Ok(1usize)
 }
 
 pub fn register_unit_born(
-    unit_born: &UnitBornEvent,
-    rerun_session: &Session,
-    game_timeline: &Timeline,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+    unit_born: &UnitBornEvent,
+) -> Result<usize, SwarmyError> {
+    let unit_name_filter = &sc2_rerun.filters.unit_name;
+    if let Some(unit_name_filter) = unit_name_filter {
+        if unit_name_filter != &unit_born.unit_type_name {
+            return Ok(0usize);
+        }
+    }
     let unit_type_name = &unit_born.unit_type_name;
     let unit_name_with_creator_ability = match &unit_born.creator_ability_name {
         Some(val) => {
@@ -64,7 +72,7 @@ pub fn register_unit_born(
         s2protocol::tracker_events::unit_tag(unit_born.unit_tag_index, unit_born.unit_tag_recycle)
     ))
     .with_time(
-        *game_timeline,
+        sc2_rerun.timeline,
         (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
     )
     .with_splat(Point3D::new(
@@ -75,22 +83,21 @@ pub fn register_unit_born(
     .with_splat(unit_color)?
     .with_splat(TextEntry::new(&unit_born.unit_type_name, None))?
     .with_splat(Radius(unit_size))?
-    .send(rerun_session)?;
-    Ok(())
+    .send(&sc2_rerun.rerun_session)?;
+    Ok(1usize)
 }
 
 pub fn register_unit_died(
-    unit_dead: &UnitDiedEvent,
-    rerun_session: &Session,
-    game_timeline: &Timeline,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+    unit_dead: &UnitDiedEvent,
+) -> Result<usize, SwarmyError> {
     MsgSender::new(format!(
         "Unit/{}/Died",
         s2protocol::tracker_events::unit_tag(unit_dead.unit_tag_index, unit_dead.unit_tag_recycle)
     ))
     .with_time(
-        *game_timeline,
+        sc2_rerun.timeline,
         (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
     )
     .with_splat(Point3D::new(
@@ -100,7 +107,7 @@ pub fn register_unit_died(
     ))?
     .with_splat(FREYA_DARK_RED)?
     .with_splat(Radius(0.125))?
-    .send(rerun_session)?;
+    .send(&sc2_rerun.rerun_session)?;
     // Create a Path for Death so that it can be drawn on its separate pane.
     // TODO: Create a "triangle soup", maybe something with low resolution to show regions of high
     // activity.
@@ -110,7 +117,7 @@ pub fn register_unit_died(
         game_loop
     ))
     .with_time(
-        *game_timeline,
+        sc2_rerun.timeline,
         (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
     )
     .with_splat(Point3D::new(
@@ -120,20 +127,21 @@ pub fn register_unit_died(
     ))?
     .with_splat(FREYA_DARK_RED)?
     .with_splat(Radius(0.125))?
-    .send(rerun_session)?;
-    Ok(())
+    .send(&sc2_rerun.rerun_session)?;
+    Ok(2usize)
 }
 
 pub fn register_unit_position(
-    unit_pos: UnitPositionsEvent,
-    rerun_session: &Session,
-    game_timeline: &Timeline,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
-    for unit_pos_item in unit_pos.to_unit_positions_vec() {
+    unit_pos: UnitPositionsEvent,
+) -> Result<usize, SwarmyError> {
+    let unit_positions = unit_pos.to_unit_positions_vec();
+    let total_items = unit_positions.len();
+    for unit_pos_item in unit_positions {
         MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag,))
             .with_time(
-                *game_timeline,
+                sc2_rerun.timeline,
                 (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
             )
             .with_splat(Point3D::new(
@@ -141,60 +149,78 @@ pub fn register_unit_position(
                 -1. * unit_pos_item.y as f32 / 24.,
                 0.,
             ))?
-            .send(rerun_session)?;
+            .send(&sc2_rerun.rerun_session)?;
     }
-    Ok(())
+    Ok(total_items)
 }
 
 pub fn register_player_stats(
-    player_stats: &PlayerStatsEvent,
-    rerun_session: &Session,
-    game_timeline: &Timeline,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
-) -> Result<(), Box<dyn std::error::Error>> {
+    player_stats: &PlayerStatsEvent,
+) -> Result<usize, SwarmyError> {
+    if !sc2_rerun.include_stats {
+        return Ok(0usize);
+    }
     for stat_entity_value in player_stats.stats.as_prop_name_value_vec() {
         println!("Stat: {}", stat_entity_value.0);
         let entity_path = stat_entity_value.0.replace("/", "_").to_case(Case::Pascal);
         MsgSender::new(format!("{}/{}", entity_path, player_stats.player_id,))
             .with_time(
-                *game_timeline,
+                sc2_rerun.timeline,
                 (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
             )
             .with_splat(Scalar::from(stat_entity_value.1 as f64))?
             .with_splat(user_color(player_stats.player_id as i64))?
-            .send(rerun_session)?;
+            .send(&sc2_rerun.rerun_session)?;
     }
-    Ok(())
+    Ok(1usize)
 }
 
 /// Registers the tracker events to Rerun.
-pub fn add_tracker_events(
-    mpq: &MPQ,
-    file_contents: &[u8],
-    rerun_session: &Session,
-    game_timeline: &Timeline,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let tracker_events = read_tracker_events(&mpq, &file_contents);
+pub fn add_tracker_events(sc2_rerun: &SC2Rerun) -> Result<usize, SwarmyError> {
+    let tracker_events = read_tracker_events(&sc2_rerun.mpq, &sc2_rerun.file_contents);
     let mut game_loop = 0i64;
+    let mut total_events = 0usize;
+    let min_filter = sc2_rerun.filters.min_loop.clone();
+    let max_filter = sc2_rerun.filters.max_loop.clone();
     for game_step in tracker_events {
         game_loop += game_step.delta as i64;
+        if let Some(min) = min_filter {
+            // Skip the events less than the requested filter.
+            if min < game_loop {
+                continue;
+            }
+        }
+        if let Some(max) = max_filter {
+            // Skip the events greater than the requested filter.
+            if max > game_loop {
+                continue;
+            }
+        }
         match game_step.event {
             ReplayTrackerEvent::UnitInit(ref unit_init) => {
-                register_unit_init(unit_init, rerun_session, game_timeline, game_loop)?
+                total_events += register_unit_init(sc2_rerun, game_loop, unit_init)?
             }
             ReplayTrackerEvent::UnitBorn(ref unit_born) => {
-                register_unit_born(unit_born, rerun_session, game_timeline, game_loop)?
+                total_events += register_unit_born(sc2_rerun, game_loop, unit_born)?
             }
             ReplayTrackerEvent::UnitDied(ref unit_died) => {
-                register_unit_died(unit_died, rerun_session, game_timeline, game_loop)?
+                total_events += register_unit_died(sc2_rerun, game_loop, unit_died)?
             }
             ReplayTrackerEvent::UnitPosition(unit_pos) => {
-                register_unit_position(unit_pos, rerun_session, game_timeline, game_loop)?
+                total_events += register_unit_position(sc2_rerun, game_loop, unit_pos)?
             }
-            //ReplayTrackerEvent::PlayerStats(ref player_stats) => register_player_stats(player_stats, rerun_session game_timeline, game_loop)?,
+            ReplayTrackerEvent::PlayerStats(ref player_stats) => {
+                total_events += register_player_stats(sc2_rerun, game_loop, player_stats)?
+            }
             _ => {}
         }
     }
-    println!("Final Tracker loop: {}", game_loop);
-    Ok(())
+    tracing::info!(
+        "Added a total of {} TrackerEvents. Final Tracker loop: {}",
+        total_events,
+        game_loop
+    );
+    Ok(total_events)
 }
