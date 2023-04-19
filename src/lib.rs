@@ -2,7 +2,7 @@
 //!
 
 use nom_mpq::{parser, MPQParserError, MPQ};
-use rerun::components::ColorRGBA;
+use rerun::components::{ColorRGBA, Vec3D};
 use rerun::external::re_log_types::DataTableError;
 use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
 use rerun::time::Timeline;
@@ -69,19 +69,19 @@ pub enum SwarmyError {
 #[derive(Debug, Default)]
 pub struct SC2Unit {
     /// The last time the unit was updated
-    last_game_loop: i64,
+    pub last_game_loop: i64,
     /// The owner user_id
-    user_id: Option<i64>,
+    pub user_id: Option<i64>,
     /// The name of the unit.
-    name: Option<String>,
-    /// The X position.
-    x: f32,
-    /// The Y position.
-    y: f32,
-    /// The Z position.
-    z: f32,
-    /// The age in game_loops of the unit.
-    age: f32,
+    pub name: String,
+    /// The XYZ position.
+    pub pos: Vec3D,
+    /// The target of this unit.
+    pub target: Option<Vec3D>,
+    /// The game loop in which the unit was created.
+    pub init_game_loop: f32,
+    /// The creator ability name.
+    pub creator_ability_name: Option<String>,
 }
 
 /// A set of filters to apply to the rerun session.
@@ -146,8 +146,17 @@ impl SC2Rerun {
 
     pub fn add_events(&mut self) -> Result<usize, SwarmyError> {
         let mut total_events = 0usize;
-        total_events += add_game_events(&self)?;
-        total_events += add_tracker_events(&self)?;
+        if let Some(event_type) = &self.filters.event_type {
+            if event_type.clone().to_lowercase().contains("tracker") {
+                total_events += add_tracker_events(&mut self)?;
+            }
+            if event_type.clone().to_lowercase().contains("game") {
+                total_events += add_game_events(&mut self)?;
+            }
+        } else {
+            total_events += add_game_events(&mut self)?;
+            total_events += add_tracker_events(&mut self)?;
+        }
         Ok(total_events)
     }
 
