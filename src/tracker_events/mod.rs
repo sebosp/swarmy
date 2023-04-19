@@ -9,7 +9,7 @@ use s2protocol::tracker_events::*;
 use s2protocol::versions::read_tracker_events;
 
 pub fn register_unit_init(
-    sc2_rerun: &SC2Rerun,
+    sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
     unit_init: &UnitInitEvent,
 ) -> Result<usize, SwarmyError> {
@@ -19,6 +19,22 @@ pub fn register_unit_init(
             return Ok(0usize);
         }
     }
+    let sc2_unit = SC2Unit {
+        last_game_loop: game_loop,
+        user_id: Some(unit_init.control_player_id),
+        name: unit_init.unit_type_name.clone(),
+        pos: Vec3D::new(unit_init.x as f32 / 6f32, unit_init.y as f32 / 6f32, 0.),
+        init_game_loop: game_loop,
+        ..Default::default()
+    };
+    tracing::info!("Initializing unit: {:?}", sc2_unit);
+    let game_unit_tag =
+        s2protocol::tracker_events::unit_tag(unit_init.unit_tag_index, unit_init.unit_tag_recycle);
+    if let Some(unit) = sc2_rerun.units.get(&game_unit_tag) {
+        // Hmm no idea if this is normal.
+        tracing::warn!("Re-initializing unit: {:?}", unit);
+    }
+    sc2_rerun.units.insert(game_unit_tag, sc2_unit);
     MsgSender::new(format!(
         "Unit/{}/Init",
         s2protocol::tracker_events::unit_tag(unit_init.unit_tag_index, unit_init.unit_tag_recycle)
@@ -40,7 +56,7 @@ pub fn register_unit_init(
 }
 
 pub fn register_unit_born(
-    sc2_rerun: &SC2Rerun,
+    sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
     unit_born: &UnitBornEvent,
 ) -> Result<usize, SwarmyError> {
@@ -67,47 +83,57 @@ pub fn register_unit_born(
         &unit_name_with_creator_ability,
         unit_born.control_player_id as i64,
     );
-    MsgSender::new(format!(
-        "Unit/{}/Born",
-        s2protocol::tracker_events::unit_tag(unit_born.unit_tag_index, unit_born.unit_tag_recycle)
-    ))
-    .with_time(
-        sc2_rerun.timeline,
-        (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
-    )
-    .with_splat(Point3D::new(
-        unit_born.x as f32 / 6f32,
-        -1. * unit_born.y as f32 / 6f32,
-        0.,
-    ))?
-    .with_splat(unit_color)?
-    .with_splat(TextEntry::new(&unit_born.unit_type_name, None))?
-    .with_splat(Radius(unit_size))?
-    .send(&sc2_rerun.rerun_session)?;
+    let game_unit_tag =
+        s2protocol::tracker_events::unit_tag(unit_born.unit_tag_index, unit_born.unit_tag_recycle);
+    if let Some(ref mut sc2_unit) = sc2_rerun.units.get_mut(&game_unit_tag) {
+        sc2_unit.creator_ability_name = unit_born.creator_ability_name.clone();
+        sc2_unit.last_game_loop = game_loop;
+    } else {
+        tracing::error!("Unit {} was not Init", game_unit_tag);
+    }
+    MsgSender::new(format!("Unit/{}/Born", game_unit_tag,))
+        .with_time(
+            sc2_rerun.timeline,
+            (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+        )
+        .with_splat(Point3D::new(
+            unit_born.x as f32 / 6f32,
+            -1. * unit_born.y as f32 / 6f32,
+            0.,
+        ))?
+        .with_splat(unit_color)?
+        .with_splat(TextEntry::new(&unit_born.unit_type_name, None))?
+        .with_splat(Radius(unit_size))?
+        .send(&sc2_rerun.rerun_session)?;
     Ok(1usize)
 }
 
 pub fn register_unit_died(
-    sc2_rerun: &SC2Rerun,
+    sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
     unit_dead: &UnitDiedEvent,
 ) -> Result<usize, SwarmyError> {
-    MsgSender::new(format!(
-        "Unit/{}/Died",
-        s2protocol::tracker_events::unit_tag(unit_dead.unit_tag_index, unit_dead.unit_tag_recycle)
-    ))
-    .with_time(
-        sc2_rerun.timeline,
-        (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
-    )
-    .with_splat(Point3D::new(
-        unit_dead.x as f32 / 6f32,
-        -1. * unit_dead.y as f32 / 6f32,
-        0.,
-    ))?
-    .with_splat(FREYA_DARK_RED)?
-    .with_splat(Radius(0.125))?
-    .send(&sc2_rerun.rerun_session)?;
+    let game_unit_tag =
+        s2protocol::tracker_events::unit_tag(unit_dead.unit_tag_index, unit_dead.unit_tag_recycle);
+    MsgSender::new(format!("Unit/{}/Died", game_unit_tag))
+        .with_time(
+            sc2_rerun.timeline,
+            (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
+        )
+        .with_splat(Point3D::new(
+            unit_dead.x as f32 / 6f32,
+            -1. * unit_dead.y as f32 / 6f32,
+            0.,
+        ))?
+        .with_splat(FREYA_DARK_RED)?
+        .with_splat(Radius(0.125))?
+        .send(&sc2_rerun.rerun_session)?;
+    if let None = sc2_rerun.units.remove(&game_unit_tag) {
+        tracing::error!(
+            "Unit {} reported dead but was not registered before.",
+            game_unit_tag
+        );
+    }
     // Create a Path for Death so that it can be drawn on its separate pane.
     // TODO: Create a "triangle soup", maybe something with low resolution to show regions of high
     // activity.
@@ -132,14 +158,14 @@ pub fn register_unit_died(
 }
 
 pub fn register_unit_position(
-    sc2_rerun: &SC2Rerun,
+    sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
     unit_pos: UnitPositionsEvent,
 ) -> Result<usize, SwarmyError> {
     let unit_positions = unit_pos.to_unit_positions_vec();
     let total_items = unit_positions.len();
     for unit_pos_item in unit_positions {
-        MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag,))
+        MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag))
             .with_time(
                 sc2_rerun.timeline,
                 (game_loop as f32 * TRACKER_SPEED_RATIO) as i64,
@@ -150,6 +176,19 @@ pub fn register_unit_position(
                 0.,
             ))?
             .send(&sc2_rerun.rerun_session)?;
+        if let Some(ref mut sc2_unit) = sc2_rerun.units.get_mut(&(unit_pos_item.tag as i64)) {
+            sc2_unit.pos = Vec3D::new(
+                unit_pos_item.x as f32 / 24.,
+                -1. * unit_pos_item.y as f32 / 24.,
+                0.,
+            );
+            sc2_unit.last_game_loop = game_loop;
+        } else {
+            tracing::error!(
+                "Unit {} did not exist but position registered.",
+                unit_pos_item.tag
+            );
+        }
     }
     Ok(total_items)
 }
@@ -178,7 +217,7 @@ pub fn register_player_stats(
 }
 
 /// Registers the tracker events to Rerun.
-pub fn add_tracker_events(sc2_rerun: &SC2Rerun) -> Result<usize, SwarmyError> {
+pub fn add_tracker_events(mut sc2_rerun: &mut SC2Rerun) -> Result<usize, SwarmyError> {
     let tracker_events = read_tracker_events(&sc2_rerun.mpq, &sc2_rerun.file_contents);
     let mut game_loop = 0i64;
     let mut total_events = 0usize;
@@ -200,16 +239,16 @@ pub fn add_tracker_events(sc2_rerun: &SC2Rerun) -> Result<usize, SwarmyError> {
         }
         match game_step.event {
             ReplayTrackerEvent::UnitInit(ref unit_init) => {
-                total_events += register_unit_init(sc2_rerun, game_loop, unit_init)?
+                total_events += register_unit_init(&mut sc2_rerun, game_loop, unit_init)?
             }
             ReplayTrackerEvent::UnitBorn(ref unit_born) => {
-                total_events += register_unit_born(sc2_rerun, game_loop, unit_born)?
+                total_events += register_unit_born(&mut sc2_rerun, game_loop, unit_born)?
             }
             ReplayTrackerEvent::UnitDied(ref unit_died) => {
-                total_events += register_unit_died(sc2_rerun, game_loop, unit_died)?
+                total_events += register_unit_died(&mut sc2_rerun, game_loop, unit_died)?
             }
             ReplayTrackerEvent::UnitPosition(unit_pos) => {
-                total_events += register_unit_position(sc2_rerun, game_loop, unit_pos)?
+                total_events += register_unit_position(&mut sc2_rerun, game_loop, unit_pos)?
             }
             ReplayTrackerEvent::PlayerStats(ref player_stats) => {
                 total_events += register_player_stats(sc2_rerun, game_loop, player_stats)?

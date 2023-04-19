@@ -71,7 +71,7 @@ pub struct SC2Unit {
     /// The last time the unit was updated
     pub last_game_loop: i64,
     /// The owner user_id
-    pub user_id: Option<i64>,
+    pub user_id: Option<u8>,
     /// The name of the unit.
     pub name: String,
     /// The XYZ position.
@@ -79,7 +79,7 @@ pub struct SC2Unit {
     /// The target of this unit.
     pub target: Option<Vec3D>,
     /// The game loop in which the unit was created.
-    pub init_game_loop: f32,
+    pub init_game_loop: i64,
     /// The creator ability name.
     pub creator_ability_name: Option<String>,
 }
@@ -146,16 +146,17 @@ impl SC2Rerun {
 
     pub fn add_events(&mut self) -> Result<usize, SwarmyError> {
         let mut total_events = 0usize;
-        if let Some(event_type) = &self.filters.event_type {
-            if event_type.clone().to_lowercase().contains("tracker") {
-                total_events += add_tracker_events(&mut self)?;
-            }
+        let filter_event_type = &self.filters.event_type.clone();
+        if let Some(event_type) = filter_event_type {
             if event_type.clone().to_lowercase().contains("game") {
-                total_events += add_game_events(&mut self)?;
+                total_events += add_game_events(self)?;
+            }
+            if event_type.clone().to_lowercase().contains("tracker") {
+                total_events += add_tracker_events(self)?;
             }
         } else {
-            total_events += add_game_events(&mut self)?;
-            total_events += add_tracker_events(&mut self)?;
+            total_events += add_game_events(self)?;
+            total_events += add_tracker_events(self)?;
         }
         Ok(total_events)
     }
