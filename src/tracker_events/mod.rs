@@ -129,7 +129,8 @@ pub fn register_unit_died(
         .with_splat(Radius(0.125))?
         .send(&sc2_rerun.rerun_session)?;
     if let None = sc2_rerun.units.remove(&game_unit_tag) {
-        tracing::error!(
+        // This may happen when a larva is transformed to a unit in zerg. so this is normal.
+        tracing::debug!(
             "Unit {} reported dead but was not registered before.",
             game_unit_tag
         );
@@ -223,34 +224,40 @@ pub fn add_tracker_events(mut sc2_rerun: &mut SC2Rerun) -> Result<usize, SwarmyE
     let mut total_events = 0usize;
     let min_filter = sc2_rerun.filters.min_loop.clone();
     let max_filter = sc2_rerun.filters.max_loop.clone();
-    for game_step in tracker_events {
+    let max_events = sc2_rerun.filters.max_events.clone();
+    for (idx, game_step) in tracker_events.iter().enumerate() {
         game_loop += game_step.delta as i64;
         if let Some(min) = min_filter {
             // Skip the events less than the requested filter.
-            if min < game_loop {
+            if game_loop < min {
                 continue;
             }
         }
         if let Some(max) = max_filter {
             // Skip the events greater than the requested filter.
-            if max > game_loop {
-                continue;
+            if game_loop > max {
+                break;
             }
         }
-        match game_step.event {
-            ReplayTrackerEvent::UnitInit(ref unit_init) => {
+        if let Some(max) = max_events {
+            if idx > max {
+                break;
+            }
+        }
+        match &game_step.event {
+            ReplayTrackerEvent::UnitInit(unit_init) => {
                 total_events += register_unit_init(&mut sc2_rerun, game_loop, unit_init)?
             }
-            ReplayTrackerEvent::UnitBorn(ref unit_born) => {
+            ReplayTrackerEvent::UnitBorn(unit_born) => {
                 total_events += register_unit_born(&mut sc2_rerun, game_loop, unit_born)?
             }
-            ReplayTrackerEvent::UnitDied(ref unit_died) => {
+            ReplayTrackerEvent::UnitDied(unit_died) => {
                 total_events += register_unit_died(&mut sc2_rerun, game_loop, unit_died)?
             }
             ReplayTrackerEvent::UnitPosition(unit_pos) => {
-                total_events += register_unit_position(&mut sc2_rerun, game_loop, unit_pos)?
+                total_events += register_unit_position(&mut sc2_rerun, game_loop, unit_pos.clone())?
             }
-            ReplayTrackerEvent::PlayerStats(ref player_stats) => {
+            ReplayTrackerEvent::PlayerStats(player_stats) => {
                 total_events += register_player_stats(sc2_rerun, game_loop, player_stats)?
             }
             _ => {}

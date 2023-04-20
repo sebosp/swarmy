@@ -104,6 +104,9 @@ pub struct SC2ReplayFilters {
 
     /// Only show game of specific types
     pub unit_name: Option<String>,
+
+    /// Allows setting up a max number of events of each type
+    pub max_events: Option<usize>,
 }
 
 pub struct SC2Rerun {
@@ -148,15 +151,15 @@ impl SC2Rerun {
         let mut total_events = 0usize;
         let filter_event_type = &self.filters.event_type.clone();
         if let Some(event_type) = filter_event_type {
-            if event_type.clone().to_lowercase().contains("game") {
-                total_events += add_game_events(self)?;
-            }
             if event_type.clone().to_lowercase().contains("tracker") {
                 total_events += add_tracker_events(self)?;
             }
+            if event_type.clone().to_lowercase().contains("game") {
+                total_events += add_game_events(self)?;
+            }
         } else {
-            total_events += add_game_events(self)?;
             total_events += add_tracker_events(self)?;
+            total_events += add_game_events(self)?;
         }
         Ok(total_events)
     }
