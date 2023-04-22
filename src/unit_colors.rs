@@ -25,6 +25,11 @@ pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, ColorRGBA) {
             unit_size = 0.12;
             FREYA_LIGHT_BLUE
         }
+        "XelNagaTower" => {
+            // This should be super transparent
+            unit_size = 0.12;
+            FREYA_WHITE
+        }
         "RichMineralField" => FREYA_GOLD,
         "RichMineralField750" => FREYA_ORANGE,
         "DestructibleDebris6x6" => {

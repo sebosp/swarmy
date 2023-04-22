@@ -8,7 +8,7 @@ description = "Visualizer experiments for Starcraft II - Replay data"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rerun = { git = "https://github.com/rerun-io/rerun" }
+rerun = "0.5"
 s2protocol = "1.0.0"
 nom-mpq = "0.1.1"
 colored = "2.0.0"

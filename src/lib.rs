@@ -10,6 +10,8 @@ use rerun::Session;
 use rerun::{time, MsgSenderError};
 use s2protocol::game_events::ReplayGameEvent;
 use s2protocol::tracker_events::ReplayTrackerEvent;
+use s2protocol::versions::read_game_events;
+use s2protocol::versions::read_tracker_events;
 use std::collections::HashMap;
 pub use tracker_events::*;
 pub mod unit_colors;
@@ -53,11 +55,22 @@ pub const TRACKER_SPEED_RATIO: f32 = 0.70996;
 pub const TRACKER_PRIORITY: i64 = 1;
 pub const GAME_PRIORITY: i64 = 2;
 
+// These many event types (replays, game, attributes, etc) are supported.
+// This should be the real number, but for it's just 10 to help debugging.
+pub const MAX_EVENT_TYPES: i64 = 10;
+
 /// Supported event types.
 #[derive(Debug, Clone)]
 pub enum SC2EventType {
-    Tracker(ReplayTrackerEvent),
-    Game(ReplayGameEvent),
+    Tracker {
+        tracker_loop: i64,
+        event: ReplayTrackerEvent,
+    },
+    Game {
+        game_loop: i64,
+        user_id: i64,
+        event: ReplayGameEvent,
+    },
 }
 
 /// Reads the MPQ file and returns both the MPQ read file and the
@@ -163,84 +176,118 @@ impl SC2Rerun {
     }
 
     pub fn add_events(&mut self) -> Result<usize, SwarmyError> {
-        let mut total_events = 0usize;
         let filter_event_type = &self.filters.event_type.clone();
         let tracker_events = if let Some(event_type) = filter_event_type {
             if event_type.clone().to_lowercase().contains("tracker") {
-                read_tracker_events(&sc2_rerun.mpq, &sc2_rerun.file_contents)
+                read_tracker_events(&self.mpq, &self.file_contents)
             } else {
                 vec![]
             }
         } else {
-            read_tracker_events(&sc2_rerun.mpq, &sc2_rerun.file_contents)
+            read_tracker_events(&self.mpq, &self.file_contents)
         };
-        let mut sc2_events: Hashmap<i64, Vec<SC2EventType>> = HashMap::new();
+        let mut sc2_events: HashMap<i64, Vec<SC2EventType>> = HashMap::new();
+        let mut tracker_loop = 0i64;
         for game_step in tracker_events {
             tracker_loop += game_step.delta as i64;
-            let adjusted_loop = tracker_loop * 10 + TRACKER_PRIORITY;
+            let adjusted_loop = (tracker_loop as f32 / TRACKER_SPEED_RATIO) as i64
+                * MAX_EVENT_TYPES
+                + TRACKER_PRIORITY;
             if let Some(step_evt) = sc2_events.get_mut(&adjusted_loop) {
-                *step_evt.push(SC2EventType::Tracker(game_step));
+                step_evt.push(SC2EventType::Tracker {
+                    tracker_loop: (tracker_loop as f32 / TRACKER_SPEED_RATIO) as i64,
+                    event: game_step.event,
+                });
             } else {
-                sc2_events.insert(adjusted_loop, vec![SC2EventType::Tracker(game_step)]);
+                sc2_events.insert(
+                    adjusted_loop,
+                    vec![SC2EventType::Tracker {
+                        tracker_loop: (tracker_loop as f32 / TRACKER_SPEED_RATIO) as i64,
+                        event: game_step.event,
+                    }],
+                );
             }
         }
         let game_events = if let Some(event_type) = filter_event_type {
             if event_type.clone().to_lowercase().contains("game") {
-                read_game_events(&sc2_rerun.mpq, &sc2_rerun.file_contents);
+                read_game_events(&self.mpq, &self.file_contents)
             } else {
                 vec![]
             }
         } else {
-            read_game_events(&sc2_rerun.mpq, &sc2_rerun.file_contents);
+            read_game_events(&self.mpq, &self.file_contents)
         };
+        let mut game_loop = 0i64;
         for game_step in game_events {
             game_loop += game_step.delta as i64;
-            let adjusted_loop = game_loop * TRACKER_SPEED_RATIO * 10 + GAME_PRIORITY;
+            let adjusted_loop = game_loop * MAX_EVENT_TYPES + GAME_PRIORITY;
             if let Some(step_evt) = sc2_events.get_mut(&adjusted_loop) {
-                *step_evt.push(SC2EventType::Game(game_step));
+                step_evt.push(SC2EventType::Game {
+                    game_loop,
+                    user_id: game_step.user_id,
+                    event: game_step.event,
+                });
             } else {
-                sc2_events.insert(adjusted_loop, vec![SC2EventType::Game(game_step)]);
+                sc2_events.insert(
+                    adjusted_loop,
+                    vec![SC2EventType::Game {
+                        game_loop,
+                        user_id: game_step.user_id,
+                        event: game_step.event,
+                    }],
+                );
             }
         }
         let mut total_events = 0usize;
-        let min_filter = sc2_rerun.filters.min_loop.clone();
-        let max_filter = sc2_rerun.filters.max_loop.clone();
-        let user_id_filter = sc2_rerun.filters.user_id.clone();
-        let max_events = sc2_rerun.filters.max_events.clone();
-        let mut ordered_event_loops: Vec<i64> = sc2_events.keys().clone();
+        let min_filter = self.filters.min_loop.clone();
+        let max_filter = self.filters.max_loop.clone();
+        let user_id_filter = self.filters.user_id.clone();
+        let max_events = self.filters.max_events.clone();
+        let mut ordered_event_loops: Vec<i64> = sc2_events.keys().map(|v| v.clone()).collect();
         ordered_event_loops.sort_unstable();
         for evt_loop in ordered_event_loops {
             for evt_type in sc2_events.get(&evt_loop).unwrap() {
                 if let Some(min) = min_filter {
                     // Skip the events less than the requested filter.
-                    if game_loop < min {
+                    if evt_loop / MAX_EVENT_TYPES < min {
                         continue;
                     }
                 }
                 if let Some(max) = max_filter {
                     // Skip the events greater than the requested filter.
-                    if game_loop > max {
+                    if evt_loop / MAX_EVENT_TYPES > max {
                         break;
                     }
                 }
                 if let Some(max) = max_events {
                     // Cosue these max total events of any type.
-                    if idx > max {
+                    if total_events > max {
                         break;
                     }
                 }
                 match evt_type {
-                    SC2EventType::Tracker(evt) => {}
-                    SC2EventType::Game(evt) => {
-                        if let Some(user_id) = user_id_filter {
+                    SC2EventType::Tracker {
+                        tracker_loop,
+                        event,
+                    } => {
+                        add_tracker_event(self, *tracker_loop, event)?;
+                    }
+                    SC2EventType::Game {
+                        user_id,
+                        game_loop,
+                        event,
+                    } => {
+                        if let Some(target_user_id) = user_id_filter {
                             // Skip the events that are not for the requested user.
-                            if evt.user_id != user_id {
+                            if target_user_id != *user_id {
                                 continue;
                             }
                         }
+                        add_game_event(self, *game_loop, *user_id, event)?;
                     }
                 }
             }
+            total_events += 1;
         }
         Ok(total_events)
     }

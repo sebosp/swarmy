@@ -7,14 +7,13 @@ use rerun::{
     MsgSender,
 };
 use s2protocol::game_events::*;
-use s2protocol::versions::read_game_events;
 
 pub fn register_camera_update(
     sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
     camera_update: &CameraUpdateEvent,
-) -> Result<usize, SwarmyError> {
+) -> Result<(), SwarmyError> {
     if let Some(target) = &camera_update.m_target {
         MsgSender::new(format!("Unit/999{}/Player", user_id))
             .with_time(sc2_rerun.timeline, game_loop)
@@ -29,10 +28,8 @@ pub fn register_camera_update(
             }))?
             .with_splat(user_color(user_id))?
             .send(&sc2_rerun.rerun_session)?;
-        Ok(1usize)
-    } else {
-        Ok(0usize)
     }
+    Ok(())
 }
 
 pub fn register_cmd(
@@ -40,7 +37,7 @@ pub fn register_cmd(
     game_loop: i64,
     user_id: i64,
     game_cmd: &GameSCmdEvent,
-) -> Result<usize, SwarmyError> {
+) -> Result<(), SwarmyError> {
     match &game_cmd.m_data {
         GameSCmdData::TargetPoint(target) => {
             MsgSender::new(format!("Target/{}/Camera", user_id))
@@ -53,7 +50,6 @@ pub fn register_cmd(
                 .with_splat(user_color(user_id))?
                 .with_splat(Radius(0.5))?
                 .send(&sc2_rerun.rerun_session)?;
-            Ok(1usize)
         }
         GameSCmdData::TargetUnit(target_unit) => {
             /*MsgSender::new(format!(
@@ -70,14 +66,14 @@ pub fn register_cmd(
             .with_splat(FREYA_RED)?
             .with_splat(Radius(0.1))?
             .send(&sc2_rerun.rerun_session)?;*/
-            register_update_target_unit(sc2_rerun, game_loop, user_id, target_unit)
+            register_update_target_unit(sc2_rerun, game_loop, target_unit)?;
         }
         GameSCmdData::Data(data) => {
             tracing::info!("GameSCmdData: {}", data);
-            Ok(0usize)
         }
-        GameSCmdData::None => Ok(0usize),
+        GameSCmdData::None => {}
     }
+    Ok(())
 }
 
 pub fn register_update_target_point(
@@ -85,7 +81,7 @@ pub fn register_update_target_point(
     game_loop: i64,
     user_id: i64,
     target_point: &GameSCmdUpdateTargetPointEvent,
-) -> Result<usize, SwarmyError> {
+) -> Result<(), SwarmyError> {
     MsgSender::new(format!("Target/{}", user_id))
         .with_time(sc2_rerun.timeline, game_loop)
         .with_splat(Point3D::new(
@@ -96,15 +92,14 @@ pub fn register_update_target_point(
         .with_splat(user_color(user_id))?
         .with_splat(Radius(0.5))?
         .send(&sc2_rerun.rerun_session)?;
-    Ok(1usize)
+    Ok(())
 }
 
 pub fn register_update_target_unit(
     sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
-    user_id: i64,
     target_unit: &GameSCmdDataTargetUnit,
-) -> Result<usize, SwarmyError> {
+) -> Result<(), SwarmyError> {
     let unit_target_pos = Vec3D::new(
         target_unit.m_snapshot_point.x as f32 / GAME_EVENT_POS_RATIO,
         -1. * target_unit.m_snapshot_point.y as f32 / GAME_EVENT_POS_RATIO,
@@ -116,6 +111,15 @@ pub fn register_update_target_unit(
         unit_pos = unit.pos.clone();
         unit.last_game_loop = game_loop;
     } else {
+        println!("m_tag not found for unit: {:?}", target_unit.m_tag);
+        for (key, val) in sc2_rerun.units.iter() {
+            if !val.name.contains("Geyser")
+                && !val.name.contains("Mineral")
+                && !val.name.contains("XelNagaTower")
+            {
+                println!("{}: {:?}", key, val);
+            }
+        }
         tracing::error!(
             "Unit {} Position updated but unit does not exist.",
             target_unit.m_tag
@@ -129,74 +133,29 @@ pub fn register_update_target_unit(
         })?
         .with_splat(FREYA_LIGHT_GREEN)?
         .send(&sc2_rerun.rerun_session)?;
-    Ok(1usize)
+    Ok(())
 }
 /// Registers the game events to Rerun.
-pub fn add_game_events(mut sc2_rerun: &mut SC2Rerun) -> Result<usize, SwarmyError> {
-    let game_events = read_game_events(&sc2_rerun.mpq, &sc2_rerun.file_contents);
-    let mut game_loop = 0i64;
-    let mut total_events = 0usize;
-    let min_filter = sc2_rerun.filters.min_loop.clone();
-    let max_filter = sc2_rerun.filters.max_loop.clone();
-    let user_id_filter = sc2_rerun.filters.user_id.clone();
-    let max_events = sc2_rerun.filters.max_events.clone();
-    for (idx, game_step) in game_events.iter().enumerate() {
-        game_loop += game_step.delta as i64;
-        if let Some(min) = min_filter {
-            // Skip the events less than the requested filter.
-            if game_loop < min {
-                continue;
-            }
+pub fn add_game_event(
+    mut sc2_rerun: &mut SC2Rerun,
+    game_loop: i64,
+    user_id: i64,
+    evt: &ReplayGameEvent,
+) -> Result<(), SwarmyError> {
+    match &evt {
+        ReplayGameEvent::CameraUpdate(camera_update) => {
+            register_camera_update(&sc2_rerun, game_loop, user_id, camera_update)?;
         }
-        if let Some(max) = max_filter {
-            // Skip the events greater than the requested filter.
-            if game_loop > max {
-                break;
-            }
+        ReplayGameEvent::Cmd(game_cmd) => {
+            register_cmd(&mut sc2_rerun, game_loop, user_id, game_cmd)?;
         }
-        if let Some(user_id) = user_id_filter {
-            // Skip the events greater than the requested filter.
-            if game_step.user_id != user_id {
-                continue;
-            }
+        ReplayGameEvent::CmdUpdateTargetPoint(target_point) => {
+            register_update_target_point(&mut sc2_rerun, game_loop, user_id, target_point)?;
         }
-        if let Some(max) = max_events {
-            if idx > max {
-                break;
-            }
+        ReplayGameEvent::CmdUpdateTargetUnit(target_unit) => {
+            register_update_target_unit(&mut sc2_rerun, game_loop, &target_unit.m_target)?;
         }
-        match &game_step.event {
-            ReplayGameEvent::CameraUpdate(camera_update) => {
-                total_events +=
-                    register_camera_update(&sc2_rerun, game_loop, game_step.user_id, camera_update)?
-            }
-            ReplayGameEvent::Cmd(game_cmd) => {
-                total_events +=
-                    register_cmd(&mut sc2_rerun, game_loop, game_step.user_id, game_cmd)?
-            }
-            ReplayGameEvent::CmdUpdateTargetPoint(target_point) => {
-                total_events += register_update_target_point(
-                    &mut sc2_rerun,
-                    game_loop,
-                    game_step.user_id,
-                    target_point,
-                )?
-            }
-            ReplayGameEvent::CmdUpdateTargetUnit(target_unit) => {
-                total_events += register_update_target_unit(
-                    &mut sc2_rerun,
-                    game_loop,
-                    game_step.user_id,
-                    &target_unit.m_target,
-                )?
-            }
-            _ => {}
-        }
+        _ => {}
     }
-    tracing::info!(
-        "Added a total of {} GameEvents. Final Game loop: {}",
-        total_events,
-        game_loop
-    );
-    Ok(total_events)
+    Ok(())
 }
