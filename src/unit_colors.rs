@@ -1,63 +1,66 @@
 use super::*;
 // Returns the expected size of units depending on their type
 pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, ColorRGBA) {
-    let mut unit_size = 0.075;
+    let mut unit_size = 0.45;
     let color = match unit_name {
         "VespeneEDyser" => FREYA_LIGHT_GREEN,
         "SpacePlatformGeyser" => FREYA_LIGHT_GREEN,
         "LabMineralField" => {
-            unit_size = 0.04;
+            unit_size = 0.24;
             FREYA_LIGHT_BLUE
         }
         "LabMineralField750" => {
-            unit_size = 0.06;
+            unit_size = 0.36;
             FREYA_LIGHT_BLUE
         }
         "MineralField" => {
-            unit_size = 0.08;
+            unit_size = 0.48;
             FREYA_LIGHT_BLUE
         }
         "MineralField450" => {
-            unit_size = 0.1;
+            unit_size = 0.6;
             FREYA_LIGHT_BLUE
         }
         "MineralField750" => {
-            unit_size = 0.12;
+            unit_size = 0.72;
             FREYA_LIGHT_BLUE
         }
         "XelNagaTower" => {
             // This should be super transparent
-            unit_size = 0.12;
+            unit_size = 0.72;
             FREYA_WHITE
         }
         "RichMineralField" => FREYA_GOLD,
         "RichMineralField750" => FREYA_ORANGE,
         "DestructibleDebris6x6" => {
-            unit_size = 0.3;
+            unit_size = 1.8;
             FREYA_GRAY
         }
         "UnbuildablePlatesDestructible" => {
-            unit_size = 0.1;
+            unit_size = 0.6;
             FREYA_LIGHT_GRAY
         }
         "Overlord" => {
-            unit_size = 0.0;
+            unit_size = 0.6;
             FREYA_YELLOW
         }
-        "SCV" | "Drone" | "Probe" => {
-            unit_size = 0.05;
+        "SCV" | "Drone" | "Probe" | "Larva" => {
+            unit_size = 0.3;
             FREYA_LIGHT_GRAY
         }
         "Hatchery" | "CommandCenter" | "Nexus" => {
-            unit_size = 0.2;
+            unit_size = 1.2;
             FREYA_PINK
         }
         "Broodling" => {
-            unit_size = 0.01;
+            unit_size = 0.06;
             FREYA_LIGHT_GRAY
         }
         _ => {
-            println!("Unknown unit name: '{}'", unit_name);
+            // Ignore the Beacons for now.
+            if !unit_name.starts_with("Beacon") {
+                println!("Unknown unit name: '{}'", unit_name);
+            }
             // Fallback to user color
             user_color(user_id)
         }
