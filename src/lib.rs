@@ -21,7 +21,7 @@ pub use game_events::*;
 pub mod tracker_events;
 
 /// The game events seem to be at this ratio when compared to Tracker Events.
-pub const GAME_EVENT_POS_RATIO: f32 = 27_000f32;
+pub const GAME_EVENT_POS_RATIO: f32 = 4096f32;
 
 // Some colors I really liked from a Freya Holmer presentation:
 // https://www.youtube.com/watch?v=kfM-yu0iQBk
@@ -110,6 +110,10 @@ pub struct SC2Unit {
     pub init_game_loop: i64,
     /// The creator ability name.
     pub creator_ability_name: Option<String>,
+    /// The radius of the unit.
+    pub radius: f32,
+    /// Whether the unit is selected
+    pub is_selected: bool,
 }
 
 /// A set of filters to apply to the rerun session.
@@ -139,7 +143,8 @@ pub struct SC2ReplayFilters {
 
 pub struct SC2Rerun {
     /// The registered units state as they change through time.
-    pub units: HashMap<i64, SC2Unit>,
+    /// These are with unit index as reference
+    pub units: HashMap<u32, SC2Unit>,
 
     /// The absolute GameEvevnt loop timeline, the tracker loop should be relative to it.
     pub timeline: Timeline,
@@ -158,6 +163,10 @@ pub struct SC2Rerun {
 
     /// Whether or not the PlayerStats event should be shown. To be replaced by a proper filter
     pub include_stats: bool,
+
+    /// The currently active unit group. These are the units that the player has selected as part
+    /// of a control group.
+    pub active_user_group: HashMap<i64, Vec<u32>>,
 }
 impl SC2Rerun {
     pub fn new(file_path: &str) -> Result<Self, SwarmyError> {
@@ -172,6 +181,7 @@ impl SC2Rerun {
             file_contents,
             filters: SC2ReplayFilters::default(),
             include_stats: false,
+            active_user_group: HashMap::new(),
         })
     }
 
@@ -270,6 +280,7 @@ impl SC2Rerun {
                         tracker_loop,
                         event,
                     } => {
+                        tracing::info!("Trac [{:>08}]: {:?}", tracker_loop, event);
                         add_tracker_event(self, *tracker_loop, event)?;
                     }
                     SC2EventType::Game {
@@ -283,6 +294,7 @@ impl SC2Rerun {
                                 continue;
                             }
                         }
+                        tracing::info!("Game [{:>08}]: uid: {} {:?}", game_loop, *user_id, event);
                         add_game_event(self, *game_loop, *user_id, event)?;
                     }
                 }
