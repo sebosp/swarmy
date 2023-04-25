@@ -3,10 +3,11 @@
 use super::*;
 use rerun::components::Arrow3D;
 use rerun::{
-    components::{Box3D, Point3D, Quaternion, Radius, Rigid3, Transform, Vec3D},
+    components::{Box3D, Quaternion, Radius, Rigid3, Transform, Vec3D},
     MsgSender,
 };
 use s2protocol::game_events::*;
+use s2protocol::tracker_events::unit_tag_index;
 
 pub fn register_camera_update(
     sc2_rerun: &SC2Rerun,
@@ -17,12 +18,12 @@ pub fn register_camera_update(
     if let Some(target) = &camera_update.m_target {
         MsgSender::new(format!("Unit/999{}/Player", user_id))
             .with_time(sc2_rerun.timeline, game_loop)
-            .with_splat(Box3D::new(0.8, 0.8, 0.0))?
+            .with_splat(Box3D::new(3.0, 3.0, 0.0))?
             .with_splat(Transform::Rigid3(Rigid3 {
                 rotation: Quaternion::new(0., 0., 0., 0.),
                 translation: Vec3D::new(
-                    (target.x as f32 / 1500f32) - 0.3,
-                    (-1. * target.y as f32 / 1500f32) - 0.3,
+                    (target.x as f32 / 250f32) - 1.5,
+                    (-1. * target.y as f32 / 250f32) - 1.5,
                     0.,
                 ),
             }))?
@@ -40,33 +41,19 @@ pub fn register_cmd(
 ) -> Result<(), SwarmyError> {
     match &game_cmd.m_data {
         GameSCmdData::TargetPoint(target) => {
-            MsgSender::new(format!("Target/{}/Camera", user_id))
-                .with_time(sc2_rerun.timeline, game_loop)
-                .with_splat(Point3D::new(
-                    target.x as f32 / GAME_EVENT_POS_RATIO,
-                    -1. * target.y as f32 / GAME_EVENT_POS_RATIO,
-                    target.z as f32 / GAME_EVENT_POS_RATIO,
-                ))?
-                .with_splat(user_color(user_id))?
-                .with_splat(Radius(0.5))?
-                .send(&sc2_rerun.rerun_session)?;
-        }
-        GameSCmdData::TargetUnit(target_unit) => {
-            /*MsgSender::new(format!(
-                "Target/{}/Unit/{}",
-                target.m_snapshot_control_player_id.unwrap_or_default(),
-                target.m_tag,
-            ))
+            /*MsgSender::new(format!("Target/{}/Camera", user_id))
             .with_time(sc2_rerun.timeline, game_loop)
             .with_splat(Point3D::new(
-                target.m_snapshot_point.x as f32 / GAME_EVENT_POS_RATIO,
-                -1. * target.m_snapshot_point.y as f32 / GAME_EVENT_POS_RATIO,
-                target.m_snapshot_point.z as f32 / GAME_EVENT_POS_RATIO,
+                target.x as f32 / GAME_EVENT_POS_RATIO,
+                -1. * target.y as f32 / GAME_EVENT_POS_RATIO,
+                target.z as f32 / GAME_EVENT_POS_RATIO,
             ))?
-            .with_splat(FREYA_RED)?
-            .with_splat(Radius(0.1))?
+            .with_splat(user_color(user_id))?
+            .with_splat(Radius(3.0))?
             .send(&sc2_rerun.rerun_session)?;*/
-            register_update_target_unit(sc2_rerun, game_loop, target_unit)?;
+        }
+        GameSCmdData::TargetUnit(target_unit) => {
+            register_update_target_unit(sc2_rerun, game_loop, user_id, target_unit)?;
         }
         GameSCmdData::Data(data) => {
             tracing::info!("GameSCmdData: {}", data);
@@ -77,27 +64,45 @@ pub fn register_cmd(
 }
 
 pub fn register_update_target_point(
-    sc2_rerun: &SC2Rerun,
+    sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
     user_id: i64,
     target_point: &GameSCmdUpdateTargetPointEvent,
 ) -> Result<(), SwarmyError> {
-    MsgSender::new(format!("Target/{}", user_id))
-        .with_time(sc2_rerun.timeline, game_loop)
-        .with_splat(Point3D::new(
-            target_point.m_target.x as f32 / GAME_EVENT_POS_RATIO,
-            -1. * target_point.m_target.y as f32 / GAME_EVENT_POS_RATIO,
-            target_point.m_target.z as f32 / GAME_EVENT_POS_RATIO,
-        ))?
-        .with_splat(user_color(user_id))?
-        .with_splat(Radius(0.5))?
-        .send(&sc2_rerun.rerun_session)?;
+    let unit_target_pos = Vec3D::new(
+        target_point.m_target.x as f32 / GAME_EVENT_POS_RATIO,
+        -1. * target_point.m_target.y as f32 / GAME_EVENT_POS_RATIO,
+        target_point.m_target.z as f32 / GAME_EVENT_POS_RATIO,
+    );
+    let mut user_selected_units: Vec<u32> = vec![];
+    if let Some(user_units) = sc2_rerun.active_user_group.get(&user_id) {
+        user_selected_units = user_units.clone();
+    }
+    for selected_unit in user_selected_units {
+        let unit_index = unit_tag_index(selected_unit as i64);
+        if let Some(ref mut registered_unit) = sc2_rerun.units.get_mut(&unit_index) {
+            registered_unit.target = Some(unit_target_pos);
+            MsgSender::new(format!("Unit/{}/Target", unit_index))
+                .with_time(sc2_rerun.timeline, game_loop)
+                .with_splat(Arrow3D {
+                    origin: registered_unit.pos,
+                    vector: Vec3D::new(
+                        unit_target_pos.x() - registered_unit.pos.x(),
+                        unit_target_pos.y() - registered_unit.pos.y(),
+                        unit_target_pos.z() - registered_unit.pos.z(),
+                    ),
+                })?
+                .with_splat(user_color(user_id))?
+                .send(&sc2_rerun.rerun_session)?;
+        }
+    }
     Ok(())
 }
 
 pub fn register_update_target_unit(
     sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
+    user_id: i64,
     target_unit: &GameSCmdDataTargetUnit,
 ) -> Result<(), SwarmyError> {
     let unit_target_pos = Vec3D::new(
@@ -105,36 +110,81 @@ pub fn register_update_target_unit(
         -1. * target_unit.m_snapshot_point.y as f32 / GAME_EVENT_POS_RATIO,
         target_unit.m_snapshot_point.z as f32 / GAME_EVENT_POS_RATIO,
     );
-    let mut unit_pos = Vec3D::new(0., 0., 0.);
-    if let Some(ref mut unit) = sc2_rerun.units.get_mut(&(target_unit.m_tag as i64)) {
-        unit.target = Some(unit_target_pos);
-        unit_pos = unit.pos.clone();
-        unit.last_game_loop = game_loop;
-    } else {
-        println!("m_tag not found for unit: {:?}", target_unit.m_tag);
-        for (key, val) in sc2_rerun.units.iter() {
-            if !val.name.contains("Geyser")
-                && !val.name.contains("Mineral")
-                && !val.name.contains("XelNagaTower")
-            {
-                println!("{}: {:?}", key, val);
-            }
-        }
-        tracing::error!(
-            "Unit {} Position updated but unit does not exist.",
-            target_unit.m_tag
-        );
+    let mut user_selected_units: Vec<u32> = vec![];
+    if let Some(user_units) = sc2_rerun.active_user_group.get(&user_id) {
+        user_selected_units = user_units.clone();
     }
-    MsgSender::new(format!("Unit/{}/Position", target_unit.m_tag))
-        .with_time(sc2_rerun.timeline, game_loop)
-        .with_splat(Arrow3D {
-            origin: unit_pos,
-            vector: unit_target_pos,
-        })?
-        .with_splat(FREYA_LIGHT_GREEN)?
-        .send(&sc2_rerun.rerun_session)?;
+    for selected_unit in user_selected_units {
+        let unit_index = unit_tag_index(selected_unit as i64);
+        if let Some(ref mut registered_unit) = sc2_rerun.units.get_mut(&unit_index) {
+            registered_unit.target = Some(unit_target_pos);
+            MsgSender::new(format!("Unit/{}/Target", unit_index))
+                .with_time(sc2_rerun.timeline, game_loop)
+                .with_splat(Arrow3D {
+                    origin: registered_unit.pos,
+                    vector: Vec3D::new(
+                        unit_target_pos.x() - registered_unit.pos.x(),
+                        unit_target_pos.y() - registered_unit.pos.y(),
+                        unit_target_pos.z() - registered_unit.pos.z(),
+                    ),
+                })?
+                .with_splat(user_color(user_id))?
+                .send(&sc2_rerun.rerun_session)?;
+        }
+    }
     Ok(())
 }
+
+/// Registers units as being selected.
+/// The previous selected units radius is decreased to its normal state.
+/// The new selected units radius is increased.
+pub fn register_selection_delta(
+    sc2_rerun: &mut SC2Rerun,
+    game_loop: i64,
+    user_id: i64,
+    selection_delta: &GameSSelectionDeltaEvent,
+) -> Result<(), SwarmyError> {
+    let prev_selected_units = sc2_rerun.active_user_group.remove(&user_id);
+    if let Some(prev_selected_units) = prev_selected_units {
+        for prev_unit in prev_selected_units {
+            let unit_index = unit_tag_index(prev_unit as i64);
+            if let Some(ref mut unit) = sc2_rerun.units.get_mut(&unit_index) {
+                if unit.is_selected {
+                    unit.is_selected = false;
+                    unit.radius = unit.radius * 0.5;
+                }
+                // Decrease the previous units radius increment.
+                // XXX: Technically this is not "Born", we should have a State or Status that
+                // contains the radius of the unit.
+                MsgSender::new(format!("Unit/{}/Born", unit_index))
+                    .with_time(sc2_rerun.timeline, game_loop)
+                    .with_splat(Radius(unit.radius))?
+                    .send(&sc2_rerun.rerun_session)?;
+            }
+        }
+    }
+    sc2_rerun
+        .active_user_group
+        .insert(user_id, selection_delta.m_delta.m_add_unit_tags.clone());
+    for new_selected_unit in &selection_delta.m_delta.m_add_unit_tags {
+        let unit_index = unit_tag_index(*new_selected_unit as i64);
+        if let Some(ref mut unit) = sc2_rerun.units.get_mut(&unit_index) {
+            if !unit.is_selected {
+                unit.is_selected = true;
+                unit.radius = unit.radius * 2.0;
+            }
+            // Increase the previous units radius increment.
+            // XXX: Technically this is not "Born", we should have a State or Status that
+            // contains the radius of the unit.
+            MsgSender::new(format!("Unit/{}/Born", unit_index))
+                .with_time(sc2_rerun.timeline, game_loop)
+                .with_splat(Radius(unit.radius))?
+                .send(&sc2_rerun.rerun_session)?;
+        }
+    }
+    Ok(())
+}
+
 /// Registers the game events to Rerun.
 pub fn add_game_event(
     mut sc2_rerun: &mut SC2Rerun,
@@ -153,7 +203,10 @@ pub fn add_game_event(
             register_update_target_point(&mut sc2_rerun, game_loop, user_id, target_point)?;
         }
         ReplayGameEvent::CmdUpdateTargetUnit(target_unit) => {
-            register_update_target_unit(&mut sc2_rerun, game_loop, &target_unit.m_target)?;
+            register_update_target_unit(&mut sc2_rerun, game_loop, user_id, &target_unit.m_target)?;
+        }
+        ReplayGameEvent::SelectionDelta(selection_delta) => {
+            register_selection_delta(&mut sc2_rerun, game_loop, user_id, &selection_delta)?;
         }
         _ => {}
     }

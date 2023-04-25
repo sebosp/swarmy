@@ -18,35 +18,38 @@ pub fn register_unit_init(
             return Ok(0usize);
         }
     }
+    let (unit_size, unit_color) = get_unit_sized_color(
+        &unit_init.unit_type_name,
+        unit_init.control_player_id as i64,
+    );
     let sc2_unit = SC2Unit {
         last_game_loop: game_loop,
         user_id: Some(unit_init.control_player_id),
         name: unit_init.unit_type_name.clone(),
-        pos: Vec3D::new(unit_init.x as f32 / 6f32, unit_init.y as f32 / 6f32, 0.),
+        pos: Vec3D::new(unit_init.x as f32, -1. * unit_init.y as f32, 0.),
         init_game_loop: game_loop,
+        radius: unit_size,
         ..Default::default()
     };
     if unit_init.unit_tag_index == 159 && unit_init.unit_tag_recycle == 1 {
         tracing::error!("INIT: {:?}", unit_init);
     }
     tracing::info!("Initializing unit: {:?}", sc2_unit);
-    let game_unit_tag =
-        s2protocol::tracker_events::unit_tag(unit_init.unit_tag_index, unit_init.unit_tag_recycle);
-    if let Some(unit) = sc2_rerun.units.get(&game_unit_tag) {
+    if let Some(unit) = sc2_rerun.units.get(&unit_init.unit_tag_index) {
         // Hmm no idea if this is normal.
         tracing::warn!("Re-initializing unit: {:?}", unit);
     }
-    sc2_rerun.units.insert(game_unit_tag, sc2_unit);
-    MsgSender::new(format!("Unit/{}/Init", game_unit_tag))
+    sc2_rerun.units.insert(unit_init.unit_tag_index, sc2_unit);
+    MsgSender::new(format!("Unit/{}/Init", unit_init.unit_tag_index))
         .with_time(sc2_rerun.timeline, game_loop)
         .with_splat(Point3D::new(
-            unit_init.x as f32 / 6f32,
-            -1. * unit_init.y as f32 / 6f32,
+            unit_init.x as f32,
+            -1. * unit_init.y as f32,
             0.,
         ))?
-        .with_splat(FREYA_PINK)?
+        .with_splat(unit_color)?
         .with_splat(TextEntry::new(&unit_init.unit_type_name, None))?
-        .with_splat(Radius(0.125))?
+        .with_splat(Radius(unit_size))?
         .send(&sc2_rerun.rerun_session)?;
     Ok(1usize)
 }
@@ -56,35 +59,17 @@ pub fn register_unit_born(
     game_loop: i64,
     unit_born: &UnitBornEvent,
 ) -> Result<(), SwarmyError> {
-    if unit_born.unit_tag_index == 159 && unit_born.unit_tag_recycle == 1 {
-        tracing::error!("BORN: {:?}", unit_born);
-    }
     let unit_name_filter = &sc2_rerun.filters.unit_name;
     if let Some(unit_name_filter) = unit_name_filter {
         if unit_name_filter != &unit_born.unit_type_name {
             return Ok(());
         }
     }
-    let unit_type_name = &unit_born.unit_type_name;
-    let unit_name_with_creator_ability = match &unit_born.creator_ability_name {
-        Some(val) => {
-            let mut creator = val.clone();
-            // Add some context to what ability created this unit.
-            if !creator.is_empty() && val != unit_type_name {
-                creator.push_str(">");
-                creator.push_str(&unit_type_name);
-            }
-            creator
-        }
-        None => unit_type_name.clone(),
-    };
     let (unit_size, unit_color) = get_unit_sized_color(
-        &unit_name_with_creator_ability,
+        &unit_born.unit_type_name,
         unit_born.control_player_id as i64,
     );
-    let game_unit_tag =
-        s2protocol::tracker_events::unit_tag(unit_born.unit_tag_index, unit_born.unit_tag_recycle);
-    if let Some(ref mut sc2_unit) = sc2_rerun.units.get_mut(&game_unit_tag) {
+    if let Some(ref mut sc2_unit) = sc2_rerun.units.get_mut(&unit_born.unit_tag_index) {
         sc2_unit.creator_ability_name = unit_born.creator_ability_name.clone();
         sc2_unit.last_game_loop = game_loop;
     } else {
@@ -92,17 +77,18 @@ pub fn register_unit_born(
             last_game_loop: game_loop,
             user_id: Some(unit_born.control_player_id),
             name: unit_born.unit_type_name.clone(),
-            pos: Vec3D::new(unit_born.x as f32 / 6f32, unit_born.y as f32 / 6f32, 0.),
+            pos: Vec3D::new(unit_born.x as f32, -1. * unit_born.y as f32, 0.),
             init_game_loop: game_loop,
+            radius: unit_size,
             ..Default::default()
         };
-        sc2_rerun.units.insert(game_unit_tag, sc2_unit);
+        sc2_rerun.units.insert(unit_born.unit_tag_index, sc2_unit);
     }
-    MsgSender::new(format!("Unit/{}/Born", game_unit_tag,))
+    MsgSender::new(format!("Unit/{}/Born", unit_born.unit_tag_index,))
         .with_time(sc2_rerun.timeline, game_loop)
         .with_splat(Point3D::new(
-            unit_born.x as f32 / 6f32,
-            -1. * unit_born.y as f32 / 6f32,
+            unit_born.x as f32,
+            -1. * unit_born.y as f32,
             0.,
         ))?
         .with_splat(unit_color)?
@@ -117,41 +103,60 @@ pub fn register_unit_died(
     game_loop: i64,
     unit_dead: &UnitDiedEvent,
 ) -> Result<(), SwarmyError> {
-    if unit_dead.unit_tag_index == 159 && unit_dead.unit_tag_recycle == 1 {
-        tracing::error!("DEAD: {:?}", unit_dead);
-    }
-    let game_unit_tag =
-        s2protocol::tracker_events::unit_tag(unit_dead.unit_tag_index, unit_dead.unit_tag_recycle);
-    MsgSender::new(format!("Unit/{}/Died", game_unit_tag))
-        .with_time(sc2_rerun.timeline, game_loop)
-        .with_splat(Point3D::new(
-            unit_dead.x as f32 / 6f32,
-            -1. * unit_dead.y as f32 / 6f32,
-            0.,
-        ))?
-        .with_splat(FREYA_DARK_RED)?
-        .with_splat(Radius(0.125))?
-        .send(&sc2_rerun.rerun_session)?;
-    if let None = sc2_rerun.units.remove(&game_unit_tag) {
+    // Register unit dead
+    /*MsgSender::new(format!("Unit/{}/Died", unit_dead.unit_tag_index))
+    .with_time(sc2_rerun.timeline, game_loop)
+    .with_splat(Point3D::new(
+        unit_dead.x as f32,
+        -1. * unit_dead.y as f32,
+        0.,
+    ))?
+    .with_splat(FREYA_DARK_RED)?
+    .with_splat(Radius(0.75))?
+    .send(&sc2_rerun.rerun_session)?;*/
+    // Clear up the previous unit target.
+    let timepoint = [(
+        sc2_rerun.timeline,
+        rerun::time::TimeInt::from_sequence(game_loop),
+    )];
+    let _ = &sc2_rerun.rerun_session.send_path_op(
+        &timepoint.into(),
+        rerun::log::PathOp::clear(
+            true,
+            format!("Unit/{}/Target", unit_dead.unit_tag_index).into(),
+        ),
+    );
+    let _ = &sc2_rerun.rerun_session.send_path_op(
+        &timepoint.into(),
+        rerun::log::PathOp::clear(
+            true,
+            format!("Unit/{}/Born", unit_dead.unit_tag_index).into(),
+        ),
+    );
+    if let None = sc2_rerun.units.remove(&unit_dead.unit_tag_index) {
         // This may happen when a larva is transformed to a unit in zerg. so this is normal.
         tracing::debug!(
             "Unit {} reported dead but was not registered before.",
-            game_unit_tag
+            unit_dead.unit_tag_index
         );
     }
     // Create a Path for Death so that it can be drawn on its separate pane.
     // TODO: Create a "triangle soup", maybe something with low resolution to show regions of high
     // activity.
-    MsgSender::new(format!("Death/{}/{}", game_unit_tag, game_loop))
-        .with_time(sc2_rerun.timeline, game_loop)
-        .with_splat(Point3D::new(
-            unit_dead.x as f32 / 6f32,
-            -1. * unit_dead.y as f32 / 6f32,
-            game_loop as f32 / 100.,
-        ))?
-        .with_splat(FREYA_DARK_RED)?
-        .with_splat(Radius(0.125))?
-        .send(&sc2_rerun.rerun_session)?;
+    MsgSender::new(format!(
+        "Death/{}/{}",
+        unit_tag(unit_dead.unit_tag_index, unit_dead.unit_tag_recycle),
+        game_loop
+    ))
+    .with_time(sc2_rerun.timeline, game_loop)
+    .with_splat(Point3D::new(
+        unit_dead.x as f32,
+        -1. * unit_dead.y as f32,
+        game_loop as f32 / 100.,
+    ))?
+    .with_splat(FREYA_DARK_RED)?
+    .with_splat(Radius(0.75))?
+    .send(&sc2_rerun.rerun_session)?;
     Ok(())
 }
 
@@ -160,21 +165,22 @@ pub fn register_unit_position(
     game_loop: i64,
     unit_pos: UnitPositionsEvent,
 ) -> Result<(), SwarmyError> {
-    tracing::error!("POSITION: {:?}", unit_pos.first_unit_index);
+    tracing::error!("POSITION1: {:?}", unit_pos);
     let unit_positions = unit_pos.to_unit_positions_vec();
+    tracing::error!("POSITION2: {:?}", unit_positions);
     for unit_pos_item in unit_positions {
         MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag))
             .with_time(sc2_rerun.timeline, game_loop)
             .with_splat(Point3D::new(
-                unit_pos_item.x as f32 / 24.,
-                -1. * unit_pos_item.y as f32 / 24.,
+                unit_pos_item.x as f32 / 4.,
+                -1. * unit_pos_item.y as f32 / 4.,
                 0.,
             ))?
             .send(&sc2_rerun.rerun_session)?;
-        if let Some(ref mut sc2_unit) = sc2_rerun.units.get_mut(&(unit_pos_item.tag as i64)) {
+        if let Some(ref mut sc2_unit) = sc2_rerun.units.get_mut(&unit_pos_item.tag) {
             sc2_unit.pos = Vec3D::new(
-                unit_pos_item.x as f32 / 24.,
-                -1. * unit_pos_item.y as f32 / 24.,
+                unit_pos_item.x as f32 / 4.,
+                -1. * unit_pos_item.y as f32 / 4.,
                 0.,
             );
             sc2_unit.last_game_loop = game_loop;

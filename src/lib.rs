@@ -167,6 +167,7 @@ pub struct SC2Rerun {
     /// The currently active unit group. These are the units that the player has selected as part
     /// of a control group.
     pub active_user_group: HashMap<i64, Vec<u32>>,
+    // TODO: Add Per-user control groups that are recalled.
 }
 impl SC2Rerun {
     pub fn new(file_path: &str) -> Result<Self, SwarmyError> {
