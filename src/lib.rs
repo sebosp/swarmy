@@ -116,6 +116,29 @@ pub struct SC2Unit {
     pub is_selected: bool,
 }
 
+/// The currently selected units is stored as a group outside of the boundaries of the usable
+/// groups.
+pub const ACTIVE_UNITS_GROUP_IDX: usize = 10usize;
+
+/// The user state as it's collected through time.
+#[derive(Debug, Default, Clone)]
+pub struct SC2UserState {
+    /// An array of registered control groups per user, the control group indexed as 10th is the
+    /// currently selected units.
+    pub control_groups: Vec<Vec<u32>>,
+}
+
+impl SC2UserState {
+    pub fn new() -> Self {
+        let mut control_groups = vec![];
+        // populate as empty control groups.
+        for _ in 0..11 {
+            control_groups.push(vec![]);
+        }
+        Self { control_groups }
+    }
+}
+
 /// A set of filters to apply to the rerun session.
 #[derive(Debug, Default, Clone)]
 pub struct SC2ReplayFilters {
@@ -164,10 +187,9 @@ pub struct SC2Rerun {
     /// Whether or not the PlayerStats event should be shown. To be replaced by a proper filter
     pub include_stats: bool,
 
-    /// The currently active unit group. These are the units that the player has selected as part
-    /// of a control group.
-    pub active_user_group: HashMap<i64, Vec<u32>>,
-    // TODO: Add Per-user control groups that are recalled.
+    /// The per-user state, the control groups, the supply, units, upgrades, as it progresses
+    /// through time.
+    pub user_state: HashMap<i64, SC2UserState>,
 }
 impl SC2Rerun {
     pub fn new(file_path: &str) -> Result<Self, SwarmyError> {
@@ -182,7 +204,7 @@ impl SC2Rerun {
             file_contents,
             filters: SC2ReplayFilters::default(),
             include_stats: false,
-            active_user_group: HashMap::new(),
+            user_state: HashMap::new(),
         })
     }
 

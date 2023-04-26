@@ -31,9 +31,6 @@ pub fn register_unit_init(
         radius: unit_size,
         ..Default::default()
     };
-    if unit_init.unit_tag_index == 159 && unit_init.unit_tag_recycle == 1 {
-        tracing::error!("INIT: {:?}", unit_init);
-    }
     tracing::info!("Initializing unit: {:?}", sc2_unit);
     if let Some(unit) = sc2_rerun.units.get(&unit_init.unit_tag_index) {
         // Hmm no idea if this is normal.
@@ -165,9 +162,7 @@ pub fn register_unit_position(
     game_loop: i64,
     unit_pos: UnitPositionsEvent,
 ) -> Result<(), SwarmyError> {
-    tracing::error!("POSITION1: {:?}", unit_pos);
     let unit_positions = unit_pos.to_unit_positions_vec();
-    tracing::error!("POSITION2: {:?}", unit_positions);
     for unit_pos_item in unit_positions {
         MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag))
             .with_time(sc2_rerun.timeline, game_loop)
@@ -235,6 +230,13 @@ pub fn add_tracker_event(
         }
         ReplayTrackerEvent::PlayerStats(player_stats) => {
             register_player_stats(sc2_rerun, tracker_loop, player_stats)?;
+        }
+        ReplayTrackerEvent::PlayerSetup(player_setup) => {
+            if let Some(user_id) = player_setup.user_id {
+                sc2_rerun
+                    .user_state
+                    .insert(user_id as i64, SC2UserState::new());
+            }
         }
         _ => {}
     }
