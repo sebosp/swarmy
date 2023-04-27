@@ -41,16 +41,7 @@ pub fn register_cmd(
 ) -> Result<(), SwarmyError> {
     match &game_cmd.m_data {
         GameSCmdData::TargetPoint(target) => {
-            /*MsgSender::new(format!("Target/{}/Camera", user_id))
-            .with_time(sc2_rerun.timeline, game_loop)
-            .with_splat(Point3D::new(
-                target.x as f32 / GAME_EVENT_POS_RATIO,
-                -1. * target.y as f32 / GAME_EVENT_POS_RATIO,
-                target.z as f32 / GAME_EVENT_POS_RATIO,
-            ))?
-            .with_splat(user_color(user_id))?
-            .with_splat(Radius(3.0))?
-            .send(&sc2_rerun.rerun_session)?;*/
+            register_update_target_point(sc2_rerun, game_loop, user_id, target)?;
         }
         GameSCmdData::TargetUnit(target_unit) => {
             register_update_target_unit(sc2_rerun, game_loop, user_id, target_unit)?;
@@ -67,12 +58,12 @@ pub fn register_update_target_point(
     sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
     user_id: i64,
-    target_point: &GameSCmdUpdateTargetPointEvent,
+    target_point: &GameSMapCoord3D,
 ) -> Result<(), SwarmyError> {
     let unit_target_pos = Vec3D::new(
-        target_point.m_target.x as f32 / GAME_EVENT_POS_RATIO,
-        -1. * target_point.m_target.y as f32 / GAME_EVENT_POS_RATIO,
-        target_point.m_target.z as f32 / GAME_EVENT_POS_RATIO,
+        target_point.x as f32 / GAME_EVENT_POS_RATIO,
+        -1. * target_point.y as f32 / GAME_EVENT_POS_RATIO,
+        target_point.z as f32 / GAME_EVENT_POS_RATIO,
     );
     let mut user_selected_units: Vec<u32> = vec![];
     if let Some(state) = sc2_rerun.user_state.get(&user_id) {
@@ -191,23 +182,30 @@ pub fn mark_selected_units(
 /// Registers units as being selected.
 /// The previous selected units radius is decreased to its normal state.
 /// The new selected units radius is increased.
+/// The event could be for a non-selected group, for example, a unit in a group may have died
+/// and that would trigger a selection delta. Same if a unit as Larva is part of a group and
+/// then it is born into another unit which triggers a selection delta.
+/// In the rust version we are matching the ACTIVE_UNITS_GROUP_IDX to 10, the last item in the
+/// array of selceted units which seems to match the blizzard UI so far.
 pub fn register_selection_delta(
     sc2_rerun: &mut SC2Rerun,
     game_loop: i64,
     user_id: i64,
     selection_delta: &GameSSelectionDeltaEvent,
 ) -> Result<(), SwarmyError> {
-    unmark_previously_selected_units(sc2_rerun, game_loop, user_id)?;
+    if selection_delta.m_control_group_id == ACTIVE_UNITS_GROUP_IDX as u8 {
+        unmark_previously_selected_units(sc2_rerun, game_loop, user_id)?;
+        mark_selected_units(
+            sc2_rerun,
+            game_loop,
+            user_id,
+            &selection_delta.m_delta.m_add_unit_tags,
+        )?;
+    }
     if let Some(ref mut state) = sc2_rerun.user_state.get_mut(&user_id) {
-        state.control_groups[ACTIVE_UNITS_GROUP_IDX] =
+        state.control_groups[selection_delta.m_control_group_id as usize] =
             selection_delta.m_delta.m_add_unit_tags.clone();
     }
-    mark_selected_units(
-        sc2_rerun,
-        game_loop,
-        user_id,
-        &selection_delta.m_delta.m_add_unit_tags,
-    )?;
     Ok(())
 }
 
@@ -304,7 +302,12 @@ pub fn add_game_event(
             register_cmd(&mut sc2_rerun, game_loop, user_id, game_cmd)?;
         }
         ReplayGameEvent::CmdUpdateTargetPoint(target_point) => {
-            register_update_target_point(&mut sc2_rerun, game_loop, user_id, target_point)?;
+            register_update_target_point(
+                &mut sc2_rerun,
+                game_loop,
+                user_id,
+                &target_point.m_target,
+            )?;
         }
         ReplayGameEvent::CmdUpdateTargetUnit(target_unit) => {
             register_update_target_unit(&mut sc2_rerun, game_loop, user_id, &target_unit.m_target)?;

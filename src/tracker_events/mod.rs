@@ -5,7 +5,7 @@ use rerun::{
     components::{Point3D, Radius, Scalar, TextEntry},
     MsgSender,
 };
-use s2protocol::tracker_events::*;
+use s2protocol::{tracker_events::*, versions::protocol89634::unit};
 
 pub fn register_unit_init(
     sc2_rerun: &mut SC2Rerun,
@@ -100,17 +100,13 @@ pub fn register_unit_died(
     game_loop: i64,
     unit_dead: &UnitDiedEvent,
 ) -> Result<(), SwarmyError> {
-    // Register unit dead
-    /*MsgSender::new(format!("Unit/{}/Died", unit_dead.unit_tag_index))
-    .with_time(sc2_rerun.timeline, game_loop)
-    .with_splat(Point3D::new(
-        unit_dead.x as f32,
-        -1. * unit_dead.y as f32,
-        0.,
-    ))?
-    .with_splat(FREYA_DARK_RED)?
-    .with_splat(Radius(0.75))?
-    .send(&sc2_rerun.rerun_session)?;*/
+    // Clean up the unit from previous groups where it was selected.
+    for (_idx, state) in sc2_rerun.user_state.iter_mut() {
+        for group_idx in 0..10 {
+            state.control_groups[group_idx].retain(|&x| x != *unit_dead.unit_tag_index);
+        }
+    }
+
     // Clear up the previous unit target.
     let timepoint = [(
         sc2_rerun.timeline,
