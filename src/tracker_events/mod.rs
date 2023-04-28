@@ -5,7 +5,7 @@ use rerun::{
     components::{Point3D, Radius, Scalar, TextEntry},
     MsgSender,
 };
-use s2protocol::{tracker_events::*, versions::protocol89634::unit};
+use s2protocol::tracker_events::*;
 
 pub fn register_unit_init(
     sc2_rerun: &mut SC2Rerun,
@@ -103,7 +103,7 @@ pub fn register_unit_died(
     // Clean up the unit from previous groups where it was selected.
     for (_idx, state) in sc2_rerun.user_state.iter_mut() {
         for group_idx in 0..10 {
-            state.control_groups[group_idx].retain(|&x| x != *unit_dead.unit_tag_index);
+            state.control_groups[group_idx].retain(|&x| x != unit_dead.unit_tag_index);
         }
     }
 
