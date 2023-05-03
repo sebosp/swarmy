@@ -12,43 +12,28 @@ pub fn register_unit_init(
     game_loop: i64,
     unit_init: &UnitInitEvent,
 ) -> Result<usize, SwarmyError> {
-    let unit_name_filter = &sc2_rerun.filters.unit_name;
-    if let Some(unit_name_filter) = unit_name_filter {
-        if unit_name_filter != &unit_init.unit_type_name {
-            return Ok(0usize);
+    if let Some(unit_tag) = sc2_rerun.sc2_state.handle_unit_init(unit_init) {
+        let (unit_size, unit_color) = get_unit_sized_color(
+            &unit_init.unit_type_name,
+            unit_init.control_player_id as i64,
+        );
+        if let Some(ref mut unit) = sc2_rerun.sc2_state.units.get_mut(&unit_tag) {
+            unit.radius = unit_size;
         }
+        MsgSender::new(format!("Unit/{}/Init", unit_init.unit_tag_index))
+            .with_time(sc2_rerun.timeline, game_loop)
+            .with_splat(Point3D::new(
+                unit_init.x as f32,
+                -1. * unit_init.y as f32,
+                0.,
+            ))?
+            .with_splat(unit_color)?
+            .with_splat(TextEntry::new(&unit_init.unit_type_name, None))?
+            .with_splat(Radius(unit_size))?
+            .send(&sc2_rerun.rerun_session)?;
+        Ok(1usize)
     }
-    let (unit_size, unit_color) = get_unit_sized_color(
-        &unit_init.unit_type_name,
-        unit_init.control_player_id as i64,
-    );
-    let sc2_unit = SC2Unit {
-        last_game_loop: game_loop,
-        user_id: Some(unit_init.control_player_id),
-        name: unit_init.unit_type_name.clone(),
-        pos: Vec3D::new(unit_init.x as f32, -1. * unit_init.y as f32, 0.),
-        init_game_loop: game_loop,
-        radius: unit_size,
-        ..Default::default()
-    };
-    tracing::info!("Initializing unit: {:?}", sc2_unit);
-    if let Some(unit) = sc2_rerun.units.get(&unit_init.unit_tag_index) {
-        // Hmm no idea if this is normal.
-        tracing::warn!("Re-initializing unit: {:?}", unit);
-    }
-    sc2_rerun.units.insert(unit_init.unit_tag_index, sc2_unit);
-    MsgSender::new(format!("Unit/{}/Init", unit_init.unit_tag_index))
-        .with_time(sc2_rerun.timeline, game_loop)
-        .with_splat(Point3D::new(
-            unit_init.x as f32,
-            -1. * unit_init.y as f32,
-            0.,
-        ))?
-        .with_splat(unit_color)?
-        .with_splat(TextEntry::new(&unit_init.unit_type_name, None))?
-        .with_splat(Radius(unit_size))?
-        .send(&sc2_rerun.rerun_session)?;
-    Ok(1usize)
+    Ok(0usize)
 }
 
 pub fn register_unit_born(
@@ -103,7 +88,7 @@ pub fn register_unit_died(
     // Clean up the unit from previous groups where it was selected.
     for (_idx, state) in sc2_rerun.user_state.iter_mut() {
         for group_idx in 0..10 {
-            state.control_groups[group_idx].retain(|&x| x != unit_dead.unit_tag_index);
+            state.control_groups[group_idx].retain(|&x| x != *unit_dead.unit_tag_index);
         }
     }
 
