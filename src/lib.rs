@@ -1,25 +1,19 @@
 //! Starcraft 2 - Replay visualizer.
 //!
 
-use nom_mpq::MPQParserError;
-use rerun::components::{ColorRGBA, Point3D};
+use rerun::components::{ColorRGBA, Vec3D};
 use rerun::external::re_log_types::DataTableError;
 use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
 use rerun::time::Timeline;
 use rerun::Session;
 use rerun::{time, MsgSenderError};
-use s2protocol::versions::read_game_events;
-use s2protocol::versions::read_tracker_events;
-use std::collections::HashMap;
+use s2protocol::{S2ProtocolError, SC2EventType, SC2ReplayFilters, SC2ReplayState};
 pub use tracker_events::*;
 pub mod unit_colors;
 pub use unit_colors::*;
 pub mod game_events;
 pub use game_events::*;
 pub mod tracker_events;
-
-/// The game events seem to be at this ratio when compared to Tracker Events.
-pub const GAME_EVENT_POS_RATIO: f32 = 4096f32;
 
 // Some colors I really liked from a Freya Holmer presentation:
 // https://www.youtube.com/watch?v=kfM-yu0iQBk
@@ -53,8 +47,8 @@ pub enum SwarmyError {
     RerunDataTable(#[from] DataTableError),
     #[error("Rerun Eframe Error")]
     RerunEframe(#[from] eframe_Error),
-    #[error("MPQ Error")]
-    MPQ(#[from] MPQParserError),
+    #[error("S2Protocol Error")]
+    S2Protocol(#[from] S2ProtocolError),
 }
 
 pub struct SC2Rerun {
@@ -64,40 +58,48 @@ pub struct SC2Rerun {
     /// The rerun session to display data.
     pub rerun_session: Session,
 
-    /// The SC2 Replay SC2UserState
-    sc2_state: SC2ReplayState,
+    /// The SC2 replay state as it steps through game loops.
+    pub sc2_state: SC2ReplayState,
 }
+
 impl SC2Rerun {
-    pub fn new(file_path: &str) -> Result<Self, SwarmyError> {
+    pub fn new(
+        file_path: &str,
+        filters: SC2ReplayFilters,
+        include_stats: bool,
+    ) -> Result<Self, SwarmyError> {
         let rerun_session = rerun::SessionBuilder::new(file_path).buffered();
         let timeline = rerun::time::Timeline::new("game_timeline", time::TimeType::Sequence);
+        let sc2_state = SC2ReplayState::new(file_path, filters, include_stats)?;
         Ok(Self {
             timeline,
             rerun_session,
-            sc2_state: SC2ReplayState::new(file_path)?,
+            sc2_state,
         })
     }
 
-    pub fn add_events(&mut self) -> Result<usize, SwarmyError> {
-        self.sc2_state.add_events()
+    pub fn add_events(&mut self) -> Result<(), SwarmyError> {
+        while let Some((event, updated_units)) = self.sc2_state.transduce() {
+            match event {
+                SC2EventType::Tracker {
+                    tracker_loop,
+                    event,
+                } => add_tracker_event(&self, tracker_loop, &event, updated_units)?,
+                SC2EventType::Game {
+                    game_loop,
+                    user_id,
+                    event,
+                } => add_game_event(&self, game_loop, user_id, &event, updated_units)?,
+            }
+        }
+        Ok(())
     }
 
     pub fn show(&self) -> Result<(), SwarmyError> {
         Ok(rerun::native_viewer::show(&self.rerun_session)?)
     }
-
-    pub fn with_filters(&mut self, filters: SC2ReplayFilters) {
-        self.filters = filters;
-    }
-
-    /// Sets the include_stats value to true,
-    pub fn include_stats(&mut self) {
-        self.include_stats = true;
-    }
 }
 
-impl From<S2protocol::Vec3D> for Point3D {
-    fn from(source: s2protocol::Vec3D) -> Point3D {
-        Point3D::new(source.x as f32, source.y as f32, source.z as f32)
-    }
+pub fn from_vec3d(source: s2protocol::Vec3D) -> Vec3D {
+    Vec3D::new(source.0[0] as f32, source.0[1] as f32, source.0[2] as f32)
 }

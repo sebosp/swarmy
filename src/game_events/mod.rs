@@ -8,6 +8,7 @@ use rerun::{
 };
 use s2protocol::game_events::*;
 use s2protocol::tracker_events::unit_tag_index;
+use s2protocol::ACTIVE_UNITS_GROUP_IDX;
 
 pub fn register_camera_update(
     sc2_rerun: &SC2Rerun,
@@ -34,7 +35,7 @@ pub fn register_camera_update(
 }
 
 pub fn register_cmd(
-    sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
     game_cmd: &GameSCmdEvent,
@@ -55,7 +56,7 @@ pub fn register_cmd(
 }
 
 pub fn register_update_target_point(
-    sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
     target_point: &GameSMapCoord3D,
@@ -66,21 +67,21 @@ pub fn register_update_target_point(
         target_point.z as f32 / GAME_EVENT_POS_RATIO,
     );
     let mut user_selected_units: Vec<u32> = vec![];
-    if let Some(state) = sc2_rerun.user_state.get(&user_id) {
+    if let Some(state) = sc2_rerun.sc2_state.user_state.get(&user_id) {
         user_selected_units = state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
     }
     for selected_unit in user_selected_units {
         let unit_index = unit_tag_index(selected_unit as i64);
-        if let Some(ref mut registered_unit) = sc2_rerun.units.get_mut(&unit_index) {
-            registered_unit.target = Some(unit_target_pos);
+        if let Some(registered_unit) = sc2_rerun.sc2_state.units.get(&unit_index) {
+            let registered_unit_pos = from_vec3d(registered_unit.pos);
             MsgSender::new(format!("Unit/{}/Target", unit_index))
                 .with_time(sc2_rerun.timeline, game_loop)
                 .with_splat(Arrow3D {
-                    origin: registered_unit.pos,
+                    origin: registered_unit_pos,
                     vector: Vec3D::new(
-                        unit_target_pos.x() - registered_unit.pos.x(),
-                        unit_target_pos.y() - registered_unit.pos.y(),
-                        unit_target_pos.z() - registered_unit.pos.z(),
+                        unit_target_pos.x() - registered_unit_pos.x(),
+                        unit_target_pos.y() - registered_unit_pos.y(),
+                        unit_target_pos.z() - registered_unit_pos.z(),
                     ),
                 })?
                 .with_splat(user_color(user_id))?
@@ -91,7 +92,7 @@ pub fn register_update_target_point(
 }
 
 pub fn register_update_target_unit(
-    sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
     target_unit: &GameSCmdDataTargetUnit,
@@ -102,21 +103,21 @@ pub fn register_update_target_unit(
         target_unit.m_snapshot_point.z as f32 / GAME_EVENT_POS_RATIO,
     );
     let mut user_selected_units: Vec<u32> = vec![];
-    if let Some(state) = sc2_rerun.user_state.get(&user_id) {
+    if let Some(state) = sc2_rerun.sc2_state.user_state.get(&user_id) {
         user_selected_units = state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
     }
     for selected_unit in user_selected_units {
         let unit_index = unit_tag_index(selected_unit as i64);
-        if let Some(ref mut registered_unit) = sc2_rerun.units.get_mut(&unit_index) {
-            registered_unit.target = Some(unit_target_pos);
+        if let Some(registered_unit) = sc2_rerun.sc2_state.units.get(&unit_index) {
+            let registered_unit_pos = from_vec3d(registered_unit.pos);
             MsgSender::new(format!("Unit/{}/Target", unit_index))
                 .with_time(sc2_rerun.timeline, game_loop)
                 .with_splat(Arrow3D {
-                    origin: registered_unit.pos,
+                    origin: registered_unit_pos,
                     vector: Vec3D::new(
-                        unit_target_pos.x() - registered_unit.pos.x(),
-                        unit_target_pos.y() - registered_unit.pos.y(),
-                        unit_target_pos.z() - registered_unit.pos.z(),
+                        unit_target_pos.x() - registered_unit_pos.x(),
+                        unit_target_pos.y() - registered_unit_pos.y(),
+                        unit_target_pos.z() - registered_unit_pos.z(),
                     ),
                 })?
                 .with_splat(user_color(user_id))?
@@ -128,18 +129,14 @@ pub fn register_update_target_unit(
 
 /// Removes the changes to the units that signify they are selected.
 pub fn unmark_previously_selected_units(
-    sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
 ) -> Result<(), SwarmyError> {
-    if let Some(state) = sc2_rerun.user_state.get_mut(&user_id) {
+    if let Some(state) = sc2_rerun.sc2_state.user_state.get(&user_id) {
         for prev_unit in &state.control_groups[ACTIVE_UNITS_GROUP_IDX] {
             let unit_index = unit_tag_index(*prev_unit as i64);
-            if let Some(ref mut unit) = sc2_rerun.units.get_mut(&unit_index) {
-                if unit.is_selected {
-                    unit.is_selected = false;
-                    unit.radius = unit.radius * 0.5;
-                }
+            if let Some(unit) = sc2_rerun.sc2_state.units.get(&unit_index) {
                 // Decrease the previous units radius increment.
                 // XXX: Technically this is not "Born", we should have a State or Status that
                 // contains the radius of the unit.
@@ -155,18 +152,14 @@ pub fn unmark_previously_selected_units(
 
 /// Marks a group of units as selected by increasing the radius.
 pub fn mark_selected_units(
-    sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     _user_id: i64,
     selected_units: &[u32],
 ) -> Result<(), SwarmyError> {
     for new_selected_unit in selected_units {
         let unit_index = unit_tag_index(*new_selected_unit as i64);
-        if let Some(ref mut unit) = sc2_rerun.units.get_mut(&unit_index) {
-            if !unit.is_selected {
-                unit.is_selected = true;
-                unit.radius = unit.radius * 2.0;
-            }
+        if let Some(unit) = sc2_rerun.sc2_state.units.get(&unit_index) {
             // Increase the previous units radius increment.
             // XXX: Technically this is not "Born", we should have a State or Status that
             // contains the radius of the unit.
@@ -188,7 +181,7 @@ pub fn mark_selected_units(
 /// In the rust version we are matching the ACTIVE_UNITS_GROUP_IDX to 10, the last item in the
 /// array of selceted units which seems to match the blizzard UI so far.
 pub fn register_selection_delta(
-    sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
     selection_delta: &GameSSelectionDeltaEvent,
@@ -202,121 +195,54 @@ pub fn register_selection_delta(
             &selection_delta.m_delta.m_add_unit_tags,
         )?;
     }
-    if let Some(ref mut state) = sc2_rerun.user_state.get_mut(&user_id) {
-        state.control_groups[selection_delta.m_control_group_id as usize] =
-            selection_delta.m_delta.m_add_unit_tags.clone();
-    }
     Ok(())
 }
 
 /// Handles control group update events
 /// These may be initializing or recalled
 pub fn update_control_group(
-    sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
     ctrl_group_evt: &GameSControlGroupUpdateEvent,
+    updated_units: Vec<u32>,
 ) -> Result<(), SwarmyError> {
     unmark_previously_selected_units(sc2_rerun, game_loop, user_id)?;
     match ctrl_group_evt.m_control_group_update {
-        GameEControlGroupUpdate::ESet => {
-            if let Some(ref mut user_state) = sc2_rerun.user_state.get_mut(&user_id) {
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize] =
-                    user_state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
-            }
-        }
-        GameEControlGroupUpdate::ESetAndSteal => {
-            if let Some(ref mut user_state) = sc2_rerun.user_state.get_mut(&user_id) {
-                // Remove the instances from other groups first
-                let current_selected_units =
-                    user_state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
-                for group_idx in 0..9 {
-                    for unit in &current_selected_units {
-                        user_state.control_groups[group_idx].retain(|&x| x != *unit);
-                    }
-                }
-                // Set the group index as the value of the current selected units.
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize] =
-                    user_state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
-            }
-        }
-        GameEControlGroupUpdate::EClear => {
-            if let Some(ref mut user_state) = sc2_rerun.user_state.get_mut(&user_id) {
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize] = vec![];
-            }
-        }
-        GameEControlGroupUpdate::EAppend => {
-            if let Some(ref mut user_state) = sc2_rerun.user_state.get_mut(&user_id) {
-                let mut current_selected_units =
-                    user_state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize]
-                    .append(&mut current_selected_units);
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize]
-                    .sort_unstable();
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize].dedup();
-            }
-        }
-        GameEControlGroupUpdate::EAppendAndSteal => {
-            if let Some(ref mut user_state) = sc2_rerun.user_state.get_mut(&user_id) {
-                // Remove the instances from other groups first
-                let mut current_selected_units =
-                    user_state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
-                for group_idx in 0..9 {
-                    for unit in &current_selected_units {
-                        user_state.control_groups[group_idx].retain(|&x| x != *unit);
-                    }
-                }
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize]
-                    .append(&mut current_selected_units);
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize]
-                    .sort_unstable();
-                user_state.control_groups[ctrl_group_evt.m_control_group_index as usize].dedup();
-            }
-        }
         GameEControlGroupUpdate::ERecall => {
-            let mut current_selected_units: Vec<u32> = vec![];
-            if let Some(ref mut user_state) = sc2_rerun.user_state.get_mut(&user_id) {
-                user_state.control_groups[ACTIVE_UNITS_GROUP_IDX] = user_state.control_groups
-                    [ctrl_group_evt.m_control_group_index as usize]
-                    .clone();
-                current_selected_units = user_state.control_groups[ACTIVE_UNITS_GROUP_IDX].clone();
-            }
-            mark_selected_units(sc2_rerun, game_loop, user_id, &current_selected_units)?;
+            mark_selected_units(sc2_rerun, game_loop, user_id, &updated_units)?;
         }
+        _ => {}
     }
     Ok(())
 }
 
 /// Registers the game events to Rerun.
 pub fn add_game_event(
-    mut sc2_rerun: &mut SC2Rerun,
+    sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
     evt: &ReplayGameEvent,
+    updated_units: Vec<u32>,
 ) -> Result<(), SwarmyError> {
     match &evt {
         ReplayGameEvent::CameraUpdate(camera_update) => {
             register_camera_update(&sc2_rerun, game_loop, user_id, camera_update)?;
         }
         ReplayGameEvent::Cmd(game_cmd) => {
-            register_cmd(&mut sc2_rerun, game_loop, user_id, game_cmd)?;
+            register_cmd(sc2_rerun, game_loop, user_id, game_cmd)?;
         }
         ReplayGameEvent::CmdUpdateTargetPoint(target_point) => {
-            register_update_target_point(
-                &mut sc2_rerun,
-                game_loop,
-                user_id,
-                &target_point.m_target,
-            )?;
+            register_update_target_point(sc2_rerun, game_loop, user_id, &target_point.m_target)?;
         }
         ReplayGameEvent::CmdUpdateTargetUnit(target_unit) => {
-            register_update_target_unit(&mut sc2_rerun, game_loop, user_id, &target_unit.m_target)?;
+            register_update_target_unit(sc2_rerun, game_loop, user_id, &target_unit.m_target)?;
         }
         ReplayGameEvent::SelectionDelta(selection_delta) => {
-            register_selection_delta(&mut sc2_rerun, game_loop, user_id, &selection_delta)?;
+            register_selection_delta(sc2_rerun, game_loop, user_id, &selection_delta)?;
         }
         ReplayGameEvent::ControlGroupUpdate(ctrl_group) => {
-            update_control_group(&mut sc2_rerun, game_loop, user_id, &ctrl_group)?;
+            update_control_group(sc2_rerun, game_loop, user_id, &ctrl_group, updated_units)?;
         }
         _ => {}
     }
