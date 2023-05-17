@@ -2,6 +2,14 @@
 
 ![Starcraft 2 Replay in Rerun](https://user-images.githubusercontent.com/873436/231281746-40fde3f1-fec6-49fe-8cf1-5fbd197589b7.png)
 
+## Web UI Setup
+
+The timeline must be switched to the "game_timeline" in the dropdown.
+The gamespeed seems to be 22 FPS for "faster" game speed. This kindof matches replays.
+
+![Screenshot from 2023-05-17 23-04-31](https://github.com/sebosp/swarmy/assets/873436/d18cec98-98d5-485f-90ad-075e5389db03)
+
+
 ## Recorded/Processed Replays
 
 Rerun 0.5.1:
