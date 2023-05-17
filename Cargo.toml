@@ -8,13 +8,16 @@ description = "Visualizer experiments for Starcraft II - Replay data"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rerun = "0.4.0"
-s2protocol = "1.0.0"
+rerun = "0.5.1"
+s2protocol = "1.1.1"
 nom-mpq = "0.1.1"
 colored = "2.0.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 clap = { version = "4.1", features = ["derive"] }
+mimalloc = "0.1.36"
+convert_case = "0.6.0"
+thiserror = "1.0.40"
 
 [workspace]
 resolver = "2" # Important! wgpu/Bevy needs this!

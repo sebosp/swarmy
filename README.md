@@ -1,5 +1,12 @@
-# swarmy
+# swarmy 1.1.0
+
 Starcraft 2 Replay in Rerun
+
+## Recorded/Processed Replays
+
+Rerun 0.5.1:
+
+![2023-GSL-S1-RO16-GroupA-Winners-Match](https://sebosp.github.io/swarmy/public/0.5.1/2023-GSL-S1-RO16-GroupA-Winners-Match.html?url=https://sebosp.github.io/swarmy/public/0.5.1/assets/2023-GSL-S1-RO16-GroupA-Winners-Match.rrd)
 
 ## Running on native.
 
@@ -11,6 +18,8 @@ Clone this repo.
 ```shell
 # Clone this repository.
 $ cargo run -r -- --source <FILE>
+# To run the example file provided in this repo:
+# cargo run -- --source assets/2023-04-08-2v2AI.SC2Replay
 # The first time the code is compiled it will take a few minutes.
 # Subsequent runs should not need compilation.
 ```
@@ -32,11 +41,9 @@ The minerals are recognized and drawn.
 
 The drones are visible in their initial position.
 
-![Initial preview](https://user-images.githubusercontent.com/873436/231281746-40fde3f1-fec6-49fe-8cf1-5fbd197589b7.png)
-
 ## Motivation:
 
-Appreciate a fantastic game at a different level, learn how people use and learn the game.
+Appreciate a fantastic game at a lower level, learn how people use and learn the game.
 
 ## Uses:
 
