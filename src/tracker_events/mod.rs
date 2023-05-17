@@ -17,9 +17,10 @@ pub fn register_unit_init(
         if let Some(unit) = sc2_rerun.sc2_state.units.get(&unit_tag) {
             let (unit_size, unit_color) =
                 get_unit_sized_color(&unit.name, unit.user_id.unwrap_or(99u8) as i64);
+            let unit_pos = from_vec3d(unit.pos);
             MsgSender::new(format!("Unit/{}/Init", unit_init.unit_tag_index))
                 .with_time(sc2_rerun.timeline, game_loop)
-                .with_splat(from_vec3d(unit.pos))?
+                .with_splat(Point3D::new(unit_pos.x(), unit_pos.y(), unit_pos.z()))?
                 .with_splat(unit_color)?
                 .with_splat(TextEntry::new(&unit.name, None))?
                 .with_splat(Radius(unit_size))?
@@ -39,9 +40,10 @@ pub fn register_unit_born(
         if let Some(unit) = sc2_rerun.sc2_state.units.get(&unit_tag) {
             let (unit_size, unit_color) =
                 get_unit_sized_color(&unit.name, unit.user_id.unwrap_or(99u8) as i64);
+            let unit_pos = from_vec3d(unit.pos);
             MsgSender::new(format!("Unit/{}/Born", unit_born.unit_tag_index,))
                 .with_time(sc2_rerun.timeline, game_loop)
-                .with_splat(from_vec3d(unit.pos))?
+                .with_splat(Point3D::new(unit_pos.x(), unit_pos.y(), unit_pos.z()))?
                 .with_splat(unit_color)?
                 .with_splat(TextEntry::new(&unit.name, None))?
                 .with_splat(Radius(unit_size))?
@@ -103,9 +105,10 @@ pub fn register_unit_position(
     let unit_positions = unit_pos.to_unit_positions_vec();
     for unit_pos_item in unit_positions {
         if let Some(sc2_unit) = sc2_rerun.sc2_state.units.get(&unit_pos_item.tag) {
+            let unit_pos = from_vec3d(sc2_unit.pos);
             MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag))
                 .with_time(sc2_rerun.timeline, game_loop)
-                .with_splat(from_vec3d(sc2_unit.pos))?
+                .with_splat(Point3D::new(unit_pos.x(), unit_pos.y(), unit_pos.z()))?
                 .send(&sc2_rerun.rerun_session)?;
         } else {
             tracing::error!(

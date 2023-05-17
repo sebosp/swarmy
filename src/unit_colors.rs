@@ -59,7 +59,7 @@ pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, ColorRGBA) {
         _ => {
             // Ignore the Beacons for now.
             if !unit_name.starts_with("Beacon") {
-                println!("Unknown unit name: '{}'", unit_name);
+                tracing::warn!("Unknown unit name: '{}'", unit_name);
             }
             // Fallback to user color
             user_color(user_id)
@@ -73,6 +73,7 @@ pub fn user_color(user_id: i64) -> ColorRGBA {
         0 => FREYA_LIGHT_GREEN,
         1 => FREYA_LIGHT_BLUE,
         2 => FREYA_LIGHT_GRAY,
+        3 => FREYA_ORANGE,
         _ => FREYA_WHITE,
     }
 }
