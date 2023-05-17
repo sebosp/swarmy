@@ -1,27 +1,19 @@
 //! Starcraft 2 - Replay visualizer.
 //!
 
-use nom_mpq::{parser, MPQParserError, MPQ};
 use rerun::components::{ColorRGBA, Vec3D};
 use rerun::external::re_log_types::DataTableError;
 use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
 use rerun::time::Timeline;
 use rerun::Session;
 use rerun::{time, MsgSenderError};
-use s2protocol::game_events::ReplayGameEvent;
-use s2protocol::tracker_events::ReplayTrackerEvent;
-use s2protocol::versions::read_game_events;
-use s2protocol::versions::read_tracker_events;
-use std::collections::HashMap;
+use s2protocol::{S2ProtocolError, SC2EventType, SC2ReplayFilters, SC2ReplayState};
 pub use tracker_events::*;
 pub mod unit_colors;
 pub use unit_colors::*;
 pub mod game_events;
 pub use game_events::*;
 pub mod tracker_events;
-
-/// The game events seem to be at this ratio when compared to Tracker Events.
-pub const GAME_EVENT_POS_RATIO: f32 = 4096f32;
 
 // Some colors I really liked from a Freya Holmer presentation:
 // https://www.youtube.com/watch?v=kfM-yu0iQBk
@@ -47,40 +39,6 @@ pub const FREYA_LIGHT_GREEN: ColorRGBA = ColorRGBA(0x6ec29c00);
 // nanos 942000000000 / 13735 game_loops = 68583909 nanoseconds per game_loop
 pub const GAME_LOOP_SPEED_NANOS: i64 = 68_583_909;
 
-pub const TRACKER_SPEED_RATIO: f32 = 0.70996;
-
-// priarity of events, to sort them when they are at the same game loop.
-// In this version, the game_loop will be multiplied by 10 and added the priority.
-// This means 10 max events are supported.
-pub const TRACKER_PRIORITY: i64 = 1;
-pub const GAME_PRIORITY: i64 = 2;
-
-// These many event types (replays, game, attributes, etc) are supported.
-// This should be the real number, but for it's just 10 to help debugging.
-pub const MAX_EVENT_TYPES: i64 = 10;
-
-/// Supported event types.
-#[derive(Debug, Clone)]
-pub enum SC2EventType {
-    Tracker {
-        tracker_loop: i64,
-        event: ReplayTrackerEvent,
-    },
-    Game {
-        game_loop: i64,
-        user_id: i64,
-        event: ReplayGameEvent,
-    },
-}
-
-/// Reads the MPQ file and returns both the MPQ read file and the
-pub fn read_mpq(path: &str) -> (MPQ, Vec<u8>) {
-    tracing::info!("Processing MPQ file {}", path);
-    let file_contents = parser::read_file(path);
-    let (_, mpq) = parser::parse(&file_contents).unwrap();
-    (mpq, file_contents)
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum SwarmyError {
     #[error("Rerun Message Sender error")]
@@ -89,254 +47,59 @@ pub enum SwarmyError {
     RerunDataTable(#[from] DataTableError),
     #[error("Rerun Eframe Error")]
     RerunEframe(#[from] eframe_Error),
-    #[error("MPQ Error")]
-    MPQ(#[from] MPQParserError),
-}
-
-/// Unit Attributes.
-#[derive(Debug, Default)]
-pub struct SC2Unit {
-    /// The last time the unit was updated
-    pub last_game_loop: i64,
-    /// The owner user_id
-    pub user_id: Option<u8>,
-    /// The name of the unit.
-    pub name: String,
-    /// The XYZ position.
-    pub pos: Vec3D,
-    /// The target of this unit.
-    pub target: Option<Vec3D>,
-    /// The game loop in which the unit was created.
-    pub init_game_loop: i64,
-    /// The creator ability name.
-    pub creator_ability_name: Option<String>,
-    /// The radius of the unit.
-    pub radius: f32,
-    /// Whether the unit is selected
-    pub is_selected: bool,
-}
-
-/// The currently selected units is stored as a group outside of the boundaries of the usable
-/// groups.
-pub const ACTIVE_UNITS_GROUP_IDX: usize = 10usize;
-
-/// The user state as it's collected through time.
-#[derive(Debug, Default, Clone)]
-pub struct SC2UserState {
-    /// An array of registered control groups per user, the control group indexed as 10th is the
-    /// currently selected units.
-    pub control_groups: Vec<Vec<u32>>,
-}
-
-impl SC2UserState {
-    pub fn new() -> Self {
-        let mut control_groups = vec![];
-        // populate as empty control groups.
-        for _ in 0..11 {
-            control_groups.push(vec![]);
-        }
-        Self { control_groups }
-    }
-}
-
-/// A set of filters to apply to the rerun session.
-#[derive(Debug, Default, Clone)]
-pub struct SC2ReplayFilters {
-    /// Filters a specific user id.
-    pub user_id: Option<i64>,
-
-    /// Filters a specific unit tag.
-    pub unit_tag: Option<i64>,
-
-    /// Allows setting up a min event loop, in game_event units
-    pub min_loop: Option<i64>,
-
-    /// Allows setting up a max event loop
-    pub max_loop: Option<i64>,
-
-    /// Only show game of specific types
-    pub event_type: Option<String>,
-
-    /// Only show game of specific types
-    pub unit_name: Option<String>,
-
-    /// Allows setting up a max number of events of each type
-    pub max_events: Option<usize>,
+    #[error("S2Protocol Error")]
+    S2Protocol(#[from] S2ProtocolError),
 }
 
 pub struct SC2Rerun {
-    /// The registered units state as they change through time.
-    /// These are with unit index as reference
-    pub units: HashMap<u32, SC2Unit>,
-
     /// The absolute GameEvevnt loop timeline, the tracker loop should be relative to it.
     pub timeline: Timeline,
 
     /// The rerun session to display data.
     pub rerun_session: Session,
 
-    /// The MPQ file being read.
-    pub mpq: MPQ,
-
-    /// The contents of the file
-    pub file_contents: Vec<u8>,
-
-    /// The filters to be applied to the collection.
-    pub filters: SC2ReplayFilters,
-
-    /// Whether or not the PlayerStats event should be shown. To be replaced by a proper filter
-    pub include_stats: bool,
-
-    /// The per-user state, the control groups, the supply, units, upgrades, as it progresses
-    /// through time.
-    pub user_state: HashMap<i64, SC2UserState>,
+    /// The SC2 replay state as it steps through game loops.
+    pub sc2_state: SC2ReplayState,
 }
+
 impl SC2Rerun {
-    pub fn new(file_path: &str) -> Result<Self, SwarmyError> {
-        let rerun_session = rerun::SessionBuilder::new("swarmy-rerun").buffered();
-        let (mpq, file_contents) = read_mpq(file_path);
+    pub fn new(
+        file_path: &str,
+        filters: SC2ReplayFilters,
+        include_stats: bool,
+    ) -> Result<Self, SwarmyError> {
+        let rerun_session = rerun::SessionBuilder::new(file_path).buffered();
         let timeline = rerun::time::Timeline::new("game_timeline", time::TimeType::Sequence);
+        let sc2_state = SC2ReplayState::new(file_path, filters, include_stats)?;
         Ok(Self {
-            units: HashMap::new(),
             timeline,
             rerun_session,
-            mpq,
-            file_contents,
-            filters: SC2ReplayFilters::default(),
-            include_stats: false,
-            user_state: HashMap::new(),
+            sc2_state,
         })
     }
 
-    pub fn add_events(&mut self) -> Result<usize, SwarmyError> {
-        let filter_event_type = &self.filters.event_type.clone();
-        let tracker_events = if let Some(event_type) = filter_event_type {
-            if event_type.clone().to_lowercase().contains("tracker") {
-                read_tracker_events(&self.mpq, &self.file_contents)
-            } else {
-                vec![]
-            }
-        } else {
-            read_tracker_events(&self.mpq, &self.file_contents)
-        };
-        let mut sc2_events: HashMap<i64, Vec<SC2EventType>> = HashMap::new();
-        let mut tracker_loop = 0i64;
-        for game_step in tracker_events {
-            tracker_loop += game_step.delta as i64;
-            let adjusted_loop = (tracker_loop as f32 / TRACKER_SPEED_RATIO) as i64
-                * MAX_EVENT_TYPES
-                + TRACKER_PRIORITY;
-            if let Some(step_evt) = sc2_events.get_mut(&adjusted_loop) {
-                step_evt.push(SC2EventType::Tracker {
-                    tracker_loop: (tracker_loop as f32 / TRACKER_SPEED_RATIO) as i64,
-                    event: game_step.event,
-                });
-            } else {
-                sc2_events.insert(
-                    adjusted_loop,
-                    vec![SC2EventType::Tracker {
-                        tracker_loop: (tracker_loop as f32 / TRACKER_SPEED_RATIO) as i64,
-                        event: game_step.event,
-                    }],
-                );
-            }
-        }
-        let game_events = if let Some(event_type) = filter_event_type {
-            if event_type.clone().to_lowercase().contains("game") {
-                read_game_events(&self.mpq, &self.file_contents)
-            } else {
-                vec![]
-            }
-        } else {
-            read_game_events(&self.mpq, &self.file_contents)
-        };
-        let mut game_loop = 0i64;
-        for game_step in game_events {
-            game_loop += game_step.delta as i64;
-            let adjusted_loop = game_loop * MAX_EVENT_TYPES + GAME_PRIORITY;
-            if let Some(step_evt) = sc2_events.get_mut(&adjusted_loop) {
-                step_evt.push(SC2EventType::Game {
+    pub fn add_events(&mut self) -> Result<(), SwarmyError> {
+        while let Some((event, updated_units)) = self.sc2_state.transduce() {
+            match event {
+                SC2EventType::Tracker {
+                    tracker_loop,
+                    event,
+                } => add_tracker_event(&self, tracker_loop, &event, updated_units)?,
+                SC2EventType::Game {
                     game_loop,
-                    user_id: game_step.user_id,
-                    event: game_step.event,
-                });
-            } else {
-                sc2_events.insert(
-                    adjusted_loop,
-                    vec![SC2EventType::Game {
-                        game_loop,
-                        user_id: game_step.user_id,
-                        event: game_step.event,
-                    }],
-                );
+                    user_id,
+                    event,
+                } => add_game_event(&self, game_loop, user_id, &event, updated_units)?,
             }
         }
-        let mut total_events = 0usize;
-        let min_filter = self.filters.min_loop.clone();
-        let max_filter = self.filters.max_loop.clone();
-        let user_id_filter = self.filters.user_id.clone();
-        let max_events = self.filters.max_events.clone();
-        let mut ordered_event_loops: Vec<i64> = sc2_events.keys().map(|v| v.clone()).collect();
-        ordered_event_loops.sort_unstable();
-        for evt_loop in ordered_event_loops {
-            for evt_type in sc2_events.get(&evt_loop).unwrap() {
-                if let Some(min) = min_filter {
-                    // Skip the events less than the requested filter.
-                    if evt_loop / MAX_EVENT_TYPES < min {
-                        continue;
-                    }
-                }
-                if let Some(max) = max_filter {
-                    // Skip the events greater than the requested filter.
-                    if evt_loop / MAX_EVENT_TYPES > max {
-                        break;
-                    }
-                }
-                if let Some(max) = max_events {
-                    // Cosue these max total events of any type.
-                    if total_events > max {
-                        break;
-                    }
-                }
-                match evt_type {
-                    SC2EventType::Tracker {
-                        tracker_loop,
-                        event,
-                    } => {
-                        tracing::info!("Trac [{:>08}]: {:?}", tracker_loop, event);
-                        add_tracker_event(self, *tracker_loop, event)?;
-                    }
-                    SC2EventType::Game {
-                        user_id,
-                        game_loop,
-                        event,
-                    } => {
-                        if let Some(target_user_id) = user_id_filter {
-                            // Skip the events that are not for the requested user.
-                            if target_user_id != *user_id {
-                                continue;
-                            }
-                        }
-                        tracing::info!("Game [{:>08}]: uid: {} {:?}", game_loop, *user_id, event);
-                        add_game_event(self, *game_loop, *user_id, event)?;
-                    }
-                }
-            }
-            total_events += 1;
-        }
-        Ok(total_events)
+        Ok(())
     }
 
     pub fn show(&self) -> Result<(), SwarmyError> {
         Ok(rerun::native_viewer::show(&self.rerun_session)?)
     }
+}
 
-    pub fn with_filters(&mut self, filters: SC2ReplayFilters) {
-        self.filters = filters;
-    }
-
-    /// Sets the include_stats value to true,
-    pub fn include_stats(&mut self) {
-        self.include_stats = true;
-    }
+pub fn from_vec3d(source: s2protocol::Vec3D) -> Vec3D {
+    Vec3D::new(source.0[0] as f32, source.0[1] as f32, source.0[2] as f32)
 }

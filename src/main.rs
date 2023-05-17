@@ -1,4 +1,5 @@
 use clap::Parser;
+use s2protocol::SC2ReplayFilters;
 use swarmy::*;
 use tracing_subscriber;
 
@@ -55,10 +56,6 @@ struct Cli {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
-    let mut sc2_rerun = SC2Rerun::new(&cli.source)?;
-    if cli.include_stats {
-        sc2_rerun.include_stats();
-    };
     let filters = SC2ReplayFilters {
         user_id: cli.filter_user_id,
         unit_tag: cli.filter_unit_tag,
@@ -69,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_events: cli.filter_max_events,
     };
     tracing::info!("Filters: {:?}", filters);
-    sc2_rerun.with_filters(filters);
+    let mut sc2_rerun = SC2Rerun::new(&cli.source, filters, cli.include_stats)?;
     sc2_rerun.add_events()?;
     sc2_rerun.show()?;
     Ok(())

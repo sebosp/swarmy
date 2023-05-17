@@ -1,5 +1,11 @@
 # swarmy
+
 Starcraft 2 Replay in Rerun
+
+![2023-GSL-S1-RO16-GroupA-Winners-Match](https://sebosp.github.io/swarmy/public/0.5.1/2023-GSL-S1-RO16-GroupA-Winners-Match.html?url=https://sebosp.github.io/swarmy/public/0.5.1/assets/2023-GSL-S1-RO16-GroupA-Winners-Match.rrd)
+
+## Recorded/Processed Replays
+
 
 ## Running on native.
 
@@ -34,11 +40,9 @@ The minerals are recognized and drawn.
 
 The drones are visible in their initial position.
 
-![Initial preview](https://user-images.githubusercontent.com/873436/231281746-40fde3f1-fec6-49fe-8cf1-5fbd197589b7.png)
-
 ## Motivation:
 
-Appreciate a fantastic game at a different level, learn how people use and learn the game.
+Appreciate a fantastic game at a lower level, learn how people use and learn the game.
 
 ## Uses:
 
