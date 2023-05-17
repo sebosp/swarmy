@@ -1,11 +1,12 @@
-# swarmy
+# swarmy 1.1.0
 
 Starcraft 2 Replay in Rerun
 
-![2023-GSL-S1-RO16-GroupA-Winners-Match](https://sebosp.github.io/swarmy/public/0.5.1/2023-GSL-S1-RO16-GroupA-Winners-Match.html?url=https://sebosp.github.io/swarmy/public/0.5.1/assets/2023-GSL-S1-RO16-GroupA-Winners-Match.rrd)
-
 ## Recorded/Processed Replays
 
+Rerun 0.5.1:
+
+![2023-GSL-S1-RO16-GroupA-Winners-Match](https://sebosp.github.io/swarmy/public/0.5.1/2023-GSL-S1-RO16-GroupA-Winners-Match.html?url=https://sebosp.github.io/swarmy/public/0.5.1/assets/2023-GSL-S1-RO16-GroupA-Winners-Match.rrd)
 
 ## Running on native.
 
