@@ -14,7 +14,12 @@ The gamespeed seems to be 22 FPS for "faster" game speed. This kindof matches re
 
 Rerun 0.5.1:
 
+2023 GSL S1
 [2023-GSL-S1-RO16-GroupA-Winners-Match](https://sebosp.github.io/swarmy/public/0.5.1/2023-GSL-S1-RO16-GroupA-Winners-Match.html?url=https://sebosp.github.io/swarmy/public/0.5.1/assets/2023-GSL-S1-RO16-GroupA-Winners-Match.rrd)
+
+### Finals
+
+[Set1](https://sebosp.github.io/swarmy/index.html?url=https://sebosp.github.io/swarmy/public/0.5.1/assets/023GSLS1-Finals-Set1.rrd)
 
 ## Running on native.
 
