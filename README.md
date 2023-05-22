@@ -57,12 +57,14 @@ Appreciate a fantastic game at a lower level, learn how people use and learn the
 
 One of the first uses I'll add is a helper for Casters.
 
-### Initial Focus
-- Colored fog of war, which player has scouted which area.
+### Current focus
 - Hint on next region of interest: Since this is for replays, we know when important events are going to happen.
   we can guide the caster to position the window to specific regions where in the next X gameloops, an important
   activity is happening, for example massive damage or massive death on an area, i.e. splash from widow mines, disruptors, tanks.
   This could be similar to how a warning is seen for a Nydus or Nukes.
+
+### Initial Focus
+- Colored fog of war, which player has scouted which area.
 - Different visualizations on events, for example, we could draw the amount of deaths per regions of the map, like piling up bodies
   and showing what regions of a map have been more active than others.
 - We can add many data visualizations.
