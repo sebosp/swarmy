@@ -4,8 +4,9 @@
 use rerun::components::{ColorRGBA, Vec3D};
 use rerun::external::re_log_types::DataTableError;
 use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
+use rerun::external::re_viewer::external::RecordingStreamError;
 use rerun::time::Timeline;
-use rerun::Session;
+use rerun::RecordingStream;
 use rerun::{time, MsgSenderError};
 use s2protocol::{S2ProtocolError, SC2EventType, SC2ReplayFilters, SC2ReplayState};
 pub use tracker_events::*;
@@ -47,6 +48,8 @@ pub enum SwarmyError {
     RerunDataTable(#[from] DataTableError),
     #[error("Rerun Eframe Error")]
     RerunEframe(#[from] eframe_Error),
+    #[error("Rerun RecordingStream Error")]
+    RerunRecordingStream(#[from] RecordingStreamError),
     #[error("S2Protocol Error")]
     S2Protocol(#[from] S2ProtocolError),
 }
@@ -56,7 +59,7 @@ pub struct SC2Rerun {
     pub timeline: Timeline,
 
     /// The rerun session to display data.
-    pub rerun_session: Session,
+    pub recording_stream: RecordingStream,
 
     /// The SC2 replay state as it steps through game loops.
     pub sc2_state: SC2ReplayState,
@@ -68,12 +71,12 @@ impl SC2Rerun {
         filters: SC2ReplayFilters,
         include_stats: bool,
     ) -> Result<Self, SwarmyError> {
-        let rerun_session = rerun::SessionBuilder::new(file_path).buffered();
+        let recording_stream = rerun::RecordingStreamBuilder::new(file_path).buffered()?;
         let timeline = rerun::time::Timeline::new("game_timeline", time::TimeType::Sequence);
         let sc2_state = SC2ReplayState::new(file_path, filters, include_stats)?;
         Ok(Self {
             timeline,
-            rerun_session,
+            recording_stream,
             sc2_state,
         })
     }
@@ -95,8 +98,9 @@ impl SC2Rerun {
         Ok(())
     }
 
-    pub fn show(&self) -> Result<(), SwarmyError> {
-        Ok(rerun::native_viewer::show(&self.rerun_session)?)
+    pub fn show(&mut self) -> Result<(), SwarmyError> {
+        self.recording_stream.flush_blocking();
+        Ok(rerun::native_viewer::show(self.recording_stream.into())?)
     }
 }
 

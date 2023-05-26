@@ -24,7 +24,7 @@ pub fn register_unit_init(
                 .with_splat(unit_color)?
                 .with_splat(TextEntry::new(&unit.name, None))?
                 .with_splat(Radius(unit_size))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(&sc2_rerun.recording_stream)?;
         }
     }
     Ok(())
@@ -47,7 +47,7 @@ pub fn register_unit_born(
                 .with_splat(unit_color)?
                 .with_splat(TextEntry::new(&unit.name, None))?
                 .with_splat(Radius(unit_size))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(&sc2_rerun.recording_stream)?;
         }
     }
     Ok(())
@@ -63,15 +63,15 @@ pub fn register_unit_died(
         sc2_rerun.timeline,
         rerun::time::TimeInt::from_sequence(game_loop),
     )];
-    let _ = &sc2_rerun.rerun_session.send_path_op(
-        &timepoint.into(),
+    let _ = &sc2_rerun.recording_stream.record_path_op(
+        timepoint.into(),
         rerun::log::PathOp::clear(
             true,
             format!("Unit/{}/Target", unit_dead.unit_tag_index).into(),
         ),
     );
-    let _ = &sc2_rerun.rerun_session.send_path_op(
-        &timepoint.into(),
+    let _ = &sc2_rerun.recording_stream.record_path_op(
+        timepoint.into(),
         rerun::log::PathOp::clear(
             true,
             format!("Unit/{}/Born", unit_dead.unit_tag_index).into(),
@@ -93,7 +93,7 @@ pub fn register_unit_died(
     ))?
     .with_splat(FREYA_DARK_RED)?
     .with_splat(Radius(0.75))?
-    .send(&sc2_rerun.rerun_session)?;
+    .send(&sc2_rerun.recording_stream)?;
     Ok(())
 }
 
@@ -109,7 +109,7 @@ pub fn register_unit_position(
             MsgSender::new(format!("Unit/{}/Position", unit_pos_item.tag))
                 .with_time(sc2_rerun.timeline, game_loop)
                 .with_splat(Point3D::new(unit_pos.x(), unit_pos.y(), unit_pos.z()))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(&sc2_rerun.recording_stream)?;
         } else {
             tracing::error!(
                 "Unit {} did not exist but position registered.",
@@ -135,7 +135,7 @@ pub fn register_player_stats(
             .with_time(sc2_rerun.timeline, game_loop)
             .with_splat(Scalar::from(stat_entity_value.1 as f64))?
             .with_splat(user_color(player_stats.player_id as i64))?
-            .send(&sc2_rerun.rerun_session)?;
+            .send(&sc2_rerun.recording_stream)?;
     }
     Ok(())
 }

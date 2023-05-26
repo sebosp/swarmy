@@ -29,7 +29,7 @@ pub fn register_camera_update(
                 ),
             }))?
             .with_splat(user_color(user_id))?
-            .send(&sc2_rerun.rerun_session)?;
+            .send(&sc2_rerun.recording_stream)?;
     }
     Ok(())
 }
@@ -85,7 +85,7 @@ pub fn register_update_target_point(
                     ),
                 })?
                 .with_splat(user_color(user_id))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(&sc2_rerun.recording_stream)?;
         }
     }
     Ok(())
@@ -121,7 +121,7 @@ pub fn register_update_target_unit(
                     ),
                 })?
                 .with_splat(user_color(user_id))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(&sc2_rerun.recording_stream)?;
         }
     }
     Ok(())
@@ -143,7 +143,7 @@ pub fn unmark_previously_selected_units(
                 MsgSender::new(format!("Unit/{}/Born", unit_index))
                     .with_time(sc2_rerun.timeline, game_loop)
                     .with_splat(Radius(unit.radius))?
-                    .send(&sc2_rerun.rerun_session)?;
+                    .send(&sc2_rerun.recording_stream)?;
             }
         }
     }
@@ -166,7 +166,7 @@ pub fn mark_selected_units(
             MsgSender::new(format!("Unit/{}/Born", unit_index))
                 .with_time(sc2_rerun.timeline, game_loop)
                 .with_splat(Radius(unit.radius))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(&sc2_rerun.recording_stream)?;
         }
     }
     Ok(())
