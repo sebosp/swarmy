@@ -1,7 +1,6 @@
 use clap::Parser;
 use s2protocol::SC2ReplayFilters;
 use swarmy::*;
-use tracing_subscriber;
 
 use rerun::external::re_memory::AccountingAllocator;
 
@@ -66,8 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_events: cli.filter_max_events,
     };
     tracing::info!("Filters: {:?}", filters);
-    let mut sc2_rerun = SC2Rerun::new(&cli.source, filters, cli.include_stats)?;
-    sc2_rerun.add_events()?;
+    let sc2_rerun = SC2Rerun::new(&cli.source, filters, cli.include_stats)?;
     sc2_rerun.show()?;
     Ok(())
 }
