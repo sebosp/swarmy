@@ -5,7 +5,7 @@ use rerun::components::{ColorRGBA, Vec3D};
 use rerun::external::re_log_types::DataTableError;
 use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
 use rerun::time::Timeline;
-use rerun::Session;
+use rerun::RecordingStream;
 use rerun::{time, MsgSenderError};
 use s2protocol::{S2ProtocolError, SC2EventType, SC2ReplayFilters, SC2ReplayState};
 pub use tracker_events::*;
@@ -55,11 +55,11 @@ pub struct SC2Rerun {
     /// The absolute GameEvevnt loop timeline, the tracker loop should be relative to it.
     pub timeline: Timeline,
 
-    /// The rerun session to display data.
-    pub rerun_session: Session,
-
     /// The SC2 replay state as it steps through game loops.
     pub sc2_state: SC2ReplayState,
+
+    /// The file path containing the SC2 Replay
+    pub file_path: String,
 }
 
 impl SC2Rerun {
@@ -68,38 +68,50 @@ impl SC2Rerun {
         filters: SC2ReplayFilters,
         include_stats: bool,
     ) -> Result<Self, SwarmyError> {
-        let rerun_session = rerun::SessionBuilder::new(file_path).buffered();
         let timeline = rerun::time::Timeline::new("game_timeline", time::TimeType::Sequence);
         let sc2_state = SC2ReplayState::new(file_path, filters, include_stats)?;
         Ok(Self {
             timeline,
-            rerun_session,
             sc2_state,
+            file_path: file_path.to_string(),
         })
     }
 
-    pub fn add_events(&mut self) -> Result<(), SwarmyError> {
+    pub fn add_events(&mut self, recording_stream: &RecordingStream) -> Result<(), SwarmyError> {
         while let Some((event, updated_units)) = self.sc2_state.transduce() {
             match event {
                 SC2EventType::Tracker {
                     tracker_loop,
                     event,
-                } => add_tracker_event(&self, tracker_loop, &event, updated_units)?,
+                } => {
+                    add_tracker_event(self, tracker_loop, &event, updated_units, recording_stream)?
+                }
                 SC2EventType::Game {
                     game_loop,
                     user_id,
                     event,
-                } => add_game_event(&self, game_loop, user_id, &event, updated_units)?,
+                } => add_game_event(
+                    self,
+                    game_loop,
+                    user_id,
+                    &event,
+                    updated_units,
+                    recording_stream,
+                )?,
             }
         }
         Ok(())
     }
 
-    pub fn show(&self) -> Result<(), SwarmyError> {
-        Ok(rerun::native_viewer::show(&self.rerun_session)?)
+    pub fn show(mut self) -> Result<(), SwarmyError> {
+        let recording_info = rerun::new_recording_info(self.file_path.clone());
+        rerun::native_viewer::spawn(recording_info, Default::default(), move |rec_stream| {
+            self.add_events(&rec_stream).unwrap();
+        })?;
+        Ok(())
     }
 }
 
 pub fn from_vec3d(source: s2protocol::Vec3D) -> Vec3D {
-    Vec3D::new(source.0[0] as f32, source.0[1] as f32, source.0[2] as f32)
+    Vec3D::new(source.0[0], source.0[1], source.0[2])
 }

@@ -15,6 +15,7 @@ pub fn register_camera_update(
     game_loop: i64,
     user_id: i64,
     camera_update: &CameraUpdateEvent,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     if let Some(target) = &camera_update.m_target {
         MsgSender::new(format!("Unit/999{}/Player", user_id))
@@ -29,7 +30,7 @@ pub fn register_camera_update(
                 ),
             }))?
             .with_splat(user_color(user_id))?
-            .send(&sc2_rerun.rerun_session)?;
+            .send(recording_stream)?;
     }
     Ok(())
 }
@@ -39,13 +40,20 @@ pub fn register_cmd(
     game_loop: i64,
     user_id: i64,
     game_cmd: &GameSCmdEvent,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     match &game_cmd.m_data {
         GameSCmdData::TargetPoint(target) => {
-            register_update_target_point(sc2_rerun, game_loop, user_id, target)?;
+            register_update_target_point(sc2_rerun, game_loop, user_id, target, recording_stream)?;
         }
         GameSCmdData::TargetUnit(target_unit) => {
-            register_update_target_unit(sc2_rerun, game_loop, user_id, target_unit)?;
+            register_update_target_unit(
+                sc2_rerun,
+                game_loop,
+                user_id,
+                target_unit,
+                recording_stream,
+            )?;
         }
         GameSCmdData::Data(data) => {
             tracing::info!("GameSCmdData: {}", data);
@@ -60,6 +68,7 @@ pub fn register_update_target_point(
     game_loop: i64,
     user_id: i64,
     target_point: &GameSMapCoord3D,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     let unit_target_pos = Vec3D::new(
         target_point.x as f32 / GAME_EVENT_POS_RATIO,
@@ -85,7 +94,7 @@ pub fn register_update_target_point(
                     ),
                 })?
                 .with_splat(user_color(user_id))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(recording_stream)?;
         }
     }
     Ok(())
@@ -96,6 +105,7 @@ pub fn register_update_target_unit(
     game_loop: i64,
     user_id: i64,
     target_unit: &GameSCmdDataTargetUnit,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     let unit_target_pos = Vec3D::new(
         target_unit.m_snapshot_point.x as f32 / GAME_EVENT_POS_RATIO,
@@ -121,7 +131,7 @@ pub fn register_update_target_unit(
                     ),
                 })?
                 .with_splat(user_color(user_id))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(recording_stream)?;
         }
     }
     Ok(())
@@ -132,6 +142,7 @@ pub fn unmark_previously_selected_units(
     sc2_rerun: &SC2Rerun,
     game_loop: i64,
     user_id: i64,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     if let Some(state) = sc2_rerun.sc2_state.user_state.get(&user_id) {
         for prev_unit in &state.control_groups[ACTIVE_UNITS_GROUP_IDX] {
@@ -143,7 +154,7 @@ pub fn unmark_previously_selected_units(
                 MsgSender::new(format!("Unit/{}/Born", unit_index))
                     .with_time(sc2_rerun.timeline, game_loop)
                     .with_splat(Radius(unit.radius))?
-                    .send(&sc2_rerun.rerun_session)?;
+                    .send(recording_stream)?;
             }
         }
     }
@@ -156,6 +167,7 @@ pub fn mark_selected_units(
     game_loop: i64,
     _user_id: i64,
     selected_units: &[u32],
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     for new_selected_unit in selected_units {
         let unit_index = unit_tag_index(*new_selected_unit as i64);
@@ -166,7 +178,7 @@ pub fn mark_selected_units(
             MsgSender::new(format!("Unit/{}/Born", unit_index))
                 .with_time(sc2_rerun.timeline, game_loop)
                 .with_splat(Radius(unit.radius))?
-                .send(&sc2_rerun.rerun_session)?;
+                .send(recording_stream)?;
         }
     }
     Ok(())
@@ -185,14 +197,16 @@ pub fn register_selection_delta(
     game_loop: i64,
     user_id: i64,
     selection_delta: &GameSSelectionDeltaEvent,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     if selection_delta.m_control_group_id == ACTIVE_UNITS_GROUP_IDX as u8 {
-        unmark_previously_selected_units(sc2_rerun, game_loop, user_id)?;
+        unmark_previously_selected_units(sc2_rerun, game_loop, user_id, recording_stream)?;
         mark_selected_units(
             sc2_rerun,
             game_loop,
             user_id,
             &selection_delta.m_delta.m_add_unit_tags,
+            recording_stream,
         )?;
     }
     Ok(())
@@ -206,13 +220,17 @@ pub fn update_control_group(
     user_id: i64,
     ctrl_group_evt: &GameSControlGroupUpdateEvent,
     updated_units: Vec<u32>,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
-    unmark_previously_selected_units(sc2_rerun, game_loop, user_id)?;
-    match ctrl_group_evt.m_control_group_update {
-        GameEControlGroupUpdate::ERecall => {
-            mark_selected_units(sc2_rerun, game_loop, user_id, &updated_units)?;
-        }
-        _ => {}
+    unmark_previously_selected_units(sc2_rerun, game_loop, user_id, recording_stream)?;
+    if ctrl_group_evt.m_control_group_update == GameEControlGroupUpdate::ERecall {
+        mark_selected_units(
+            sc2_rerun,
+            game_loop,
+            user_id,
+            &updated_units,
+            recording_stream,
+        )?;
     }
     Ok(())
 }
@@ -224,25 +242,57 @@ pub fn add_game_event(
     user_id: i64,
     evt: &ReplayGameEvent,
     updated_units: Vec<u32>,
+    recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     match &evt {
         ReplayGameEvent::CameraUpdate(camera_update) => {
-            register_camera_update(&sc2_rerun, game_loop, user_id, camera_update)?;
+            register_camera_update(
+                sc2_rerun,
+                game_loop,
+                user_id,
+                camera_update,
+                recording_stream,
+            )?;
         }
         ReplayGameEvent::Cmd(game_cmd) => {
-            register_cmd(sc2_rerun, game_loop, user_id, game_cmd)?;
+            register_cmd(sc2_rerun, game_loop, user_id, game_cmd, recording_stream)?;
         }
         ReplayGameEvent::CmdUpdateTargetPoint(target_point) => {
-            register_update_target_point(sc2_rerun, game_loop, user_id, &target_point.m_target)?;
+            register_update_target_point(
+                sc2_rerun,
+                game_loop,
+                user_id,
+                &target_point.m_target,
+                recording_stream,
+            )?;
         }
         ReplayGameEvent::CmdUpdateTargetUnit(target_unit) => {
-            register_update_target_unit(sc2_rerun, game_loop, user_id, &target_unit.m_target)?;
+            register_update_target_unit(
+                sc2_rerun,
+                game_loop,
+                user_id,
+                &target_unit.m_target,
+                recording_stream,
+            )?;
         }
         ReplayGameEvent::SelectionDelta(selection_delta) => {
-            register_selection_delta(sc2_rerun, game_loop, user_id, &selection_delta)?;
+            register_selection_delta(
+                sc2_rerun,
+                game_loop,
+                user_id,
+                selection_delta,
+                recording_stream,
+            )?;
         }
         ReplayGameEvent::ControlGroupUpdate(ctrl_group) => {
-            update_control_group(sc2_rerun, game_loop, user_id, &ctrl_group, updated_units)?;
+            update_control_group(
+                sc2_rerun,
+                game_loop,
+                user_id,
+                ctrl_group,
+                updated_units,
+                recording_stream,
+            )?;
         }
         _ => {}
     }
