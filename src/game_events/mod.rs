@@ -2,8 +2,9 @@
 
 use super::*;
 use rerun::components::Arrow3D;
+use rerun::transform::TranslationRotationScale3D;
 use rerun::{
-    components::{Box3D, Quaternion, Radius, Rigid3, Transform, Vec3D},
+    components::{Box3D, Radius, Transform3D, Vec3D},
     MsgSender,
 };
 use s2protocol::game_events::*;
@@ -21,13 +22,17 @@ pub fn register_camera_update(
         MsgSender::new(format!("Unit/999{}/Player", user_id))
             .with_time(sc2_rerun.timeline, game_loop)
             .with_splat(Box3D::new(3.0, 3.0, 0.0))?
-            .with_splat(Transform::Rigid3(Rigid3 {
-                rotation: Quaternion::new(0., 0., 0., 0.),
-                translation: Vec3D::new(
-                    (target.x as f32 / 250f32) - 1.5,
-                    (-1. * target.y as f32 / 250f32) - 1.5,
-                    0.,
+            .with_splat(Transform3D::new(TranslationRotationScale3D {
+                translation: Some(
+                    [
+                        (target.x as f32 / 250f32) - 1.5,
+                        (-1. * target.y as f32 / 250f32) - 1.5,
+                        0.,
+                    ]
+                    .into(),
                 ),
+                rotation: None,
+                scale: None,
             }))?
             .with_splat(user_color(user_id))?
             .send(recording_stream)?;
