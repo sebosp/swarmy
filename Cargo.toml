@@ -8,7 +8,7 @@ description = "Visualizer experiments for Starcraft II - Replay data"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rerun = "0.5.1"
+rerun = {version = "0.7.0", features = ["native_viewer"] }
 s2protocol = "1.1.1"
 nom-mpq = "0.1.1"
 colored = "2.0.0"
