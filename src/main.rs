@@ -8,9 +8,6 @@ use rerun::external::re_memory::AccountingAllocator;
 static GLOBAL: AccountingAllocator<mimalloc::MiMalloc> =
     AccountingAllocator::new(mimalloc::MiMalloc);
 
-// TODO: There a ratio between tracker events and game events.
-// This ratio is still to be verified.
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -50,6 +47,10 @@ struct Cli {
     /// Allows processing a max ammount of events of each type.
     #[arg(long)]
     filter_max_events: Option<usize>,
+
+    /// An output RRD file to generate once the input has been processed.
+    #[arg(long)]
+    output: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -66,6 +67,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     tracing::info!("Filters: {:?}", filters);
     let sc2_rerun = SC2Rerun::new(&cli.source, filters, cli.include_stats)?;
-    sc2_rerun.show()?;
+    if let Some(output) = cli.output {
+        sc2_rerun.save_to_file(&output)?;
+    } else {
+        sc2_rerun.show()?;
+    }
     Ok(())
 }

@@ -9,7 +9,7 @@ description = "Visualizer experiments for Starcraft II - Replay data"
 
 [dependencies]
 rerun = {version = "0.7.0", features = ["native_viewer"] }
-s2protocol = "1.1.1"
+s2protocol = "1.1.3"
 nom-mpq = "0.1.1"
 colored = "2.0.0"
 tracing = "0.1"
