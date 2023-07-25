@@ -52,7 +52,7 @@ pub enum SwarmyError {
 }
 
 pub struct SC2Rerun {
-    /// The absolute GameEvevnt loop timeline, the tracker loop should be relative to it.
+    /// The absolute GameEvent loop timeline, the tracker loop should be relative to it.
     pub timeline: Timeline,
 
     /// The SC2 replay state as it steps through game loops.
