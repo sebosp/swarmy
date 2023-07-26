@@ -5,8 +5,8 @@ use rerun::components::{ColorRGBA, Vec3D};
 use rerun::external::re_log_types::DataTableError;
 use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
 use rerun::time::Timeline;
-use rerun::RecordingStream;
 use rerun::{time, MsgSenderError};
+use rerun::{RecordingStream, RecordingStreamBuilder};
 use s2protocol::{S2ProtocolError, SC2EventType, SC2ReplayFilters, SC2ReplayState};
 pub use tracker_events::*;
 pub mod unit_colors;
@@ -52,7 +52,7 @@ pub enum SwarmyError {
 }
 
 pub struct SC2Rerun {
-    /// The absolute GameEvevnt loop timeline, the tracker loop should be relative to it.
+    /// The absolute GameEvent loop timeline, the tracker loop should be relative to it.
     pub timeline: Timeline,
 
     /// The SC2 replay state as it steps through game loops.
@@ -103,11 +103,20 @@ impl SC2Rerun {
         Ok(())
     }
 
+    /// Calls the native viewer to display the recorded data.
     pub fn show(mut self) -> Result<(), SwarmyError> {
         let recording_info = rerun::new_recording_info(self.file_path.clone());
         rerun::native_viewer::spawn(recording_info, Default::default(), move |rec_stream| {
             self.add_events(&rec_stream).unwrap();
         })?;
+        Ok(())
+    }
+
+    /// Saves the recording into an RRD file.
+    pub fn save_to_file(self, output: &str) -> Result<(), SwarmyError> {
+        let _ = RecordingStreamBuilder::new(self.file_path.clone())
+            .save(output)
+            .unwrap();
         Ok(())
     }
 }
