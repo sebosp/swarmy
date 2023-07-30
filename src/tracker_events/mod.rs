@@ -62,24 +62,14 @@ pub fn register_unit_died(
     recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     // Clear up the previous unit target.
-    let timepoint = [(
-        sc2_rerun.timeline,
-        rerun::time::TimeInt::from_sequence(game_loop),
-    )];
-    recording_stream.record_path_op(
-        timepoint.into(),
-        rerun::log::PathOp::clear(
-            true,
-            format!("Unit/{}/Target", unit_dead.unit_tag_index).into(),
-        ),
-    );
-    recording_stream.record_path_op(
-        timepoint.into(),
-        rerun::log::PathOp::clear(
-            true,
-            format!("Unit/{}/Born", unit_dead.unit_tag_index).into(),
-        ),
-    );
+    recording_stream.record_path_op(rerun::log::PathOp::clear(
+        true,
+        format!("Unit/{}/Target", unit_dead.unit_tag_index).into(),
+    ));
+    recording_stream.record_path_op(rerun::log::PathOp::clear(
+        true,
+        format!("Unit/{}/Born", unit_dead.unit_tag_index).into(),
+    ));
     // Create a Path for Death so that it can be drawn on its separate pane.
     // TODO: Create a "triangle soup", maybe something with low resolution to show regions of high
     // activity.

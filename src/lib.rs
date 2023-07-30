@@ -105,8 +105,8 @@ impl SC2Rerun {
 
     /// Calls the native viewer to display the recorded data.
     pub fn show(mut self) -> Result<(), SwarmyError> {
-        let recording_info = rerun::new_recording_info(self.file_path.clone());
-        rerun::native_viewer::spawn(recording_info, Default::default(), move |rec_stream| {
+        let store_info = rerun::new_store_info(self.file_path.clone());
+        rerun::native_viewer::spawn(store_info, Default::default(), move |rec_stream| {
             self.add_events(&rec_stream).unwrap();
         })?;
         Ok(())
