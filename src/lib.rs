@@ -4,8 +4,7 @@
 use rerun::components::{ColorRGBA, Vec3D};
 use rerun::external::re_log_types::DataTableError;
 use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
-use rerun::time::Timeline;
-use rerun::{time, MsgSenderError};
+use rerun::MsgSenderError;
 use rerun::{RecordingStream, RecordingStreamBuilder};
 use s2protocol::{S2ProtocolError, SC2EventType, SC2ReplayFilters, SC2ReplayState};
 pub use tracker_events::*;
@@ -52,9 +51,6 @@ pub enum SwarmyError {
 }
 
 pub struct SC2Rerun {
-    /// The absolute GameEvent loop timeline, the tracker loop should be relative to it.
-    pub timeline: Timeline,
-
     /// The SC2 replay state as it steps through game loops.
     pub sc2_state: SC2ReplayState,
 
@@ -68,10 +64,8 @@ impl SC2Rerun {
         filters: SC2ReplayFilters,
         include_stats: bool,
     ) -> Result<Self, SwarmyError> {
-        let timeline = rerun::time::Timeline::new("game_timeline", time::TimeType::Sequence);
         let sc2_state = SC2ReplayState::new(file_path, filters, include_stats)?;
         Ok(Self {
-            timeline,
             sc2_state,
             file_path: file_path.to_string(),
         })
@@ -84,20 +78,17 @@ impl SC2Rerun {
                     tracker_loop,
                     event,
                 } => {
-                    add_tracker_event(self, tracker_loop, &event, updated_units, recording_stream)?
+                    recording_stream.set_time_sequence("time", tracker_loop);
+                    add_tracker_event(self, &event, updated_units, recording_stream)?
                 }
                 SC2EventType::Game {
                     game_loop,
                     user_id,
                     event,
-                } => add_game_event(
-                    self,
-                    game_loop,
-                    user_id,
-                    &event,
-                    updated_units,
-                    recording_stream,
-                )?,
+                } => {
+                    recording_stream.set_time_sequence("time", game_loop);
+                    add_game_event(self, user_id, &event, updated_units, recording_stream)?
+                }
             }
         }
         Ok(())
