@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "Visualizer experiments for Starcraft II - Replay data"
+repository = "https://github.com/sebosp/swarmy"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rerun = {version = "0.7.0", features = ["native_viewer"] }
+rerun = {version = "0.8.0", features = ["native_viewer", "analytics", "web_viewer"] }
 s2protocol = "1.1.5"
 nom-mpq = "0.1.2"
 colored = "2.0.0"
