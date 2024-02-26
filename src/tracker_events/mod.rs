@@ -16,11 +16,11 @@ pub fn register_unit(
     recording_stream.log(
         format!("Unit/{}/{}/{}", unit.name, unit_tag, path_suffix),
         &rerun::Points2D::new([(unit.pos.x(), unit.pos.y())])
-            .with_colors([unit_color])
-            .with_radii([unit_size])
-            .with_labels([unit.name.clone()])
+            //.with_labels([unit.name.clone()])
+            .with_draw_order(tracker_loop as f32)
             .with_instance_keys([unit_tag as u64])
-            .with_draw_order(tracker_loop as f32),
+            .with_colors([unit_color])
+            .with_radii([unit_size]),
     )?;
     Ok(())
 }
@@ -104,12 +104,12 @@ pub fn register_unit_died(
                 killed.name,
                 unit_tag(unit_dead.unit_tag_index, unit_dead.unit_tag_recycle)
             ),
-            &rerun::Points2D::new([(unit_dead.x as f32, -1. * unit_dead.y as f32)])
+            &rerun::Points2D::new([(unit_dead.x as f32, unit_dead.y as f32)])
+                //.with_instance_keys([unit_tag as u64])
+                //.with_labels([killed.name.clone()])
+                //.with_draw_order(tracker_loop as f32)
                 .with_colors([FREYA_RED])
-                .with_radii([0.75])
-                .with_labels([killed.name.clone()])
-                .with_instance_keys([unit_tag as u64])
-                .with_draw_order(tracker_loop as f32),
+                .with_radii([0.75]),
         )?;
         if let (Some(unit_killer_tag_index), Some(killer_tag_recycle), Some(killer_unit)) = (
             unit_dead.killer_unit_tag_index,
@@ -119,12 +119,12 @@ pub fn register_unit_died(
             let killer_tag = unit_tag(unit_killer_tag_index, killer_tag_recycle);
             recording_stream.log(
                 format!("Kills/{}/{}", killer_unit.name, killer_tag),
-                &rerun::Points2D::new([(unit_dead.x as f32, -1. * unit_dead.y as f32)])
+                &rerun::Points2D::new([(unit_dead.x as f32, unit_dead.y as f32)])
+                    //.with_labels([killed.name.clone()])
+                    //.with_draw_order(tracker_loop as f32)
+                    //.with_instance_keys([unit_tag as u64])
                     .with_colors([FREYA_RED])
-                    .with_radii([0.75])
-                    .with_labels([killed.name.clone()])
-                    .with_instance_keys([unit_tag as u64])
-                    .with_draw_order(tracker_loop as f32),
+                    .with_radii([0.75]),
             )?;
         }
     }

@@ -11,18 +11,14 @@ pub fn register_camera_update(
 ) -> Result<(), SwarmyError> {
     if let Some(target) = &camera_update.m_target {
         recording_stream.log(
-            "batch",
-            &rerun::Boxes3D::from_centers_and_half_sizes(
-                [(
-                    target.x as f32 / 250f32,
-                    -1. * target.y as f32 / 250f32,
-                    0.0,
-                )],
-                [(1.0, 1.0, 0.0)],
+            format!("Player/{}/Camera", user_id),
+            &rerun::Boxes2D::from_centers_and_half_sizes(
+                [(target.x as f32 / 250f32, 1. * target.y as f32 / 250f32)],
+                [(5.0, 5.0)],
             )
-            .with_radii([1.5])
-            .with_colors([user_color(user_id)])
-            .with_labels([user_id.to_string()]),
+            .with_radii([0.25])
+            //.with_labels([user_id.to_string()])
+            .with_colors([user_color(user_id)]),
         )?;
     }
     Ok(())
@@ -35,24 +31,19 @@ pub fn register_update_target_point(
     target_point: &GameSMapCoord3D,
     recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
-    let unit_target_pos = rerun::Vec3D::new(
+    let unit_target_pos = rerun::Vec2D::new(
         target_point.x as f32 / GAME_EVENT_POS_RATIO,
         -1. * target_point.y as f32 / GAME_EVENT_POS_RATIO,
-        target_point.z as f32 / GAME_EVENT_POS_RATIO,
     );
     if let UnitChangeHint::Batch(updated_units) = change_hint {
         for selected_unit in updated_units {
-            let selected_unit_pos = rerun::Vec3D::new(
-                selected_unit.pos.x(),
-                selected_unit.pos.y(),
-                selected_unit.pos.z(),
-            );
+            let selected_unit_pos = rerun::Vec2D::new(selected_unit.pos.x(), selected_unit.pos.y());
             recording_stream.log(
                 format!(
                     "Unit/{}/{}/Target",
                     selected_unit.name, selected_unit.tag_index
                 ),
-                &rerun::Arrows3D::from_vectors([unit_target_pos])
+                &rerun::Arrows2D::from_vectors([unit_target_pos])
                     .with_origins([selected_unit_pos])
                     .with_colors([user_color(user_id)]),
             )?;
@@ -67,24 +58,19 @@ pub fn register_update_target_unit(
     target_unit: &GameSCmdDataTargetUnit,
     recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
-    let unit_target_pos = rerun::Vec3D::new(
+    let unit_target_pos = rerun::Vec2D::new(
         target_unit.m_snapshot_point.x as f32 / GAME_EVENT_POS_RATIO,
         -1. * target_unit.m_snapshot_point.y as f32 / GAME_EVENT_POS_RATIO,
-        target_unit.m_snapshot_point.z as f32 / GAME_EVENT_POS_RATIO,
     );
     if let UnitChangeHint::BatchWithTarget(user_selected_units, _target_unit) = change_hint {
         for selected_unit in user_selected_units {
-            let selected_unit_pos = rerun::Vec3D::new(
-                selected_unit.pos.x(),
-                selected_unit.pos.y(),
-                selected_unit.pos.z(),
-            );
+            let selected_unit_pos = rerun::Vec2D::new(selected_unit.pos.x(), selected_unit.pos.y());
             recording_stream.log(
                 format!(
                     "Unit/{}/{}/Target",
                     selected_unit.name, selected_unit.tag_index
                 ),
-                &rerun::Arrows3D::from_vectors([unit_target_pos])
+                &rerun::Arrows2D::from_vectors([unit_target_pos])
                     .with_origins([selected_unit_pos])
                     .with_colors([user_color(user_id)]),
             )?;
@@ -112,8 +98,8 @@ pub fn register_selection_delta(
             recording_stream.log(
                 format!("Unit/{}/{}/Born", unit.name, unit.tag_index),
                 &rerun::Points2D::new([(unit.pos.x(), unit.pos.y())])
-                    .with_radii([unit.radius])
-                    .with_draw_order(game_loop as f32),
+                    //.with_draw_order(game_loop as f32)
+                    .with_radii([unit.radius]),
             )?;
         }
     }
@@ -134,8 +120,8 @@ pub fn update_control_group(
                 recording_stream.log(
                     format!("Unit/{}/{}/Born", unit.name, unit.tag_index),
                     &rerun::Points2D::new([(unit.pos.x(), unit.pos.y())])
-                        .with_radii([unit.radius])
-                        .with_draw_order(game_loop as f32),
+                        //.with_draw_order(game_loop as f32)
+                        .with_radii([unit.radius]),
                 )?;
             }
         }
