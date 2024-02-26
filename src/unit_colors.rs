@@ -1,6 +1,6 @@
 use super::*;
 // Returns the expected size of units depending on their type
-pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, ColorRGBA) {
+pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, [u8; 4]) {
     let mut unit_size = 0.45;
     let color = match unit_name {
         "VespeneEDyser" => FREYA_LIGHT_GREEN,
@@ -68,7 +68,7 @@ pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, ColorRGBA) {
     (unit_size, color)
 }
 
-pub fn user_color(user_id: i64) -> ColorRGBA {
+pub fn user_color(user_id: i64) -> [u8; 4] {
     match user_id {
         0 => FREYA_LIGHT_GREEN,
         1 => FREYA_LIGHT_BLUE,

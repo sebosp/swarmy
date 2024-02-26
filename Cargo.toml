@@ -9,8 +9,8 @@ repository = "https://github.com/sebosp/swarmy"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rerun = {version = "0.8.0", features = ["native_viewer", "analytics", "web_viewer"] }
-s2protocol = "1.1.5"
+rerun = {version = "0.13.0", features = ["native_viewer"] }
+s2protocol = { path = "../s2protocol-rs" }
 nom-mpq = "0.1.2"
 colored = "2.0.0"
 tracing = "0.1"

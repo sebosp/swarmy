@@ -20,9 +20,9 @@ struct Cli {
     #[arg(long, default_value_t = false)]
     include_stats: bool,
 
-    /// Filters a specific user id.
+    /// Filters a specific player id.
     #[arg(long)]
-    filter_user_id: Option<i64>,
+    filter_player_id: Option<u8>,
 
     /// Filters a specific unit tag.
     #[arg(long)]
@@ -57,16 +57,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
     let filters = SC2ReplayFilters {
-        user_id: cli.filter_user_id,
+        player_id: cli.filter_player_id,
         unit_tag: cli.filter_unit_tag,
         min_loop: cli.filter_min_loop,
         max_loop: cli.filter_max_loop,
         event_type: cli.filter_event_type,
         unit_name: cli.filter_unit_name,
         max_events: cli.filter_max_events,
+        include_stats: cli.include_stats,
     };
     tracing::info!("Filters: {:?}", filters);
-    let sc2_rerun = SC2Rerun::new(&cli.source, filters, cli.include_stats)?;
+    let sc2_rerun = SC2Rerun::new(&cli.source, filters)?;
     if let Some(output) = cli.output {
         sc2_rerun.save_to_file(&output)?;
     } else {
