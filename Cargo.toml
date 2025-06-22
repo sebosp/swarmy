@@ -2,34 +2,24 @@
 name = "swarmy"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.87"
 license = "MIT"
 description = "Visualizer experiments for Starcraft II - Replay data"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+repository = "https://github.com/sebosp/swarmy"
 
 [dependencies]
-rerun = {version = "0.7.0", features = ["native_viewer"] }
-s2protocol = "1.1.1"
-nom-mpq = "0.1.1"
-colored = "2.0.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-clap = { version = "4.1", features = ["derive"] }
-mimalloc = "0.1.36"
-convert_case = "0.6.0"
-thiserror = "1.0.40"
-
-[workspace]
-resolver = "2" # Important! wgpu/Bevy needs this!
-
-# Enable a small amount of optimization in debug mode
-[profile.dev]
-opt-level = 1
-
-# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
-[profile.dev.package."*"]
-opt-level = 3
+rerun = { version = "0.23.3", features = ["native_viewer", "web_viewer"] }
+re_web_viewer_server = "0.23.3"
+s2protocol = "3.1.3"
+nom-mpq = "2.0.4"
+colored = "3.0.0"
+tracing = { version = "0.1.40", features = ["max_level_debug"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+clap = { version = "4.5", features = ["derive"] }
+mimalloc = "0.1.43"
+convert_case = "0.8.0"
+thiserror = "2"
 
 [dev-dependencies]
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

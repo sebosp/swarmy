@@ -1,15 +1,11 @@
 use clap::Parser;
+use rerun::external::re_memory::AccountingAllocator;
 use s2protocol::SC2ReplayFilters;
 use swarmy::*;
-
-use rerun::external::re_memory::AccountingAllocator;
 
 #[global_allocator]
 static GLOBAL: AccountingAllocator<mimalloc::MiMalloc> =
     AccountingAllocator::new(mimalloc::MiMalloc);
-
-// TODO: There a ratio between tracker events and game events.
-// This ratio is still to be verified.
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -23,9 +19,9 @@ struct Cli {
     #[arg(long, default_value_t = false)]
     include_stats: bool,
 
-    /// Filters a specific user id.
+    /// Filters a specific player id.
     #[arg(long)]
-    filter_user_id: Option<i64>,
+    filter_player_id: Option<u8>,
 
     /// Filters a specific unit tag.
     #[arg(long)]
@@ -50,22 +46,63 @@ struct Cli {
     /// Allows processing a max ammount of events of each type.
     #[arg(long)]
     filter_max_events: Option<usize>,
+
+    /// An output RRD file to generate once the input has been processed.
+    #[arg(long)]
+    output: Option<String>,
+
+    /// Connects to a remote address and ships the events
+    #[arg(long)]
+    connect: Option<String>,
+
+    /// The output verbosity level.
+    #[arg(long)]
+    verbosity_level: Option<String>,
+
+    #[arg(long, default_value_t = true)]
+    serve_web: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
     let cli = Cli::parse();
+    let level = match cli.verbosity_level {
+        Some(level) => match level.as_str() {
+            "error" => tracing::Level::ERROR,
+            "warn" => tracing::Level::WARN,
+            "info" => tracing::Level::INFO,
+            "debug" => tracing::Level::DEBUG,
+            "trace" => tracing::Level::TRACE,
+            _ => {
+                tracing::warn!("Invalid verbosity level, defaulting to DEBUG");
+                tracing::Level::DEBUG
+            }
+        },
+        None => tracing::Level::INFO,
+    };
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_env_filter(level.to_string())
+        .init();
     let filters = SC2ReplayFilters {
-        user_id: cli.filter_user_id,
+        player_id: cli.filter_player_id,
         unit_tag: cli.filter_unit_tag,
         min_loop: cli.filter_min_loop,
         max_loop: cli.filter_max_loop,
         event_type: cli.filter_event_type,
         unit_name: cli.filter_unit_name,
         max_events: cli.filter_max_events,
+        include_stats: cli.include_stats,
     };
-    tracing::info!("Filters: {:?}", filters);
-    let sc2_rerun = SC2Rerun::new(&cli.source, filters, cli.include_stats)?;
-    sc2_rerun.show()?;
+    tracing::error!("Swarmy Filters: {:?}", filters);
+    let sc2_rerun = SC2Rerun::new(&cli.source, filters)?;
+    if let Some(output) = cli.output {
+        sc2_rerun.save_to_file(&output)?;
+    } else if cli.serve_web {
+        sc2_rerun.connect(None)?;
+    } else if let Some(addr) = cli.connect {
+        sc2_rerun.connect(Some(addr))?;
+    } else {
+        sc2_rerun.show()?;
+    }
     Ok(())
 }
