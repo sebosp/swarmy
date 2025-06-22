@@ -1,8 +1,7 @@
 use clap::Parser;
+use rerun::external::re_memory::AccountingAllocator;
 use s2protocol::SC2ReplayFilters;
 use swarmy::*;
-
-use rerun::external::re_memory::AccountingAllocator;
 
 #[global_allocator]
 static GLOBAL: AccountingAllocator<mimalloc::MiMalloc> =
@@ -51,11 +50,36 @@ struct Cli {
     /// An output RRD file to generate once the input has been processed.
     #[arg(long)]
     output: Option<String>,
+
+    /// Connects to a remote address and ships the events
+    #[arg(long)]
+    connect: Option<String>,
+
+    /// The output verbosity level.
+    #[arg(long)]
+    verbosity_level: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
     let cli = Cli::parse();
+    let level = match cli.verbosity_level {
+        Some(level) => match level.as_str() {
+            "error" => tracing::Level::ERROR,
+            "warn" => tracing::Level::WARN,
+            "info" => tracing::Level::INFO,
+            "debug" => tracing::Level::DEBUG,
+            "trace" => tracing::Level::TRACE,
+            _ => {
+                tracing::warn!("Invalid verbosity level, defaulting to DEBUG");
+                tracing::Level::DEBUG
+            }
+        },
+        None => tracing::Level::INFO,
+    };
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_env_filter(level.to_string())
+        .init();
     let filters = SC2ReplayFilters {
         player_id: cli.filter_player_id,
         unit_tag: cli.filter_unit_tag,
@@ -66,10 +90,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_events: cli.filter_max_events,
         include_stats: cli.include_stats,
     };
-    tracing::info!("Filters: {:?}", filters);
+    tracing::error!("Swarmy Filters: {:?}", filters);
     let sc2_rerun = SC2Rerun::new(&cli.source, filters)?;
     if let Some(output) = cli.output {
         sc2_rerun.save_to_file(&output)?;
+    } else if let Some(addr) = cli.connect {
+        sc2_rerun.connect(addr)?;
     } else {
         sc2_rerun.show()?;
     }

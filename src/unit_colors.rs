@@ -3,7 +3,7 @@ use super::*;
 pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, [u8; 4]) {
     let mut unit_size = 0.45;
     let color = match unit_name {
-        "VespeneEDyser" => FREYA_LIGHT_GREEN,
+        "VespeneGeyser" => FREYA_LIGHT_GREEN,
         "SpacePlatformGeyser" => FREYA_LIGHT_GREEN,
         "LabMineralField" => {
             unit_size = 0.24;
@@ -32,6 +32,10 @@ pub fn get_unit_sized_color(unit_name: &str, user_id: i64) -> (f32, [u8; 4]) {
         }
         "RichMineralField" => FREYA_GOLD,
         "RichMineralField750" => FREYA_ORANGE,
+        "DestructibleRockEx1DiagonalHugeBLUR" => {
+            unit_size = 2.0;
+            FREYA_GRAY
+        }
         "DestructibleDebris6x6" => {
             unit_size = 1.8;
             FREYA_GRAY

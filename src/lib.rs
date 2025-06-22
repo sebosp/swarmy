@@ -1,9 +1,9 @@
 //! Starcraft 2 - Replay visualizer.
 //!
 
+use rerun::external::re_log_types::PathParseError;
+use rerun::web_viewer::WebViewerSinkError;
 use std::path::PathBuf;
-
-use rerun::external::re_log_types::DataTableError;
 // use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
 use rerun::{RecordingStream, RecordingStreamBuilder};
 use s2protocol::state::SC2EventIterator;
@@ -43,14 +43,20 @@ pub const GAME_LOOP_SPEED_NANOS: i64 = 68_583_909;
 pub enum SwarmyError {
     #[error("Rerun Message Sender error")]
     RerunMsgSender(#[from] rerun::external::anyhow::Error),
-    #[error("Rerun Data Table Error")]
-    RerunDataTable(#[from] DataTableError),
+    #[error("Rerun Path Parse Error")]
+    RerunDataTable(#[from] PathParseError),
     /*#[error("Rerun Eframe Error")]
     RerunEframe(#[from] eframe_Error),*/
     #[error("S2Protocol Error")]
     S2Protocol(#[from] S2ProtocolError),
     #[error("RecordingStream Error")]
     RecordingStream(#[from] rerun::RecordingStreamError),
+    #[error("WebViewerServer Error")]
+    RerunWebViewer(#[from] WebViewerSinkError),
+    #[error("ParseAddr Error")]
+    AddrParse(#[from] std::net::AddrParseError),
+    #[error("I/O Error")]
+    Io(#[from] std::io::Error),
 }
 
 pub struct SC2Rerun {
@@ -91,22 +97,42 @@ impl SC2Rerun {
                 }
             }
         }
+        std::thread::sleep(std::time::Duration::from_secs(100000));
         Ok(())
     }
 
     /// Calls the native viewer to display the recorded data.
     pub fn show(self) -> Result<(), SwarmyError> {
-        let recording_stream = RecordingStreamBuilder::new(self.file_path.clone())
-            .spawn()
-            .unwrap();
+        let recording_stream = RecordingStreamBuilder::new(self.file_path.clone()).spawn()?;
+        self.add_events(&recording_stream)
+    }
+
+    /// Connects to a remote address and ships the events
+    pub fn connect(self, addr: String) -> Result<(), SwarmyError> {
+        //let mut endpoint = String::from("127.0.0.1:9876/proxy");
+        // We need to find the current epoch in seconds:
+        let epoch_seconds = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| SwarmyError::Io(std::io::Error::other("Failed to get current time")))?
+            .as_secs();
+        let recording_stream =
+            RecordingStreamBuilder::new(format!("{}{}", self.file_path.clone(), epoch_seconds))
+                .serve_grpc()?;
+        rerun::serve_web_viewer(rerun::web_viewer::WebViewerConfig {
+            bind_ip: "0.0.0.0".to_string(),
+            connect_to: Some(addr),
+            ..Default::default()
+        })
+        .map_err(|e| {
+            SwarmyError::RerunWebViewer(rerun::web_viewer::WebViewerSinkError::WebViewerServer(e))
+        })?
+        .detach();
         self.add_events(&recording_stream)
     }
 
     /// Saves the recording into an RRD file.
     pub fn save_to_file(self, output: &str) -> Result<(), SwarmyError> {
-        let recording_stream = RecordingStreamBuilder::new(self.file_path.clone())
-            .save(output)
-            .unwrap();
+        let recording_stream = RecordingStreamBuilder::new(self.file_path.clone()).save(output)?;
         self.add_events(&recording_stream)
     }
 }
