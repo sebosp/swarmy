@@ -1,6 +1,7 @@
 //! Starcraft 2 - Replay visualizer.
 //!
 
+use re_web_viewer_server::WebViewerServerPort;
 use rerun::external::re_log_types::PathParseError;
 use rerun::web_viewer::WebViewerSinkError;
 use std::path::PathBuf;
@@ -108,7 +109,7 @@ impl SC2Rerun {
     }
 
     /// Connects to a remote address and ships the events
-    pub fn connect(self, addr: String) -> Result<(), SwarmyError> {
+    pub fn connect(self, addr: Option<String>) -> Result<(), SwarmyError> {
         //let mut endpoint = String::from("127.0.0.1:9876/proxy");
         // We need to find the current epoch in seconds:
         let epoch_seconds = std::time::SystemTime::now()
@@ -120,7 +121,8 @@ impl SC2Rerun {
                 .serve_grpc()?;
         rerun::serve_web_viewer(rerun::web_viewer::WebViewerConfig {
             bind_ip: "0.0.0.0".to_string(),
-            connect_to: Some(addr),
+            web_port: WebViewerServerPort(9101),
+            connect_to: addr,
             ..Default::default()
         })
         .map_err(|e| {

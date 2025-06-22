@@ -49,7 +49,7 @@ pub fn register_camera_save(
         &rerun::Ellipsoids3D::from_centers_and_half_sizes(
             [(
                 camera_save.m_target.x as f32 / 250f32,
-                1. * camera_save.m_target.y as f32 / 250f32,
+                camera_save.m_target.y as f32 / 250f32,
                 game_loop as f32 / 100.,
             )],
             [(0.25, 0.25, 0.25)],
@@ -73,8 +73,8 @@ pub fn register_update_target_point(
         for selected_unit in updated_units {
             if let SC2UnitCmdData::TargetPoint(target_point) = &selected_unit.cmd.data {
                 let unit_target_pos = rerun::Vec3D::new(
-                    -1. * (selected_unit.pos.x() - target_point.x()),
-                    selected_unit.pos.y() - target_point.y(),
+                    target_point.x() - selected_unit.pos.x(),
+                    -1. * (target_point.y() + selected_unit.pos.y()),
                     0.,
                 );
                 let selected_unit_pos = rerun::Vec3D::new(
@@ -120,8 +120,8 @@ pub fn register_update_target_unit(
         for selected_unit in user_selected_units {
             if let SC2UnitCmdData::TargetUnit(target_unit_data) = &selected_unit.cmd.data {
                 let unit_target_pos = rerun::Vec3D::new(
-                    -1. * (selected_unit.pos.x() - target_unit_data.snapshot_point.x()),
-                    selected_unit.pos.y() - target_unit_data.snapshot_point.y(),
+                    target_unit_data.snapshot_point.x() - selected_unit.pos.x(),
+                    -1. * (target_unit_data.snapshot_point.y() + selected_unit.pos.y()),
                     0.,
                 );
                 let selected_unit_pos = rerun::Vec3D::new(

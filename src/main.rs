@@ -58,6 +58,9 @@ struct Cli {
     /// The output verbosity level.
     #[arg(long)]
     verbosity_level: Option<String>,
+
+    #[arg(long, default_value_t = true)]
+    serve_web: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -94,8 +97,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sc2_rerun = SC2Rerun::new(&cli.source, filters)?;
     if let Some(output) = cli.output {
         sc2_rerun.save_to_file(&output)?;
+    } else if cli.serve_web {
+        sc2_rerun.connect(None)?;
     } else if let Some(addr) = cli.connect {
-        sc2_rerun.connect(addr)?;
+        sc2_rerun.connect(Some(addr))?;
     } else {
         sc2_rerun.show()?;
     }

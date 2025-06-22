@@ -16,7 +16,8 @@ Rerun 0.5.1:
 
 [2023-GSL-S1-RO16-GroupA-Winners-Match](https://sebosp.github.io/swarmy/public/0.5.1/2023-GSL-S1-RO16-GroupA-Winners-Match.html?url=https://sebosp.github.io/swarmy/public/0.5.1/assets/2023-GSL-S1-RO16-GroupA-Winners-Match.rrd)
 
-## Running on native.
+
+## Running:
 
 For now this has been tested on Linux.
 
@@ -27,27 +28,23 @@ Clone this repo.
 # Clone this repository.
 $ cargo run -r -- --source <FILE>
 # To run the example file provided in this repo:
-# cargo run -- --source assets/2023-04-08-2v2AI.SC2Replay
+$ cargo run -- --source assets/2023-04-08-2v2AI.SC2Replay --connect rerun+http://localhost:9876/proxy --filter-max-events 1000
 # The first time the code is compiled it will take a few minutes.
 # Subsequent runs should not need compilation.
 ```
-
-## Running in browser.
-
-Running in browser requires exporting the `.rrd` file from the previous step.
-Basically load the Rerun viewer, in the menu Export the RRD and download.
-
-```shell
-$ cargo install rerun
-$ rerun --web-viewer my-downloaded-file.rrd
-```
+Then open a browser to http://localhost:9101/?url=rerun%2Bhttp%3A%2F%2Flocalhost%3A9876%2Fproxy
 
 ## Status
-Very basic initial setup.
+Working:
+- The minerals are recognized and drawn.
+- Units Created
+- Units Died
+- Camera Positions
+- The Unit targets (either points or other units)
+- Active Units are highlighted with increased radius.
 
-The minerals are recognized and drawn.
+In the currrent experiment, the Z-axis is the game time, that is, the higher the events, the older in time the event has happened.
 
-The drones are visible in their initial position.
 
 ## Motivation:
 
