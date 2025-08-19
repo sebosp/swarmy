@@ -4,6 +4,8 @@
 use re_web_viewer_server::WebViewerServerPort;
 use rerun::external::re_log_types::PathParseError;
 use rerun::web_viewer::WebViewerSinkError;
+use s2protocol::game_events::VersionedBalanceUnit;
+use std::collections::HashMap;
 use std::path::PathBuf;
 // use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
 use rerun::{RecordingStream, RecordingStreamBuilder};
@@ -69,9 +71,25 @@ pub struct SC2Rerun {
 }
 
 impl SC2Rerun {
-    pub fn new(file_path: &str, filters: SC2ReplayFilters) -> Result<Self, SwarmyError> {
-        let sc2_iterator = s2protocol::state::SC2EventIterator::new(&PathBuf::from(file_path))?
-            .with_filters(filters);
+    pub fn new(
+        file_path: &str,
+        filters: SC2ReplayFilters,
+        xml_balance_data_dir: String,
+    ) -> Result<Self, SwarmyError> {
+        let versioned_abilities: HashMap<(u32, String), VersionedBalanceUnit> =
+            if !xml_balance_data_dir.is_empty() {
+                tracing::info!("Using balance data directory: {}", xml_balance_data_dir);
+                s2protocol::game_events::ability::traverse_versioned_balance_abilities(
+                    PathBuf::from(&xml_balance_data_dir),
+                )?
+            } else {
+                HashMap::new()
+            };
+        let sc2_iterator = s2protocol::state::SC2EventIterator::new(
+            &PathBuf::from(file_path),
+            versioned_abilities,
+        )?
+        .with_filters(filters);
         Ok(Self {
             sc2_iterator,
             file_path: file_path.to_string(),
@@ -79,14 +97,19 @@ impl SC2Rerun {
     }
 
     pub fn add_events(self, recording_stream: &RecordingStream) -> Result<(), SwarmyError> {
-        for (event, change_hint) in self.sc2_iterator {
-            match event {
+        for event_item in self.sc2_iterator {
+            match event_item.event_type {
                 SC2EventType::Tracker {
                     tracker_loop,
                     event,
                 } => {
                     recording_stream.set_time_sequence("log", tracker_loop);
-                    add_tracker_event(&event, change_hint, recording_stream, tracker_loop)?
+                    add_tracker_event(
+                        &event,
+                        event_item.change_hint,
+                        recording_stream,
+                        tracker_loop,
+                    )?
                 }
                 SC2EventType::Game {
                     game_loop,
@@ -94,7 +117,13 @@ impl SC2Rerun {
                     event,
                 } => {
                     recording_stream.set_time_sequence("log", game_loop);
-                    add_game_event(user_id, &event, change_hint, recording_stream, game_loop)?
+                    add_game_event(
+                        user_id,
+                        &event,
+                        event_item.change_hint,
+                        recording_stream,
+                        game_loop,
+                    )?
                 }
             }
         }
