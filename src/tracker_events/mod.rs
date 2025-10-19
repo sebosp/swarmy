@@ -9,7 +9,7 @@ pub fn register_unit(
     creator: &Option<SC2Unit>,
     path_suffix: &'static str,
     recording_stream: &RecordingStream,
-    tracker_loop: i64,
+    _tracker_loop: i64,
     unit_tag_index: u32,
 ) -> Result<(), SwarmyError> {
     let user_id = unit.user_id.unwrap_or(99u8) as i64;
@@ -17,7 +17,7 @@ pub fn register_unit(
     let unit_pos_y = unit.pos.y();
     recording_stream.log(
         format!("Unit/{}/{}/{}", unit.name, unit_tag_index, path_suffix),
-        &rerun::Points3D::new([(unit_pos_x, unit_pos_y, (tracker_loop as f32 / 100.))])
+        &rerun::Points3D::new([(unit_pos_x, unit_pos_y, 0.)])
             //.with_labels([unit.name.clone()])
             //.with_draw_order(tracker_loop as f32)
             //.with_keypoint_ids([unit_tag_index as u64])
@@ -40,12 +40,12 @@ pub fn register_unit(
     let mut path_suffix: String = path_suffix.into();
     path_suffix.truncate(4);
     recording_stream.log(
-        format!("Log/{}", path_suffix),
+        format!("Log/{}/{}/{}", path_suffix, unit_tag_index, unit_name_trunc),
         &rerun::TextLog::new(format!(
             "U:{user_id} [{0:16}@{unit_tag_index:3}] pos: ({unit_pos_x:3},{unit_pos_y:3})",
             unit_name_trunc
         ))
-        .with_level(rerun::TextLogLevel::TRACE),
+        .with_level(rerun::TextLogLevel::INFO),
     )?;
     Ok(())
 }
@@ -129,7 +129,7 @@ pub fn register_unit_died(
     unit_dead: &UnitDiedEvent,
     change_hint: UnitChangeHint,
     recording_stream: &RecordingStream,
-    tracker_loop: i64,
+    _tracker_loop: i64,
 ) -> Result<(), SwarmyError> {
     if let UnitChangeHint::Unregistered { killer, killed } = change_hint {
         let user_id = killed.user_id.unwrap_or(99u8) as i64;
@@ -142,12 +142,20 @@ pub fn register_unit_died(
                 "U:{user_id} [{0:8}@{unit_tag_index:3}]",
                 unit_name_trunc
             ))
-            .with_level(rerun::TextLogLevel::TRACE),
+            .with_level(rerun::TextLogLevel::INFO),
         )?;
         // Clear up the killed unit target
         recording_stream.log(
             format!(
-                "Unit/{}/{}/Target",
+                "Unit/{}/{}/TU",
+                killed.name.clone(),
+                unit_dead.unit_tag_index
+            ),
+            &rerun::Clear::recursive(),
+        )?;
+        recording_stream.log(
+            format!(
+                "Unit/{}/{}/TP",
                 killed.name.clone(),
                 unit_dead.unit_tag_index
             ),
@@ -180,16 +188,12 @@ pub fn register_unit_died(
                 killed.name,
                 unit_tag(unit_dead.unit_tag_index, unit_dead.unit_tag_recycle)
             ),
-            &rerun::Points3D::new([(
-                unit_dead.x as f32,
-                unit_dead.y as f32,
-                tracker_loop as f32 / 100.,
-            )])
-            //.with_instance_keys([unit_tag as u64])
-            //.with_labels([killed.name.clone()])
-            //.with_draw_order(tracker_loop as f32)
-            .with_colors([FREYA_RED])
-            .with_radii([0.75]),
+            &rerun::Points3D::new([(unit_dead.x as f32, unit_dead.y as f32, 0.)])
+                //.with_instance_keys([unit_tag as u64])
+                //.with_labels([killed.name.clone()])
+                //.with_draw_order(tracker_loop as f32)
+                .with_colors([FREYA_RED])
+                .with_radii([0.75]),
         )?;
         tracing::info!("Killer Unit {:?} died at {:?}", killer, unit_dead,);
         if let (Some(unit_killer_tag_index), Some(killer_tag_recycle), Some(killer_unit)) = (
@@ -200,30 +204,22 @@ pub fn register_unit_died(
             let killer_tag = unit_tag(unit_killer_tag_index, killer_tag_recycle);
             recording_stream.log(
                 format!("Kills/{}/{}", killer_unit.name, killer_tag),
-                &rerun::Points3D::new([(
-                    unit_dead.x as f32,
-                    unit_dead.y as f32,
-                    tracker_loop as f32 / 100.,
-                )])
-                //.with_labels([killed.name.clone()])
-                //.with_draw_order(tracker_loop as f32)
-                //.with_instance_keys([unit_tag as u64])
-                .with_colors([FREYA_RED])
-                .with_radii([0.75]),
+                &rerun::Points3D::new([(unit_dead.x as f32, unit_dead.y as f32, 0.)])
+                    //.with_labels([killed.name.clone()])
+                    //.with_draw_order(tracker_loop as f32)
+                    //.with_instance_keys([unit_tag as u64])
+                    .with_colors([FREYA_RED])
+                    .with_radii([0.75]),
             )?;
         } else {
             recording_stream.log(
                 format!("Kills/{}", killed.name),
-                &rerun::Points3D::new([(
-                    unit_dead.x as f32,
-                    unit_dead.y as f32,
-                    tracker_loop as f32 / 100.,
-                )])
-                //.with_labels([killed.name.clone()])
-                //.with_draw_order(tracker_loop as f32)
-                //.with_instance_keys([unit_tag as u64])
-                .with_colors([FREYA_GREEN])
-                .with_radii([0.75]),
+                &rerun::Points3D::new([(unit_dead.x as f32, unit_dead.y as f32, 0.)])
+                    //.with_labels([killed.name.clone()])
+                    //.with_draw_order(tracker_loop as f32)
+                    //.with_instance_keys([unit_tag as u64])
+                    .with_colors([FREYA_GREEN])
+                    .with_radii([0.75]),
             )?;
         }
     } else {
@@ -268,7 +264,7 @@ pub fn register_player_stats(
     recording_stream: &RecordingStream,
 ) -> Result<(), SwarmyError> {
     // TODO: record timeless the initial setup, at spawn time probably:
-    //     rec.log_timeless(
+    //     rec.log_static(
     //     "TheStat",
     //     &rerun::SeriesPoint::new()
     //         .with_color([255, 0, 0])

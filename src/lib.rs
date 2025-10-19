@@ -4,19 +4,21 @@
 use re_web_viewer_server::WebViewerServerPort;
 use rerun::external::re_log_types::PathParseError;
 use rerun::web_viewer::WebViewerSinkError;
-use s2protocol::game_events::VersionedBalanceUnit;
+use s2protocol::game_events::{read_balance_data_from_json, VersionedBalanceUnit};
 use std::collections::HashMap;
 use std::path::PathBuf;
 // use rerun::external::re_viewer::external::eframe::Error as eframe_Error;
+use nom_mpq::error::MPQParserError;
 use rerun::{RecordingStream, RecordingStreamBuilder};
 use s2protocol::state::SC2EventIterator;
-use s2protocol::{S2ProtocolError, SC2EventType, SC2ReplayFilters};
+use s2protocol::{InitData, S2ProtocolError, SC2EventType, SC2ReplayFilters};
 pub use tracker_events::*;
 pub mod unit_colors;
 pub use unit_colors::*;
 pub mod game_events;
 pub use game_events::*;
 pub mod tracker_events;
+pub static SYSTEM_USERNAME: &str = "SYS";
 
 // Some colors I really liked from a Freya Holmer presentation:
 // https://www.youtube.com/watch?v=kfM-yu0iQBk
@@ -52,6 +54,8 @@ pub enum SwarmyError {
     RerunEframe(#[from] eframe_Error),*/
     #[error("S2Protocol Error")]
     S2Protocol(#[from] S2ProtocolError),
+    #[error("NomMPQ Error")]
+    NomMPQ(#[from] MPQParserError),
     #[error("RecordingStream Error")]
     RecordingStream(#[from] rerun::RecordingStreamError),
     #[error("WebViewerServer Error")]
@@ -74,22 +78,23 @@ impl SC2Rerun {
     pub fn new(
         file_path: &str,
         filters: SC2ReplayFilters,
-        xml_balance_data_dir: String,
+        json_balance_data_dir: String,
     ) -> Result<Self, SwarmyError> {
+        tracing::info!("Using balance data directory: {}", json_balance_data_dir);
         let versioned_abilities: HashMap<(u32, String), VersionedBalanceUnit> =
-            if !xml_balance_data_dir.is_empty() {
-                tracing::info!("Using balance data directory: {}", xml_balance_data_dir);
-                s2protocol::game_events::ability::traverse_versioned_balance_abilities(
-                    PathBuf::from(&xml_balance_data_dir),
-                )?
-            } else {
-                HashMap::new()
+            match read_balance_data_from_json(PathBuf::from(&json_balance_data_dir)) {
+                Ok(data) => data,
+                Err(e) => {
+                    tracing::error!("Failed to read balance data from JSON: {}", e);
+                    HashMap::new()
+                }
             };
-        let sc2_iterator = s2protocol::state::SC2EventIterator::new(
-            &PathBuf::from(file_path),
-            versioned_abilities,
-        )?
-        .with_filters(filters);
+        let file_contents: Vec<u8> = s2protocol::read_file(&PathBuf::from(&file_path))?;
+        let (_input, mpq) = s2protocol::parser::parse(&file_contents)?;
+        let init_data: InitData = InitData::new(file_path, 0u64, &mpq, &file_contents)?;
+        let sc2_iterator =
+            s2protocol::state::SC2EventIterator::new(&init_data, versioned_abilities)?
+                .with_filters(filters);
         Ok(Self {
             sc2_iterator,
             file_path: file_path.to_string(),
@@ -97,6 +102,12 @@ impl SC2Rerun {
     }
 
     pub fn add_events(self, recording_stream: &RecordingStream) -> Result<(), SwarmyError> {
+        let image = include_bytes!("../assets/Magannatha.png");
+
+        recording_stream.log_static(
+            "Map",
+            &rerun::EncodedImage::from_file_contents(image.to_vec()),
+        )?;
         for event_item in self.sc2_iterator {
             match event_item.event_type {
                 SC2EventType::Tracker {
@@ -114,11 +125,14 @@ impl SC2Rerun {
                 SC2EventType::Game {
                     game_loop,
                     user_id,
+                    player_name,
                     event,
                 } => {
+                    let sys_player_name = String::from(SYSTEM_USERNAME);
                     recording_stream.set_time_sequence("log", game_loop);
                     add_game_event(
                         user_id,
+                        player_name.as_ref().unwrap_or(&sys_player_name),
                         &event,
                         event_item.change_hint,
                         recording_stream,
@@ -127,6 +141,7 @@ impl SC2Rerun {
                 }
             }
         }
+        // Leave the rerun webviewer running... For now.
         std::thread::sleep(std::time::Duration::from_secs(100000));
         Ok(())
     }
@@ -138,7 +153,7 @@ impl SC2Rerun {
     }
 
     /// Connects to a remote address and ships the events
-    pub fn connect(self, addr: Option<String>) -> Result<(), SwarmyError> {
+    pub fn connect(self, addr: Vec<String>) -> Result<(), SwarmyError> {
         //let mut endpoint = String::from("127.0.0.1:9876/proxy");
         // We need to find the current epoch in seconds:
         let epoch_seconds = std::time::SystemTime::now()

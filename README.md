@@ -28,7 +28,7 @@ Clone this repo.
 # Clone this repository.
 $ cargo run -r -- --source <FILE>
 # To run the example file provided in this repo:
-$ cargo run -- --source assets/2023-04-08-2v2AI.SC2Replay --connect rerun+http://localhost:9876/proxy --filter-max-events 1000
+$ cargo run -- --source assets/2023-04-08-2v2AI.SC2Replay --connect rerun+http://localhost:9876/proxy --filter-max-events 1000 --json-balance-data-dir $HOME/SC2Replays/BalanceData/
 # The first time the code is compiled it will take a few minutes.
 # Subsequent runs should not need compilation.
 ```
