@@ -115,12 +115,7 @@ impl SC2Rerun {
                     event,
                 } => {
                     recording_stream.set_time_sequence("log", tracker_loop);
-                    add_tracker_event(
-                        &event,
-                        event_item.change_hint,
-                        recording_stream,
-                        tracker_loop,
-                    )?
+                    add_tracker_event(&event, event_item.change_hint, recording_stream)?
                 }
                 SC2EventType::Game {
                     game_loop,

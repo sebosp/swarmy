@@ -14,7 +14,7 @@ pub fn register_camera_update(
 ) -> Result<(), SwarmyError> {
     if let Some(target) = &camera_update.m_target {
         recording_stream.log(
-            format!("Player/{}:{}/Cam", player_name, user_id),
+            format!("{}/Cam", player_name),
             &rerun::Boxes3D::from_centers_and_half_sizes(
                 [(target.x as f32 / 250f32, 1. * target.y as f32 / 250f32, 0.)],
                 [(5.0, 5.0, 0.025)],
@@ -35,10 +35,7 @@ pub fn register_camera_save(
     _game_loop: i64,
 ) -> Result<(), SwarmyError> {
     recording_stream.log(
-        format!(
-            "CamSave/{}:{}/{}",
-            player_name, user_id, camera_save.m_which
-        ),
+        format!("{}/CamSave/{}", player_name, camera_save.m_which),
         &rerun::TextLog::new(format!(
             "{}:{:?}",
             camera_save.m_which, camera_save.m_target
@@ -46,10 +43,7 @@ pub fn register_camera_save(
         .with_level(rerun::TextLogLevel::TRACE),
     )?;
     recording_stream.log(
-        format!(
-            "Player/{}:{}/CamSave/{}",
-            user_id, player_name, camera_save.m_which
-        ),
+        format!("{}/CamSave/{}", player_name, camera_save.m_which),
         &rerun::Boxes3D::from_centers_and_half_sizes(
             [(
                 camera_save.m_target.x as f32 / 250f32,
@@ -86,9 +80,8 @@ pub fn register_update_target_point(
                     rerun::Vec3D::new(selected_unit.pos.x(), selected_unit.pos.y(), 0.);
                 recording_stream.log(
                     format!(
-                        "Log/{}:{}/{}/{}/TP/{}",
+                        "{}/Unit/{}/{}/TP/{}",
                         player_name,
-                        user_id,
                         selected_unit.name,
                         selected_unit.tag_index,
                         selected_unit
@@ -98,8 +91,8 @@ pub fn register_update_target_point(
                             .unwrap_or("".to_string()),
                     ),
                     &rerun::TextLog::new(format!(
-                        "TP{:?}:{:?}",
-                        selected_unit_pos, unit_target_pos
+                        "u:{} TP{:?}:{:?}",
+                        user_id, selected_unit_pos, unit_target_pos
                     ))
                     .with_level(rerun::TextLogLevel::TRACE),
                 )?;
@@ -139,12 +132,16 @@ pub fn register_update_target_unit(
                     rerun::Vec3D::new(selected_unit.pos.x(), selected_unit.pos.y(), 0.);
                 recording_stream.log(
                     format!(
-                        "Log/{}:{}/{}/{}/TU",
-                        player_name, user_id, selected_unit.name, selected_unit.tag_index
+                        "{}/Unit/{}/{}/TU",
+                        player_name, selected_unit.name, selected_unit.tag_index
                     ),
                     &rerun::TextLog::new(format!(
-                        "{}({:?})->{}({:?})",
-                        selected_unit.name, selected_unit_pos, target_unit.name, unit_target_pos
+                        "u:{} {}({:?})->{}({:?})",
+                        user_id,
+                        selected_unit.name,
+                        selected_unit_pos,
+                        target_unit.name,
+                        unit_target_pos
                     ))
                     .with_level(rerun::TextLogLevel::TRACE),
                 )?;
@@ -273,10 +270,7 @@ pub fn register_cmd(
                 "".to_string()
             };
             recording_stream.log(
-                format!(
-                    "Tgt/{}:{}/{}/{}",
-                    player_name, user_id, unit.name, unit.tag_index
-                ),
+                format!("{}/Unit/{}/{}", player_name, unit.name, unit.tag_index),
                 &rerun::TextLog::new(abil_str).with_level(rerun::TextLogLevel::INFO),
             )?;
         }
@@ -285,7 +279,7 @@ pub fn register_cmd(
 }
 
 pub fn handle_chat_message(
-    user_id: i64,
+    _user_id: i64,
     player_name: &str,
     _change_hint: UnitChangeHint,
     chat_message: &GameSTriggerChatMessageEvent,
@@ -293,9 +287,9 @@ pub fn handle_chat_message(
     _game_loop: i64,
 ) -> Result<(), SwarmyError> {
     recording_stream.log(
-        format!("Chat/{}:{}", player_name, user_id),
+        format!("{}/Chat", player_name),
         &rerun::TextLog::new(chat_message.m_chat_message.to_string())
-            .with_level(rerun::TextLogLevel::TRACE),
+            .with_level(rerun::TextLogLevel::INFO),
     )?;
     Ok(())
 }
