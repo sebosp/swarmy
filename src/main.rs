@@ -14,6 +14,10 @@ struct Cli {
     #[arg(short, long, value_name = "FILE")]
     source: String,
 
+    /// Source file, the SC2Replay extension usually.
+    #[arg(short, long)]
+    json_balance_data_dir: String,
+
     /// Whether to include the player stats. This should be later move into a filter where specific
     /// event types can be excluded/included but for now this is just clutter.
     #[arg(long, default_value_t = false)]
@@ -93,14 +97,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_events: cli.filter_max_events,
         include_stats: cli.include_stats,
     };
-    tracing::error!("Swarmy Filters: {:?}", filters);
-    let sc2_rerun = SC2Rerun::new(&cli.source, filters)?;
+    let sc2_rerun = SC2Rerun::new(&cli.source, filters, cli.json_balance_data_dir)?;
     if let Some(output) = cli.output {
         sc2_rerun.save_to_file(&output)?;
     } else if cli.serve_web {
-        sc2_rerun.connect(None)?;
+        sc2_rerun.connect(vec![])?;
     } else if let Some(addr) = cli.connect {
-        sc2_rerun.connect(Some(addr))?;
+        sc2_rerun.connect(vec![addr])?;
     } else {
         sc2_rerun.show()?;
     }
