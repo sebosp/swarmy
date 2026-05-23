@@ -2,6 +2,8 @@ pub mod data;
 use crate::get_current_app_config;
 use data::try_query_replay_list;
 use swarmy_tauri_common::*;
+use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::ShellExt;
 
 #[tauri::command(rename_all = "snake_case")]
@@ -9,8 +11,8 @@ pub async fn query_replay_list(
     app_handle: tauri::AppHandle,
     map_title: String,
     player_name: String,
-            min_date: chrono::NaiveDate,
-            max_date: chrono::NaiveDate,
+    min_date: chrono::NaiveDate,
+    max_date: chrono::NaiveDate,
 ) -> ApiResponse {
     let app_config = match get_current_app_config(app_handle.clone()).await {
         Ok(config) => config,
@@ -105,4 +107,31 @@ pub async fn exec_swarmy_rerun_replay(
             },
         },
     )
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn copy_path_to_clipboard(app_handle: tauri::AppHandle, data: String) -> ApiResponse {
+    log::info!("Writing {data} to clipboard.",);
+    app_handle.clipboard().write_text(data).unwrap();
+    ApiResponse::new(
+        ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
+        "Succesfully wrote to clipboard.".to_string(),
+    )
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn open_folder(app_handle: tauri::AppHandle, folder: String) -> ApiResponse {
+    log::info!("Requesting open on folder: {}", folder);
+    match app_handle.opener().open_path(folder, None::<&str>) {
+        Ok(_) => ApiResponse::new(
+            ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
+            "Succesfully called open.".to_string(),
+        ),
+        Err(err) => ApiResponse::new(
+            ResponseMetaBuilder::new(false)
+                .duration_ms(0 as u64)
+                .build(),
+            format!("Error requesting open: {:?}", err),
+        ),
+    }
 }

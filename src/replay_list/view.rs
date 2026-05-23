@@ -2,12 +2,14 @@ use super::actions::*;
 use super::*;
 use crate::*;
 use chrono::Utc;
+use leptos::ev::MouseEvent;
 use leptos::prelude::*;
+use phosphor_leptos::{Icon, IconWeight, FILE, FOLDER_OPEN};
 use reactive_stores::Store;
 use swarmy_tauri_common::*;
 
 #[component]
-pub fn ReplayList() -> impl IntoView {
+pub fn ReplayList(active_page: RwSignal<String>) -> impl IntoView {
     let player_name = RwSignal::new(String::new());
     let map_title = RwSignal::new(String::new());
     let query = move || ReplayListQuery {
@@ -73,14 +75,17 @@ pub fn ReplayList() -> impl IntoView {
                 {move || replay_list_store.total().get()} " Unique maps found in snapshot."
             </h2>
             <Show when=move || { replay_list_store.total().get() > 0 }>
-                <ReplayListDataTable replay_list_store />
+                <ReplayListDataTable replay_list_store active_page />
             </Show>
         </div>
     }
 }
 
 #[component]
-pub fn ReplayListDataTable(replay_list_store: Store<ReplayListDataTable>) -> impl IntoView {
+pub fn ReplayListDataTable(
+    replay_list_store: Store<ReplayListDataTable>,
+    active_page: RwSignal<String>,
+) -> impl IntoView {
     view! {
         <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -91,31 +96,37 @@ pub fn ReplayListDataTable(replay_list_store: Store<ReplayListDataTable>) -> imp
                                 scope="col"
                                 class="py-3.5 pr-3 pl-4 text-left text-sm font-semibold whitespace-nowrap sm:pl-0 text-white"
                             >
-                                "Map Title"
+                                "Map"
                             </th>
                             <th
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
                             >
-                                "Games"
+                                "Path"
                             </th>
                             <th
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
                             >
-                                "Cache Handles"
+                                "Player List"
                             </th>
                             <th
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
                             >
-                                "Min Date"
+                                "Duration"
                             </th>
                             <th
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
                             >
-                                "Max Date"
+                                "Player Win"
+                            </th>
+                            <th
+                                scope="col"
+                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                            >
+                                "Date"
                             </th>
                         </tr>
                     </thead>
@@ -126,15 +137,55 @@ pub fn ReplayListDataTable(replay_list_store: Store<ReplayListDataTable>) -> imp
                             children=|child| {
                                 view! {
                                     <tr>
-                                        <td>{child.read().replay_location.clone()}</td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                        <td>
+                                            <span class="px-0 py-0 text-xs text-gray-400">
+                                                {child.read().map_title.clone()}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button
+                                                class="btn btn-primary btn-xs b-0"
+                                                on:click={
+                                                    let value = child.read().replay_location.clone();
+                                                    move |_ev: MouseEvent| {
+                                                        trigger_request_copy_path_to_clipboard(&value)
+                                                    }
+                                                }
+                                                title="Copy filename to clipboard"
+                                            >
+                                                <Icon
+                                                    icon=FILE
+                                                    weight=IconWeight::Light
+                                                    prop:class="stroke-current"
+                                                />
+                                            </button>
+                                            <button
+                                                class="btn btn-primary btn-xs b-0"
+                                                on:click={
+                                                    let value = child.read().replay_location.clone();
+                                                    let path = std::path::Path::new(&value).parent().unwrap();
+                                                    let path_parent = format!("{}", path.display());
+                                                    move |_ev: MouseEvent| {
+                                                        trigger_request_open_folder(&path_parent)
+                                                    }
+                                                }
+                                                title="Open directory"
+                                            >
+                                                <Icon
+                                                    icon=FOLDER_OPEN
+                                                    weight=IconWeight::Light
+                                                    prop:class="stroke-current"
+                                                />
+                                            </button>
+                                        </td>
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {child.read().player_list.join(", ")}
                                         </td>
                                         <td>{child.read().duration}</td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().winner_list.join(", "))}
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().replay_date)}
                                         </td>
                                     </tr>

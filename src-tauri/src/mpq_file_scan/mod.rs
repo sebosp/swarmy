@@ -1,10 +1,10 @@
 //! Swarmy Tauri UI - SC2Replay Directory Scan and Export to Arrow IPC Module
 
 use crate::settings::load_app_settings;
-use s2protocol::SC2ReplaysDirStats;
 use s2protocol::arrow_store::ArrowIpcTypes;
 use s2protocol::cli::WriteArrowIpcProps;
 use s2protocol::game_events::read_balance_data_from_json_dir;
+use s2protocol::SC2ReplaysDirStats;
 use std::path::PathBuf;
 use swarmy_tauri_common::*;
 use tauri_plugin_store::StoreBuilder;

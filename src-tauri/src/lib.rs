@@ -16,12 +16,12 @@ pub use replay_caches::*;
 pub mod data;
 pub mod majordomo;
 pub mod replay_list;
-use crate::replay_list::query_replay_list;
+use crate::replay_list::{copy_path_to_clipboard, open_folder, query_replay_list};
 use std::process;
 use std::thread;
 
-use tauri::AppHandle;
 use tauri::async_runtime::spawn;
+use tauri::AppHandle;
 use tokio::sync::mpsc;
 
 use crate::majordomo::AsyncTask;
@@ -35,6 +35,7 @@ pub struct SetupState {
 pub fn run() {
     let (majordomo_tx, majordomo_rx) = mpsc::channel(4_096); // TODO: Magic number removal
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .manage(SetupState { majordomo_tx })
@@ -76,6 +77,8 @@ pub fn run() {
             download_replay_caches,
             exec_swarmy_bevy_map_caches,
             query_replay_list,
+            copy_path_to_clipboard,
+            open_folder,
         ])
         .plugin(tauri_plugin_store::Builder::default().build())
         .run(tauri::generate_context!())

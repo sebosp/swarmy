@@ -11,7 +11,7 @@ use swarmy_tauri_common::*;
 pub struct ReplayListDataTable {
     pub total: usize,
     #[store(key: String = |row| row.sha256_sum.clone())]
-    pub data: Vec<ReplayList>,
+    pub data: Vec<ReplayListEntry>,
     pub start: usize,
     pub end: usize,
     pub page: usize,

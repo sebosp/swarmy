@@ -93,24 +93,6 @@ fn extract_map_stats_from_df_row(row: &DataFrame) -> Result<MapStats, SwarmyTaur
         .unwrap_or("")
         .to_string();
     let num_games = row.column("num_games")?.u32()?.get(0).unwrap_or(0);
-    // The cache_handles have start information for the:
-    // - "s2ma" filetype
-    // - 2 letter region, i.e. US, EU, KR, etc.
-    // - then the file hash, not sure this is unique across regions.
-    /*❯ echo "73326d6100004555"|xxd -r -ps
-    s2maEU⏎
-
-    ❯ echo "73326d6100005553"|xxd -r -ps
-    s2maUS⏎
-
-    ❯ echo "73326d6100004b52"|xxd -r -ps
-    s2maKR⏎
-
-    ❯ echo "73326d6100004b52"|xxd -r -ps|xxd
-    00000000: 7332 6d61 0000 4b52                      s2ma..KR
-    */
-    println!("Title: {}", title);
-    println!("Cache handles: {}", cache_handles);
     Ok(MapStats {
         max_date,
         min_date,

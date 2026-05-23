@@ -7,7 +7,7 @@ use swarmy_tauri_common::*;
 pub fn try_query_replay_list(
     replay_path: String,
     query: ReplayListQuery,
-) -> Result<Vec<ReplayList>, SwarmyTauriError> {
+) -> Result<Vec<ReplayListEntry>, SwarmyTauriError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
 
@@ -77,13 +77,13 @@ pub fn try_query_replay_list(
         .limit(1000)
         .collect()?;
     println!("{res}");
-    let res: Vec<ReplayList> = (0..res.height())
+    let res: Vec<ReplayListEntry> = (0..res.height())
         .map(|idx| extract_replay_list_from_df_row(&res.slice(idx as i64, 1)))
         .collect::<Result<_, _>>()?;
     Ok(res)
 }
 
-fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayList, SwarmyTauriError> {
+fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, SwarmyTauriError> {
     let map_title = row
         .column("title")?
         .str()?
@@ -120,13 +120,21 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayList, Swarmy
         .split(",")
         .map(|val| val.to_string())
         .collect();
-    println!("Title: {}", map_title);
-    Ok(ReplayList {
+    let replay_file_name: String =
+        match std::path::PathBuf::from(replay_location.clone()).file_name() {
+            Some(val) => format!("{}", val.display()),
+            None => format!(
+                "Unable to locate file_name for replay_location: {}",
+                replay_location
+            ),
+        };
+    Ok(ReplayListEntry {
         map_title,
         replay_date,
+        replay_location,
+        replay_file_name,
         player_list,
         sha256_sum,
-        replay_location,
         duration,
         winner_list,
     })

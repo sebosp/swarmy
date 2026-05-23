@@ -40,7 +40,7 @@ pub fn Main() -> impl IntoView {
                         id="swarmy-tauri-map-details-content"
                         class="flex flex-col grow p-2 rounded"
                     >
-                        <MapDetails active_page=active_page />
+                        <MapDetails active_page />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == "Replay List">
@@ -48,7 +48,7 @@ pub fn Main() -> impl IntoView {
                         id="swarmy-tauri-stats-by-map-content"
                         class="flex flex-col grow p-2 rounded"
                     >
-                        <ReplayList />
+                        <ReplayList active_page />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == "Config">

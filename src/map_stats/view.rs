@@ -89,31 +89,31 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                         <tr>
                             <th
                                 scope="col"
-                                class="py-3.5 pr-3 pl-4 text-left text-sm font-semibold whitespace-nowrap sm:pl-0 text-white"
+                                class="py-3.5 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap xs:pl-0 text-white"
                             >
                                 "Map Title"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
                             >
                                 "Games"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
                             >
                                 "Cache Handles"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
                             >
                                 "Min Date"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
                             >
                                 "Max Date"
                             </th>
@@ -136,7 +136,7 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                     .len();
                                 view! {
                                     <tr>
-                                        <td class="py-2 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-white">
+                                        <td>
                                             <button
                                                 class="btn btn-primary btn-sm b-0 p-0 m-0"
                                                 on:click=move |ev: MouseEvent| {
@@ -148,14 +148,14 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                                 {child.read().title.clone()}
                                             </button>
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {child.read().num_games}
                                         </td>
                                         <td>{handles_count}</td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().min_date)}
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().max_date)}
                                         </td>
                                     </tr>
