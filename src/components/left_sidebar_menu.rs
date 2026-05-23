@@ -1,6 +1,6 @@
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, BARCODE, FADERS, HOUSE, MAP_TRIFOLD};
+use phosphor_leptos::{BARCODE, FADERS, HOUSE, INTERSECT_SQUARE, Icon, IconWeight, MAP_TRIFOLD};
 
 #[component]
 pub fn LeftSideBarMenu(active_page: RwSignal<String>) -> impl IntoView {
@@ -32,6 +32,7 @@ pub fn LeftSideBarMenu(active_page: RwSignal<String>) -> impl IntoView {
                 <SidebarMenuItem name="Home" active_page=active_page />
                 <SidebarMenuItem name="Scan" active_page=active_page />
                 <SidebarMenuItem name="Stats By Map" active_page=active_page />
+                <SidebarMenuItem name="Replay List" active_page=active_page />
             </div>
             <div class="flex flex-col items-center mt-2 border-t border-purple-700">
                 <SidebarMenuItem name="Config" active_page=active_page />
@@ -70,6 +71,7 @@ fn SidebarMenuItem(name: &'static str, active_page: RwSignal<String>) -> impl In
         "Scan" => BARCODE,
         "Config" => FADERS,
         "Stats By Map" => MAP_TRIFOLD,
+        "Replay List" => INTERSECT_SQUARE,
         _ => HOUSE,
     };
 

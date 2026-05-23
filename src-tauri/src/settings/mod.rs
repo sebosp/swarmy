@@ -23,7 +23,7 @@ pub async fn load_app_settings(
 
     // if the ipc directory exists do basic scan.
     let replay_path = replay_path.trim_end_matches('/').to_string();
-    let ipc_path = std::path::Path::new(&replay_path).join("ipcs");
+    let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));
     let arrow_ipc_stats = if ipc_path.exists() && ipc_path.is_dir() {
         let replay_path_cp = replay_path.clone();
         let t = std::thread::spawn(move || match try_get_snapshot_metadata(replay_path_cp) {

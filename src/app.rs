@@ -3,12 +3,14 @@
 use leptos::prelude::*;
 use swarmy_tauri_ui::components::left_sidebar_menu::LeftSideBarMenu;
 use swarmy_tauri_ui::config::view::Config;
+use swarmy_tauri_ui::map_details::view::MapDetails;
 use swarmy_tauri_ui::map_stats::view::StatsByMap;
+use swarmy_tauri_ui::replay_list::view::ReplayList;
 use swarmy_tauri_ui::scan::view::ScanDirectory;
 
 #[component]
 pub fn Main() -> impl IntoView {
-    let active_page = RwSignal::new("Stats By Map".to_string());
+    let active_page = RwSignal::new("Scan".to_string());
 
     view! {
         <div id="swarmy-tauri-window" class="flex w-screen h-screen bg-gray-800 rounded">
@@ -31,6 +33,22 @@ pub fn Main() -> impl IntoView {
                         class="flex flex-col grow p-2 rounded"
                     >
                         <StatsByMap />
+                    </div>
+                </Show>
+                <Show when=move || active_page.get() == "Map Details">
+                    <div
+                        id="swarmy-tauri-map-details-content"
+                        class="flex flex-col grow p-2 rounded"
+                    >
+                        <MapDetails active_page=active_page />
+                    </div>
+                </Show>
+                <Show when=move || active_page.get() == "Replay List">
+                    <div
+                        id="swarmy-tauri-stats-by-map-content"
+                        class="flex flex-col grow p-2 rounded"
+                    >
+                        <ReplayList />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == "Config">

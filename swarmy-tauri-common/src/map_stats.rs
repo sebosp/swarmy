@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 /// The cache_handles contain downloadable assets from blizzard's CDN, even tho two maps may have
 /// the same title, if their cache_handles differ, they are considered different, maybe different
 /// versions, tests, etc.
+/// TODO: We should not use the cache_handle IDs joined to dedup them, we should use some internal
+/// Information i.e. inside MapInfo or T3HeightMap/etc.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MapStats {
     /// The number of games
@@ -48,6 +50,8 @@ pub struct MapStatsQuery {
 /// - Another mode shows the frequency of units per location ? Maybe effective?
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct SwarmyBevyMapCacheParams {
+    /// The name of the map. I don't know where to read it yet from the Downloaded Caches.
+    pub map_title: String,
     /// A string that contains the comma separated list of cacheids to search for t3 height map and
     /// mapinfo
     pub cache_ids: String,

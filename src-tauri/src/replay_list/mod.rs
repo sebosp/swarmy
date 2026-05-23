@@ -1,14 +1,16 @@
 pub mod data;
 use crate::get_current_app_config;
-use data::try_query_map_stats;
+use data::try_query_replay_list;
 use swarmy_tauri_common::*;
 use tauri_plugin_shell::ShellExt;
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn query_map_stats(
+pub async fn query_replay_list(
     app_handle: tauri::AppHandle,
     map_title: String,
     player_name: String,
+            min_date: chrono::NaiveDate,
+            max_date: chrono::NaiveDate,
 ) -> ApiResponse {
     let app_config = match get_current_app_config(app_handle.clone()).await {
         Ok(config) => config,
@@ -21,11 +23,13 @@ pub async fn query_map_stats(
     };
     let t = std::thread::spawn(move || {
         let init_time = std::time::Instant::now();
-        let query = MapStatsQuery {
+        let query = ReplayListQuery {
             map_title,
             player_name,
+            min_date,
+            max_date,
         };
-        match try_query_map_stats(app_config.replay_path, query) {
+        match try_query_replay_list(app_config.replay_path, query) {
             Ok(val) => ApiResponse::new(
                 ResponseMetaBuilder::new(true)
                     .duration_ms(init_time.elapsed().as_millis() as u64)
@@ -47,7 +51,7 @@ pub async fn query_map_stats(
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn exec_swarmy_bevy_map_caches(
+pub async fn exec_swarmy_rerun_replay(
     app_handle: tauri::AppHandle,
     map_title: String,
     cache_ids: String,

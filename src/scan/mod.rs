@@ -147,6 +147,7 @@ impl From<AppSettings> for ActivityStage {
         }
     }
 }
+
 #[derive(Store, Debug, Clone, Serialize, Deserialize)]
 pub struct SC2ReplaysDirStatsTable {
     pub total_files: usize,

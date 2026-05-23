@@ -1,4 +1,5 @@
-//! Actions related to the Map Stats.
+//! Actions related to the Replay List
+//!
 use super::*;
 use crate::*;
 use leptos::leptos_dom::logging::console_log;
@@ -7,26 +8,26 @@ use leptos::task::spawn_local;
 use reactive_stores::{Patch, Store};
 use swarmy_tauri_common::*;
 
-pub async fn fetch_query_map_stats(query: MapStatsQuery) -> Result<ApiResponse, SwarmyTauriError> {
+pub async fn fetch_query_replay_list(query: ReplayListQuery) -> Result<ApiResponse, SwarmyTauriError> {
     let args = serde_wasm_bindgen::to_value(&query).unwrap();
     console_log(&format!(
-        "Invoking fetch_query_map_stats with args: {:?}",
+        "Invoking fetch_query_replay_list with args: {:?}",
         args
     ));
     let response =
-        serde_wasm_bindgen::from_value::<ApiResponse>(invoke("query_map_stats", args).await)?;
+        serde_wasm_bindgen::from_value::<ApiResponse>(invoke("query_replay_list", args).await)?;
     Ok(response)
 }
 
-pub fn trigger_fetch_query_map_stats(
-    data: Store<MapStatsDataTable>,
-    query: MapStatsQuery,
+pub fn trigger_fetch_query_replay_list(
+    data: Store<ReplayListDataTable>,
+    query: ReplayListQuery,
     set_backend_response: WriteSignal<ApiResponse>,
 ) {
     *set_backend_response.write() = ApiResponse::new_incomplete();
     spawn_local(async move {
         console_log(&format!("Fetching map stats with query: {:?}", query));
-        match fetch_query_map_stats(query).await {
+        match fetch_query_replay_list(query).await {
             Err(e) => {
                 console_log(&format!("Error fetching map stats: {:?}", e));
                 *set_backend_response.write() = ApiResponse {
@@ -37,7 +38,7 @@ pub fn trigger_fetch_query_map_stats(
             Ok(response) => {
                 console_log(&format!("1. Successfully fetched map stats",));
                 *set_backend_response.write() = response.clone();
-                let mut rows: Vec<MapStats> =
+                let mut rows: Vec<ReplayList> =
                     serde_json::from_str(&response.message).unwrap_or_default();
                 console_log(&format!("2. Successfully deserialized map stats",));
                 data.data().write().retain(|_| false);

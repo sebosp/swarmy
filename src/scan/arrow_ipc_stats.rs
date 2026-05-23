@@ -2,12 +2,12 @@ use chrono::DateTime;
 use chrono::{NaiveDateTime, Utc};
 use leptos::prelude::*;
 use phosphor_leptos::{
-    Icon, IconWeight, IconWeightData, BOXING_GLOVE, CALENDAR_DOT, CALENDAR_STAR, CIRCUITRY,
-    HARD_DRIVE,
+    BOXING_GLOVE, CALENDAR_DOT, CALENDAR_STAR, CIRCUITRY, HARD_DRIVE, Icon, IconWeight,
+    IconWeightData,
 };
 use si_scale::helpers::bibytes2;
 use std::time::UNIX_EPOCH;
-use swarmy_tauri_common::SnapshotStats;
+use swarmy_tauri_common::*;
 
 pub fn time_ago(date: NaiveDateTime) -> String {
     let now = Utc::now().naive_utc();
@@ -101,7 +101,7 @@ pub fn ArrowIpcStats(snapshot_stats: ReadSignal<SnapshotStats>) -> impl IntoView
     let (snapshot_size, _set_snapshot_size) =
         signal(bibytes2(snapshot_stats.get().ipc_dir_size as f64));
     let (snapshot_size_description, _set_snapshot_size_description) =
-        signal("ipcs/ directory".to_string());
+        signal(format!("{}/ directory", IPC_DIR));
     let (num_maps_value, _set_num_maps_value) = signal(snapshot_stats.get().num_maps.to_string());
     let (num_maps_description, _set_num_maps_description) = signal("unique maps".to_string());
     let (snapshot_min_date, _set_snapshot_min_date) =

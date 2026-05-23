@@ -8,7 +8,7 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, DATABASE, SHIPPING_CONTAINER};
+use phosphor_leptos::{DATABASE, Icon, IconWeight, SHIPPING_CONTAINER};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
 use s2protocol::SC2ReplaysDirStats;
@@ -16,27 +16,25 @@ use swarmy_tauri_common::*;
 
 #[component]
 pub fn ScanDirectory() -> impl IntoView {
-    let (activity_stage, set_activity_stage) = signal(ActivityStage::None);
     let (app_settings, set_app_settings) = signal(AppSettings::default());
+    let (activity_stage, set_activity_stage) = signal(ActivityStage::default());
+
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
     });
     let (snapshot_stats, set_snapshot_stats) = signal(SnapshotStats::default());
 
-    crate::config::fetch_get_current_app_config(set_app_settings);
-    *set_activity_stage.write() = ActivityStage::from(app_settings.get().clone());
-    *set_snapshot_stats.write() = app_settings.get().snapshot_stats.clone();
+    crate::config::fetch_get_current_app_config(set_app_settings, move |settings: AppSettings| {
+        *set_snapshot_stats.write() = settings.snapshot_stats.clone();
+        *set_activity_stage.write() = ActivityStage::from(settings);
+    });
     let tx_update_replay_dir = move |ev| {
         let v = event_target_value(&ev);
-        if v.is_empty() {
-            *set_activity_stage.write() = ActivityStage::None;
-        } else {
-            *set_activity_stage.write() = ActivityStage::DirectoryEntered;
-        }
         set_app_settings.update(|settings| {
             settings.replay_path = v;
         });
+        *set_activity_stage.write() = ActivityStage::DirectoryEntered;
     };
     let dir_stats_data = Store::new(SC2ReplaysDirStatsTable::from(SC2ReplaysDirStats::default()));
 

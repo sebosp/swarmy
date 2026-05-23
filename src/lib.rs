@@ -1,7 +1,9 @@
+pub mod common;
+pub mod map_details;
+pub mod map_stats;
+pub mod replay_list;
 /// Swarmy Tauri Library
 pub mod scan;
-pub mod map_stats;
-pub mod common;
 pub use common::*;
 pub mod components;
 pub mod config;

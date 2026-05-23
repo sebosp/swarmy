@@ -10,10 +10,13 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
+pub mod map_details;
 pub mod replay_caches;
 pub use replay_caches::*;
 pub mod data;
 pub mod majordomo;
+pub mod replay_list;
+use crate::replay_list::query_replay_list;
 use std::process;
 use std::thread;
 
@@ -72,6 +75,7 @@ pub fn run() {
             query_map_stats,
             download_replay_caches,
             exec_swarmy_bevy_map_caches,
+            query_replay_list,
         ])
         .plugin(tauri_plugin_store::Builder::default().build())
         .run(tauri::generate_context!())

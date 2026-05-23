@@ -1,27 +1,27 @@
-//! Leptos view for map stats.
-
 use super::actions::*;
 use super::*;
 use crate::*;
-use leptos::ev::MouseEvent;
+use chrono::Utc;
 use leptos::prelude::*;
 use reactive_stores::Store;
 use swarmy_tauri_common::*;
 
 #[component]
-pub fn StatsByMap() -> impl IntoView {
+pub fn ReplayList() -> impl IntoView {
     let player_name = RwSignal::new(String::new());
     let map_title = RwSignal::new(String::new());
-    let query = move || MapStatsQuery {
+    let query = move || ReplayListQuery {
         map_title: map_title.get(),
         player_name: player_name.get(),
+        min_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
+        max_date: chrono::NaiveDate::from(Utc::now().date_naive()),
     };
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
     });
-    let map_stats_store = Store::new(MapStatsDataTable::default());
-    trigger_fetch_query_map_stats(map_stats_store, query(), set_backend_response);
+    let replay_list_store = Store::new(ReplayListDataTable::default());
+    trigger_fetch_query_replay_list(replay_list_store, query(), set_backend_response);
     view! {
         <div class="grid grid-cols-10 gap-1">
             <div class="col-span-4">
@@ -34,8 +34,8 @@ pub fn StatsByMap() -> impl IntoView {
                         class=text_input_tailwind_classes().join(" ")
                         bind:value=map_title
                         on:input=move |_| {
-                            trigger_fetch_query_map_stats(
-                                map_stats_store,
+                            trigger_fetch_query_replay_list(
+                                replay_list_store,
                                 query(),
                                 set_backend_response,
                             );
@@ -55,8 +55,8 @@ pub fn StatsByMap() -> impl IntoView {
                         class=text_input_tailwind_classes().join(" ")
                         bind:value=player_name
                         on:input=move |_| {
-                            trigger_fetch_query_map_stats(
-                                map_stats_store,
+                            trigger_fetch_query_replay_list(
+                                replay_list_store,
                                 query(),
                                 set_backend_response,
                             );
@@ -70,17 +70,17 @@ pub fn StatsByMap() -> impl IntoView {
         <DisplayBackendStatus backend_response />
         <div class="col-span-10">
             <h2 class="text-base/7 font-semibold text-white">
-                {move || map_stats_store.total().get()} " Unique maps found in snapshot."
+                {move || replay_list_store.total().get()} " Unique maps found in snapshot."
             </h2>
-            <Show when=move || { map_stats_store.total().get() > 0 }>
-                <MapStatsDataTable map_stats_store />
+            <Show when=move || { replay_list_store.total().get() > 0 }>
+                <ReplayListDataTable replay_list_store />
             </Show>
         </div>
     }
 }
 
 #[component]
-pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl IntoView {
+pub fn ReplayListDataTable(replay_list_store: Store<ReplayListDataTable>) -> impl IntoView {
     view! {
         <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -121,42 +121,21 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                     </thead>
                     <tbody class="divide-y divide-white/10 bg-gray-900">
                         <For
-                            each=move || map_stats_store.data()
-                            key=|row| {
-                                format!("{}:{}", row.read().title.clone(), row.read().cache_handles)
-                            }
+                            each=move || replay_list_store.data()
+                            key=|row| { row.read().sha256_sum.clone() }
                             children=|child| {
-                                let cache_ids: String = child.read().cache_handles.clone();
-                                let map_title: String = child.read().title.clone();
-                                let handles_count = child
-                                    .read()
-                                    .cache_handles
-                                    .split(",")
-                                    .collect::<Vec<&str>>()
-                                    .len();
                                 view! {
                                     <tr>
-                                        <td class="py-2 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-white">
-                                            <button
-                                                class="btn btn-primary btn-sm b-0 p-0 m-0"
-                                                on:click=move |ev: MouseEvent| {
-                                                    ev.prevent_default();
-                                                    trigger_swarmy_bevy_exec_on_caches(&map_title, &cache_ids)
-                                                }
-                                                title="Open in Swarmy-Bevy"
-                                            >
-                                                {child.read().title.clone()}
-                                            </button>
+                                        <td>{child.read().replay_location.clone()}</td>
+                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                            {child.read().player_list.join(", ")}
+                                        </td>
+                                        <td>{child.read().duration}</td>
+                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
+                                            {format!("{}", child.read().winner_list.join(", "))}
                                         </td>
                                         <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
-                                            {child.read().num_games}
-                                        </td>
-                                        <td>{handles_count}</td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
-                                            {format!("{}", child.read().min_date)}
-                                        </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-gray-400">
-                                            {format!("{}", child.read().max_date)}
+                                            {format!("{}", child.read().replay_date)}
                                         </td>
                                     </tr>
                                 }
