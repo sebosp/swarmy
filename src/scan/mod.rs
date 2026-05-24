@@ -12,7 +12,7 @@ use phosphor_leptos::{
 use reactive_stores::Store;
 use s2protocol::cli::SC2ReplaysDirStats;
 use serde::{Deserialize, Serialize};
-use swarmy_tauri_common::AppSettings;
+use swarmy_common::AppSettings;
 
 /// The different stages from source selection to snapshot and cache download completion.
 #[derive(Debug, Default, PartialEq, PartialOrd, Clone)]

@@ -6,7 +6,7 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use reactive_stores::Store;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 #[component]
 pub fn StatsByMap() -> impl IntoView {

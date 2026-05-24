@@ -3,7 +3,7 @@ use crate::*;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 pub mod view;
 
 pub fn fetch_get_current_app_config<F>(set_app_settings: WriteSignal<AppSettings>, update_fn: F)

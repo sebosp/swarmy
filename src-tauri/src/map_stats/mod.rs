@@ -1,7 +1,7 @@
 pub mod data;
 use crate::get_current_app_config;
 use data::try_query_map_stats;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 use tauri_plugin_shell::ShellExt;
 
 #[tauri::command(rename_all = "snake_case")]

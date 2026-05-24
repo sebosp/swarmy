@@ -1,6 +1,6 @@
 //! Map Details module.
 
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn query_map_details(

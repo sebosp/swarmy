@@ -1,6 +1,6 @@
 //! Provides information about the analyzed game collection.
 use polars::prelude::*;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn get_snapshot_metadata(replay_path: String) -> ApiResponse {

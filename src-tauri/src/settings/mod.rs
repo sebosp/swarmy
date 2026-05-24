@@ -1,5 +1,5 @@
 //! Module for application settings management.
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 use crate::try_get_snapshot_metadata;
 use tauri_plugin_store::StoreBuilder;

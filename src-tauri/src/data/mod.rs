@@ -1,4 +1,4 @@
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 /// Sanitcizes the replay path, this should be stored locally in the AppConfig.
 pub fn sanitize_replay_path(replay_path: &str) -> Result<String, SwarmyTauriError> {

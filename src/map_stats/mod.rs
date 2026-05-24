@@ -5,7 +5,7 @@ pub mod view;
 
 use reactive_stores::Store;
 use serde::{Deserialize, Serialize};
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 #[derive(Store, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct MapStatsDataTable {

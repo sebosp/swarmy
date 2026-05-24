@@ -2,7 +2,7 @@ use crate::SetupState;
 use crate::{data::*, majordomo::AsyncTask};
 use polars::prelude::*;
 use std::path::{Path, PathBuf};
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 use tauri::State;
 use tracing::instrument;
 

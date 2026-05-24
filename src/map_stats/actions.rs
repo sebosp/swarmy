@@ -5,7 +5,7 @@ use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use reactive_stores::{Patch, Store};
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 pub async fn fetch_query_map_stats(query: MapStatsQuery) -> Result<ApiResponse, SwarmyTauriError> {
     let args = serde_wasm_bindgen::to_value(&query).unwrap();

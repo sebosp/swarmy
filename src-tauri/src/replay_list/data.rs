@@ -2,7 +2,7 @@
 
 use crate::data::*;
 use polars::prelude::*;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 pub fn try_query_replay_list(
     replay_path: String,

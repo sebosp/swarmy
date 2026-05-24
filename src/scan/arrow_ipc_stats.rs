@@ -7,7 +7,7 @@ use phosphor_leptos::{
 };
 use si_scale::helpers::bibytes2;
 use std::time::UNIX_EPOCH;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 pub fn time_ago(date: NaiveDateTime) -> String {
     let now = Utc::now().naive_utc();

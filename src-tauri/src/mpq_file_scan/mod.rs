@@ -6,7 +6,7 @@ use s2protocol::cli::WriteArrowIpcProps;
 use s2protocol::game_events::read_balance_data_from_json_dir;
 use s2protocol::SC2ReplaysDirStats;
 use std::path::PathBuf;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 use tauri_plugin_store::StoreBuilder;
 
 #[tauri::command]

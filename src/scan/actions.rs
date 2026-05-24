@@ -5,7 +5,7 @@ use reactive_stores::{Patch, Store};
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 use s2protocol::SC2ReplaysDirStats;
 use crate::*;
 use super::*;

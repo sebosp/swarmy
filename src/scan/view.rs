@@ -12,7 +12,7 @@ use phosphor_leptos::{DATABASE, Icon, IconWeight, SHIPPING_CONTAINER};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
 use s2protocol::SC2ReplaysDirStats;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 #[component]
 pub fn ScanDirectory() -> impl IntoView {

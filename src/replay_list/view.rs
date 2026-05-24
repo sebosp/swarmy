@@ -6,7 +6,7 @@ use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use phosphor_leptos::{Icon, IconWeight, FILE, FOLDER_OPEN};
 use reactive_stores::Store;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 #[component]
 pub fn ReplayList(active_page: RwSignal<String>) -> impl IntoView {

@@ -6,7 +6,7 @@ use leptos::leptos_dom::logging::{console_error, console_log};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use reactive_stores::{Patch, Store};
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 
 pub async fn request_copy_path_to_clipboard(
     replay_file_name: CopyToClipboardContext,

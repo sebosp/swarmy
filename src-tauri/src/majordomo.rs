@@ -1,5 +1,5 @@
 use crate::try_download_replay_caches;
-use swarmy_tauri_common::SwarmyTauriError;
+use swarmy_common::SwarmyTauriError;
 use tauri::AppHandle;
 use tokio::sync::mpsc;
 /// A Tokio MPSC Majorodomo inspeired by ZMQ.

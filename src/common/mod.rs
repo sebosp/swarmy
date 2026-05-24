@@ -28,7 +28,7 @@ pub fn text_input_tailwind_classes() -> Vec<&'static str> {
 
 #[component]
 pub fn DisplayBackendStatus(
-    backend_response: ReadSignal<swarmy_tauri_common::ApiResponse>,
+    backend_response: ReadSignal<swarmy_common::ApiResponse>,
 ) -> impl IntoView {
     let error_lines = move || {
         backend_response

@@ -1,7 +1,7 @@
 pub mod data;
 use crate::get_current_app_config;
 use data::try_query_replay_list;
-use swarmy_tauri_common::*;
+use swarmy_common::*;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::ShellExt;
