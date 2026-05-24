@@ -68,7 +68,6 @@ $ curl -sLO https://github.com/dobicinaitis/tailwind-cli-extra/releases/download
 $ chmod a+x tailwindcss-extra-linux-x64
 $ mv tailwindcss-extra-linux-x64 tailwindcss-extra
 $ mv tailwindcss-extra ~/local/bin/
-$ cd ~/swarmy-tauri;
 $ npm install daisyui
 ```
 

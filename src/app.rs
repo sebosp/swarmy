@@ -1,12 +1,12 @@
 //! Swarmy Tauri Application
 
 use leptos::prelude::*;
-use swarmy::components::left_sidebar_menu::LeftSideBarMenu;
-use swarmy::config::view::Config;
-use swarmy::map_details::view::MapDetails;
-use swarmy::map_stats::view::StatsByMap;
-use swarmy::replay_list::view::ReplayList;
-use swarmy::scan::view::ScanDirectory;
+use swarmy_ui::components::left_sidebar_menu::LeftSideBarMenu;
+use swarmy_ui::config::view::Config;
+use swarmy_ui::map_details::view::MapDetails;
+use swarmy_ui::map_stats::view::StatsByMap;
+use swarmy_ui::replay_list::view::ReplayList;
+use swarmy_ui::scan::view::ScanDirectory;
 
 #[component]
 pub fn Main() -> impl IntoView {

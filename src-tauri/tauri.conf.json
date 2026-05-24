@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "swarmy-tauri",
+  "productName": "swarmy",
   "version": "0.1.0",
-  "identifier": "com.swarmy-tauri",
+  "identifier": "com.swarmy",
   "build": {
     "beforeDevCommand": "trunk serve",
     "devUrl": "http://localhost:1420",
@@ -42,7 +42,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIxRTEyNjA3REU0MzM5NkEKUldScU9VUGVCeWJoc1V2MS9BSDFYNEp1eE1VaXI4VDVOUi9TeG5CUkFJTXFyRVV6aFVHdkpMRlAK",
       "endpoints": [
-        "https://github.com/sebops/swarmy-tauri/releases/latest/download/latest.json"
+        "https://github.com/sebosp/swarmy/releases/latest/download/latest.json"
       ]
     }
   }

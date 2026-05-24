@@ -1,5 +1,5 @@
 [package]
-name = "swarmy-tauri"
+name = "swarmy"
 version = "0.1.0"
 description = "Swarmy Tauri App"
 authors = ["Seb Ospina <kraige@gmail.com>"]
@@ -20,7 +20,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 nom-mpq = "2.0.7"
 s2protocol = { workspace = true }
-swarmy-tauri-common = { path = "../swarmy-tauri-common" }
+swarmy-common = { path = "../swarmy-common" }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
