@@ -16,12 +16,14 @@ pub use replay_caches::*;
 pub mod data;
 pub mod majordomo;
 pub mod replay_list;
-use crate::replay_list::{copy_path_to_clipboard, open_folder, query_replay_list};
+use crate::replay_list::{
+    connect_swarmy_rerun, copy_path_to_clipboard, open_folder, query_replay_list,
+};
 use std::process;
 use std::thread;
 
-use tauri::async_runtime::spawn;
 use tauri::AppHandle;
+use tauri::async_runtime::spawn;
 use tokio::sync::mpsc;
 
 use crate::majordomo::AsyncTask;
@@ -79,6 +81,7 @@ pub fn run() {
             query_replay_list,
             copy_path_to_clipboard,
             open_folder,
+            connect_swarmy_rerun,
         ])
         .plugin(tauri_plugin_store::Builder::default().build())
         .run(tauri::generate_context!())

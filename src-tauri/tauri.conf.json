@@ -34,7 +34,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
+    "externalBin": [
       "../../swarmy-bevy/target/release/swarmy-bevy"
     ]
   },

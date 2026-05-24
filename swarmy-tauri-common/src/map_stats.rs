@@ -56,3 +56,11 @@ pub struct SwarmyBevyMapCacheParams {
     /// mapinfo
     pub cache_ids: String,
 }
+
+/// The parameters for rerun streaming visualization
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct SwarmyRerunParams {
+    /// A string that contains the comma separated list of cacheids to search for t3 height map and
+    /// mapinfo
+    pub replay_file_name: String,
+}

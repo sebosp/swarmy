@@ -28,7 +28,7 @@ pub fn trigger_request_copy_path_to_clipboard(replay_file_name: &str) {
     };
     spawn_local(async move {
         console_log(&format!(
-            "Fetching map stats with query: {:?}",
+            "Fetching replay list with query: {:?}",
             replay_file_name
         ));
         match request_copy_path_to_clipboard(replay_file_name).await {
@@ -57,7 +57,7 @@ pub fn trigger_request_open_folder(replay_file_name: &str) {
     };
     spawn_local(async move {
         console_log(&format!(
-            "Fetching map stats with query: {:?}",
+            "Fetching replay list with query: {:?}",
             replay_file_name
         ));
         match request_open_folder(replay_file_name).await {
@@ -86,21 +86,19 @@ pub fn trigger_fetch_query_replay_list(
 ) {
     *set_backend_response.write() = ApiResponse::new_incomplete();
     spawn_local(async move {
-        console_log(&format!("Fetching map stats with query: {:?}", query));
+        console_log(&format!("Fetching replay list with query: {:?}", query));
         match fetch_query_replay_list(query).await {
             Err(e) => {
-                console_log(&format!("Error fetching map stats: {:?}", e));
                 *set_backend_response.write() = ApiResponse {
                     meta: ResponseMeta::incomplete(),
-                    message: format!("Error fetching map stats: {:?}", e),
+                    message: format!("Error fetching replay list: {:?}", e),
                 };
             }
             Ok(response) => {
-                console_log(&format!("1. Successfully fetched map stats",));
+                console_log(&format!("1. Successfully fetched replay list",));
                 *set_backend_response.write() = response.clone();
                 let mut rows: Vec<ReplayListEntry> =
                     serde_json::from_str(&response.message).unwrap_or_default();
-                console_log(&format!("2. Successfully deserialized map stats",));
                 data.data().write().retain(|_| false);
                 data.total().patch(rows.len());
                 data.data().write().append(&mut rows);
@@ -109,35 +107,25 @@ pub fn trigger_fetch_query_replay_list(
     });
 }
 
-pub fn trigger_swarmy_bevy_exec_on_caches(map_title: &str, cache_ids: &str) {
-    let cache_ids = cache_ids.to_string();
-    let map_title = map_title.to_string();
-    let swarmy_bevy_params = SwarmyBevyMapCacheParams {
-        map_title,
-        cache_ids,
-    };
+pub fn trigger_swarmy_rerun_on_replay(replay_file_name: &str) {
+    let replay_file_name = replay_file_name.to_string();
+    let swarmy_rerun_params = SwarmyRerunParams { replay_file_name };
     spawn_local(async move {
-        let args = serde_wasm_bindgen::to_value(&swarmy_bevy_params).unwrap();
-        console_log(&format!(
-            "Invoking exec_swarmy_bevy_map_caches with args: {:?}",
-            args
-        ));
+        let args = serde_wasm_bindgen::to_value(&swarmy_rerun_params).unwrap();
+        console_log(&format!("Invoking exec_swarmy_rerun with args: {:?}", args));
         match serde_wasm_bindgen::from_value::<ApiResponse>(
-            invoke("exec_swarmy_bevy_map_caches", args).await,
+            invoke("connect_swarmy_rerun", args).await,
         ) {
             Err(e) => {
-                console_log(&format!(
-                    "Error calling exec_swarmy_bevy_map_caches: {:?}",
-                    e
-                ));
+                console_log(&format!("Error calling exec_swarmy_rerun: {:?}", e));
             }
             Ok(response) => {
                 console_log(&format!(
-                    "1. Successfully exec_swarmy_bevy_map_caches: {:?}",
+                    "1. Successfully exec_swarmy_rerun: {:?}",
                     response
                 ));
                 console_log(&format!(
-                    "2. Successfully deserialized map stats: {:?}",
+                    "2. Successfully deserialized replay list: {:?}",
                     response.message
                 ));
             }

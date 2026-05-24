@@ -135,3 +135,29 @@ pub async fn open_folder(app_handle: tauri::AppHandle, folder: String) -> ApiRes
         ),
     }
 }
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn connect_swarmy_rerun(
+    app_handle: tauri::AppHandle,
+    replay_file_name: String,
+) -> ApiResponse {
+    log::info!(
+        "Requesting open rerun on replay_file_name: {}",
+        replay_file_name
+    );
+    match app_handle
+        .opener()
+        .open_path(replay_file_name, None::<&str>)
+    {
+        Ok(_) => ApiResponse::new(
+            ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
+            "Succesfully called open.".to_string(),
+        ),
+        Err(err) => ApiResponse::new(
+            ResponseMetaBuilder::new(false)
+                .duration_ms(0 as u64)
+                .build(),
+            format!("Error requesting open: {:?}", err),
+        ),
+    }
+}
