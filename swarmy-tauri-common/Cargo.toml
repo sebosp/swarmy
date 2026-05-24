@@ -1,0 +1,27 @@
+[package]
+name = "swarmy-tauri-common"
+version = "0.1.0"
+description = "Swarmy Tauri App"
+authors = ["Seb Ospina <kraige@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+thiserror = "2.0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0"
+s2protocol = { workspace = true }
+chrono = { version = "0.4.41", features = [] }
+serde-wasm-bindgen = "0.6"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tauri-plugin-store = "2"
+polars = { version = "0.53.0", features = [
+  "full",
+  "trigonometry",
+  "regex",
+  "strings",
+  "top_k",
+  "dtype-full",
+] }
+reqwest = "0.13"
+tokio = { version = "1", features = ["full"] }

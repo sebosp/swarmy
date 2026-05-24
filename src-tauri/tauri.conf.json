@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "swarmy-tauri",
+  "version": "0.1.0",
+  "identifier": "com.swarmy-tauri",
+  "build": {
+    "beforeDevCommand": "trunk serve",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "trunk build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "swarmy",
+        "width": 1000,
+        "height": 800,
+        "alwaysOnBottom": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "createUpdaterArtifacts": true,
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "../../swarmy-bevy/target/release/swarmy-bevy"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIxRTEyNjA3REU0MzM5NkEKUldScU9VUGVCeWJoc1V2MS9BSDFYNEp1eE1VaXI4VDVOUi9TeG5CUkFJTXFyRVV6aFVHdkpMRlAK",
+      "endpoints": [
+        "https://github.com/sebops/swarmy-tauri/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

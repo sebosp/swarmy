@@ -1,3 +1,7 @@
 [toolchain]
-channel = "nightly"
-
+# channel = "nightly-2026-04-01"
+channel = "nightly-2026-01-09"
+# Despite polars-ops-53 saying it should work with 2026-04-01
+# Otherwise errors with:
+# 79 |         use core::unicode::{Case_Ignorable, Cased};
+#   |                             ^^^^^^^^^^^^^^ private function

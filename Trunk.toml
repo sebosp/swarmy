@@ -1,0 +1,14 @@
+[build]
+target = "./index.html"
+
+[watch]
+ignore = ["./src-tauri"]
+
+[serve]
+port = 1420
+open = false
+addresses = ["0.0.0.0"]
+
+[tools]
+tailwindcss = "2.8.3" # This is actually the version of tailwindcss-extra
+# tailwindcss-extra = "2.8.3"
