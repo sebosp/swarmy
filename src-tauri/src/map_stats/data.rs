@@ -7,7 +7,7 @@ use swarmy_common::*;
 pub fn try_query_map_stats(
     replay_path: String,
     query: MapStatsQuery,
-) -> Result<Vec<MapStats>, SwarmyTauriError> {
+) -> Result<Vec<MapStats>, SwarmyError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
 
@@ -77,7 +77,7 @@ pub fn try_query_map_stats(
     Ok(res)
 }
 
-fn extract_map_stats_from_df_row(row: &DataFrame) -> Result<MapStats, SwarmyTauriError> {
+fn extract_map_stats_from_df_row(row: &DataFrame) -> Result<MapStats, SwarmyError> {
     let min_date = col_ymd_to_naive_date(row, "min_date")?;
     let max_date = col_ymd_to_naive_date(row, "max_date")?;
     let title = row

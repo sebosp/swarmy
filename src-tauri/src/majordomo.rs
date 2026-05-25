@@ -1,5 +1,5 @@
 use crate::try_download_replay_caches;
-use swarmy_common::SwarmyTauriError;
+use swarmy_common::SwarmyError;
 use tauri::AppHandle;
 use tokio::sync::mpsc;
 /// A Tokio MPSC Majorodomo inspeired by ZMQ.
@@ -24,7 +24,7 @@ impl MajordomoCoordinator {
     pub async fn new(
         main_rx: mpsc::Receiver<AsyncTask>,
         app: AppHandle,
-    ) -> Result<Self, SwarmyTauriError> {
+    ) -> Result<Self, SwarmyError> {
         Ok(MajordomoCoordinator {
             rx: main_rx,
             app_handle: app,
@@ -32,7 +32,7 @@ impl MajordomoCoordinator {
     }
 
     #[instrument]
-    pub async fn process_message_queue(&mut self) -> Result<(), SwarmyTauriError> {
+    pub async fn process_message_queue(&mut self) -> Result<(), SwarmyError> {
         info!("majordomo coordinator: Main loop starting");
         let current_tokio_handle = Handle::current();
         while let Some(message) = self.rx.recv().await {
@@ -70,7 +70,7 @@ impl MajordomoCoordinator {
     pub fn init_coordinator_thread(
         main_rx: mpsc::Receiver<AsyncTask>,
         app: AppHandle,
-    ) -> Result<std::thread::JoinHandle<()>, SwarmyTauriError> {
+    ) -> Result<std::thread::JoinHandle<()>, SwarmyError> {
         log::info!("init_coordinator_thread: Starting Majordomo Coordinator thread");
         let current_tokio_handle = Handle::current();
         let coordinator_thread = std::thread::Builder::new()

@@ -31,6 +31,7 @@ members = ["src-tauri", "swarmy-common"]
 [workspace.dependencies]
 s2protocol = { path = "../s2protocol-rs/", default-features = false, features = [
     "dep_arrow",
+    "tracing_off",
 ] }
 tracing = "0.1.44"
 

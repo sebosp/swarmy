@@ -7,10 +7,10 @@ pub mod view;
 
 use leptos::leptos_dom::logging::console_log;
 use phosphor_leptos::{
-    IconWeightData, BARCODE, DATABASE, FOLDERS, HOURGLASS, KEYBOARD, SHIPPING_CONTAINER, X_CIRCLE,
+    BARCODE, DATABASE, FOLDERS, HOURGLASS, IconWeightData, KEYBOARD, SHIPPING_CONTAINER, X_CIRCLE,
 };
 use reactive_stores::Store;
-use s2protocol::cli::SC2ReplaysDirStats;
+use s2protocol::dir_stats::SC2ReplaysDirStats;
 use serde::{Deserialize, Serialize};
 use swarmy_common::AppSettings;
 

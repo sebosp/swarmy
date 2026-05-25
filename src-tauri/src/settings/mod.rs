@@ -4,9 +4,7 @@ use swarmy_common::*;
 use crate::try_get_snapshot_metadata;
 use tauri_plugin_store::StoreBuilder;
 
-pub async fn load_app_settings(
-    app_handle: tauri::AppHandle,
-) -> Result<AppSettings, SwarmyTauriError> {
+pub async fn load_app_settings(app_handle: tauri::AppHandle) -> Result<AppSettings, SwarmyError> {
     let store = StoreBuilder::new(&app_handle, "settings.json").build()?;
 
     // If there are no saved settings yet, this will return an error so we ignore the return value.

@@ -7,7 +7,7 @@ use swarmy_common::*;
 pub fn try_query_replay_list(
     replay_path: String,
     query: ReplayListQuery,
-) -> Result<Vec<ReplayListEntry>, SwarmyTauriError> {
+) -> Result<Vec<ReplayListEntry>, SwarmyError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
 
@@ -83,7 +83,7 @@ pub fn try_query_replay_list(
     Ok(res)
 }
 
-fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, SwarmyTauriError> {
+fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, SwarmyError> {
     let map_title = row
         .column("title")?
         .str()?

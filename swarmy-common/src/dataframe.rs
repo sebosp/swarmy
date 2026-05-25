@@ -3,13 +3,13 @@
 use polars::prelude::*;
 
 #[cfg(not(target_arch = "wasm32"))]
-use crate::SwarmyTauriError;
+use crate::SwarmyError;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn col_ymd_to_naive_date(
     df: &DataFrame,
     col_name: &str,
-) -> Result<chrono::NaiveDate, SwarmyTauriError> {
+) -> Result<chrono::NaiveDate, SwarmyError> {
     let date_str = df.column(col_name)?.str()?.get(0).unwrap_or("1970-01-01");
 
     Ok(chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")

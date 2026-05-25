@@ -16,7 +16,7 @@ pub use replay_caches::*;
 pub mod data;
 pub mod majordomo;
 pub mod replay_list;
-pub mod rerun;
+pub mod replay_rerun;
 use crate::replay_list::{
     connect_swarmy_rerun, copy_path_to_clipboard, open_folder, query_replay_list,
 };
@@ -41,6 +41,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_log::Builder::new().build())
         .manage(SetupState { majordomo_tx })
         .setup(|app| {
             log::info!(
@@ -61,14 +62,6 @@ pub fn run() {
         })
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_persisted_scope::init())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Info)
-                .target(tauri_plugin_log::Target::new(
-                    tauri_plugin_log::TargetKind::Stdout,
-                ))
-                .build(),
-        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![

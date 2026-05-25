@@ -2,9 +2,8 @@
 
 use crate::settings::load_app_settings;
 use s2protocol::arrow_store::ArrowIpcTypes;
-use s2protocol::cli::WriteArrowIpcProps;
-use s2protocol::game_events::read_balance_data_from_json_dir;
-use s2protocol::SC2ReplaysDirStats;
+use s2protocol::dir_stats::SC2ReplaysDirStats;
+use s2protocol::game_events::read_balance_data_from_included_assets;
 use std::path::PathBuf;
 use swarmy_common::*;
 use tauri_plugin_store::StoreBuilder;
@@ -12,7 +11,7 @@ use tauri_plugin_store::StoreBuilder;
 #[tauri::command]
 pub async fn get_current_app_config(
     app_handle: tauri::AppHandle,
-) -> Result<AppSettings, SwarmyTauriError> {
+) -> Result<AppSettings, SwarmyError> {
     load_app_settings(app_handle).await
 }
 
@@ -85,10 +84,11 @@ pub async fn optimize_replay_path(
     t.join().unwrap()
 }
 
+#[tracing::instrument(level = "debug")]
 fn try_optimize_replay_path(
     replay_path: String,
     disable_parallel_scans: bool,
-) -> Result<String, SwarmyTauriError> {
+) -> Result<String, SwarmyError> {
     let path = PathBuf::from(&replay_path);
     let destination = path.join(PathBuf::from(IPC_DIR));
     if !destination.exists() {
@@ -99,11 +99,11 @@ fn try_optimize_replay_path(
         path.display(),
         destination.display()
     );
-    let versioned_abilities = read_balance_data_from_json_dir(&path)?;
+    let versioned_abilities = read_balance_data_from_included_assets()?;
     // TODO: Move from cli on s2protocol and create a leptos view to configure this.
-    let props = WriteArrowIpcProps {
-        scan_max_files: 100000,
-        process_max_files: 100000,
+    let props = s2protocol::WriteArrowIpcProps {
+        scan_max_files: 1,
+        process_max_files: 1,
         traverse_max_depth: 8,
         min_version: None,
         max_version: None,

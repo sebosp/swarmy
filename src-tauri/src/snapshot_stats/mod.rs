@@ -29,7 +29,7 @@ pub async fn get_snapshot_metadata(replay_path: String) -> ApiResponse {
 }
 
 /// Gets the list of maps from the details.ipc file
-pub fn try_get_snapshot_metadata(replay_path: String) -> Result<SnapshotStats, SwarmyTauriError> {
+pub fn try_get_snapshot_metadata(replay_path: String) -> Result<SnapshotStats, SwarmyError> {
     // remove trailing slash if exists
     let replay_path = replay_path.trim_end_matches('/').to_string();
     let ipc_path = format!("{}/{}/", replay_path, IPC_DIR);

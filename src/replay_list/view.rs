@@ -4,7 +4,7 @@ use crate::*;
 use chrono::Utc;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, FILE, FOLDER_OPEN};
+use phosphor_leptos::{FILE, FOLDER_OPEN, Icon, IconWeight};
 use reactive_stores::Store;
 use swarmy_common::*;
 
@@ -167,6 +167,22 @@ pub fn ReplayListDataTable(
                                                     let path_parent = format!("{}", path.display());
                                                     move |_ev: MouseEvent| {
                                                         trigger_request_open_folder(&path_parent)
+                                                    }
+                                                }
+                                                title="Open directory"
+                                            >
+                                                <Icon
+                                                    icon=FOLDER_OPEN
+                                                    weight=IconWeight::Light
+                                                    prop:class="stroke-current"
+                                                />
+                                            </button>
+                                            <button
+                                                class="btn btn-primary btn-xs b-0"
+                                                on:click={
+                                                    let location = child.read().replay_location.clone();
+                                                    move |_ev: MouseEvent| {
+                                                        trigger_swarmy_rerun_on_replay(&location)
                                                     }
                                                 }
                                                 title="Open directory"

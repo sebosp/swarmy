@@ -1,15 +1,14 @@
 //! The actions related to the Scan view.
 //!
-use leptos::task::spawn_local;
-use reactive_stores::{Patch, Store};
+use super::*;
+use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
+use reactive_stores::{Patch, Store};
+use s2protocol::dir_stats::SC2ReplaysDirStats;
 use swarmy_common::*;
-use s2protocol::SC2ReplaysDirStats;
-use crate::*;
-use super::*;
-
 
 /// Step 1, a user selects a directory to scan.
 /// This may contain multiple subdirectories.
@@ -164,4 +163,3 @@ pub fn trigger_download_replay_caches(
         *set_activity_stage.write() = ActivityStage::DownloadingCachesDone;
     });
 }
-

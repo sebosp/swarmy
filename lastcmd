@@ -3,3 +3,5 @@ $ cargo run -- --verbosity-level info --source /home/seb/SCReplaysOnNVMe/2025EWC
 # Swarmy Tauri
 $ ls git/swarmy/target/debug/swarmy | entr -r 'git/swarmy/target/debug/swarmy'
 $ ssh -L 0.0.0.0:1420:0.0.0.0:1420 seb@corvid-zt
+$ export CARGO_TARGET_DIR=/tmp/swarmy
+$ cargo tauri dev

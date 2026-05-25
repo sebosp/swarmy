@@ -11,7 +11,7 @@ use leptos::prelude::*;
 use phosphor_leptos::{DATABASE, Icon, IconWeight, SHIPPING_CONTAINER};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
-use s2protocol::SC2ReplaysDirStats;
+use s2protocol::dir_stats::SC2ReplaysDirStats;
 use swarmy_common::*;
 
 #[component]

@@ -7,7 +7,7 @@ use leptos::task::spawn_local;
 use reactive_stores::{Patch, Store};
 use swarmy_common::*;
 
-pub async fn fetch_query_map_stats(query: MapStatsQuery) -> Result<ApiResponse, SwarmyTauriError> {
+pub async fn fetch_query_map_stats(query: MapStatsQuery) -> Result<ApiResponse, SwarmyError> {
     let args = serde_wasm_bindgen::to_value(&query).unwrap();
     console_log(&format!(
         "Invoking fetch_query_map_stats with args: {:?}",

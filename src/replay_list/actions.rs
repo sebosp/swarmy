@@ -10,7 +10,7 @@ use swarmy_common::*;
 
 pub async fn request_copy_path_to_clipboard(
     replay_file_name: CopyToClipboardContext,
-) -> Result<ApiResponse, SwarmyTauriError> {
+) -> Result<ApiResponse, SwarmyError> {
     let args = serde_wasm_bindgen::to_value(&replay_file_name).unwrap();
     console_log(&format!(
         "Invoking trigger_copy_path_to_clipboard with args: {:?}",
@@ -40,7 +40,7 @@ pub fn trigger_request_copy_path_to_clipboard(replay_file_name: &str) {
 
 pub async fn request_open_folder(
     replay_file_name: OpenFolderContext,
-) -> Result<ApiResponse, SwarmyTauriError> {
+) -> Result<ApiResponse, SwarmyError> {
     let args = serde_wasm_bindgen::to_value(&replay_file_name).unwrap();
     console_log(&format!(
         "Invoking trigger_open_folder with args: {:?}",
@@ -66,9 +66,7 @@ pub fn trigger_request_open_folder(replay_file_name: &str) {
         };
     });
 }
-pub async fn fetch_query_replay_list(
-    query: ReplayListQuery,
-) -> Result<ApiResponse, SwarmyTauriError> {
+pub async fn fetch_query_replay_list(query: ReplayListQuery) -> Result<ApiResponse, SwarmyError> {
     let args = serde_wasm_bindgen::to_value(&query).unwrap();
     console_log(&format!(
         "Invoking fetch_query_replay_list with args: {:?}",

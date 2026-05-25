@@ -23,5 +23,6 @@ polars = { version = "0.53.0", features = [
   "top_k",
   "dtype-full",
 ] }
+rerun = "0.25"
 reqwest = "0.13"
 tokio = { version = "1", features = ["full"] }

@@ -1,8 +1,14 @@
 //! Tracker Event registration.
-use super::*;
+//!
+pub mod unit_colors;
+use s2protocol::state::unit_props::*;
+
+pub mod game_events;
+
 use convert_case::{Case, Casing};
 use rerun::RecordingStream;
-use s2protocol::{tracker_events::*, SC2Unit, UnitChangeHint};
+use s2protocol::{SC2Unit, UnitChangeHint, tracker_events::*};
+use swarmy_common::SwarmyError;
 
 pub fn register_unit(
     unit: &SC2Unit,

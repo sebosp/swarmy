@@ -32,14 +32,11 @@ tauri-plugin-shell = "2"
 tauri-plugin-clipboard-manager = "2"
 log = "0.4"
 chrono = { version = "0.4.41", features = [] }
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+# tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 colored = "3.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-mimalloc = "0.1.52"
-rerun = { version = "0.25", features = [
-  "native_viewer",
-] } # Need 0.25 because of chrono 0.4.41 required by polars-arrow
+convert_case = "0.11.0"
 
 [dev-dependencies]
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
@@ -49,6 +46,8 @@ polars = { version = "0.53.0", default-features = false }
 reqwest = "0.13"
 tokio = { version = "1", features = ["full"] }
 tracing = { workspace = true }
+rerun = "0.25"
+mimalloc = "0.1.52"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

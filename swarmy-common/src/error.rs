@@ -4,14 +4,17 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 #[derive(Error, Debug)]
-pub enum SwarmyTauriError {
+pub enum SwarmyError {
     #[cfg(not(target_arch = "wasm32"))]
     #[error("Store Error")]
     TauriPluginStore(#[from] tauri_plugin_store::Error),
+
     #[error("StdError")]
     StdErr(#[from] Box<dyn std::error::Error>),
+
     #[error("S2proto Error")]
     S2ProtoErr(#[from] s2protocol::error::S2ProtocolError),
+
     #[error(transparent)]
     StdIo(#[from] std::io::Error),
 
@@ -38,29 +41,36 @@ pub enum SwarmyTauriError {
 
     #[error("Other Error: {0}")]
     Other(String),
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[error("Rerun RecordingStream: {0}")]
+    RerunRecordingStream(#[from] rerun::RecordingStreamError),
 }
 
-impl From<SwarmyTauriError> for String {
-    fn from(err: SwarmyTauriError) -> Self {
+impl From<SwarmyError> for String {
+    fn from(err: SwarmyError) -> Self {
         match err {
             #[cfg(not(target_arch = "wasm32"))]
-            SwarmyTauriError::TauriPluginStore(e) => format!("TauriPluginStore Error: {}", e),
-            SwarmyTauriError::StdErr(e) => format!("StdError: {}", e),
-            SwarmyTauriError::StdIo(e) => format!("StdIoError: {}", e),
-            SwarmyTauriError::S2ProtoErr(e) => format!("S2proto Error: {}", e),
+            SwarmyError::TauriPluginStore(e) => format!("TauriPluginStore Error: {}", e),
+            SwarmyError::StdErr(e) => format!("StdError: {}", e),
+            SwarmyError::StdIo(e) => format!("StdIoError: {}", e),
+            SwarmyError::S2ProtoErr(e) => format!("S2proto Error: {}", e),
 
             #[cfg(not(target_arch = "wasm32"))]
-            SwarmyTauriError::Polars(e) => format!("Polars Error: {}", e),
+            SwarmyError::Polars(e) => format!("Polars Error: {}", e),
 
-            SwarmyTauriError::Utf8(e) => format!("UTF8 Error: {}", e),
-            SwarmyTauriError::SerdeJson(e) => format!("Serde Error: {}", e),
-            SwarmyTauriError::SerdeWasmBindgen(e) => format!("Serde Wasm Bindgen Error: {}", e),
+            SwarmyError::Utf8(e) => format!("UTF8 Error: {}", e),
+            SwarmyError::SerdeJson(e) => format!("Serde Error: {}", e),
+            SwarmyError::SerdeWasmBindgen(e) => format!("Serde Wasm Bindgen Error: {}", e),
 
             #[cfg(not(target_arch = "wasm32"))]
-            SwarmyTauriError::Reqwest(e) => format!("Reqwest Error: {}", e),
+            SwarmyError::Reqwest(e) => format!("Reqwest Error: {}", e),
             #[cfg(not(target_arch = "wasm32"))]
-            SwarmyTauriError::TokioJoin(e) => format!("Tokio JoinError: {}", e),
-            SwarmyTauriError::Other(e) => format!("Other Error: {}", e),
+            SwarmyError::TokioJoin(e) => format!("Tokio JoinError: {}", e),
+            SwarmyError::Other(e) => format!("Other Error: {}", e),
+
+            #[cfg(not(target_arch = "wasm32"))]
+            SwarmyError::RerunRecordingStream(e) => format!("RerunRecordingStream: {}", e),
         }
     }
 }
@@ -89,9 +99,12 @@ enum ErrorKind {
     TokioJoin(String),
 
     Other(String),
+
+    #[cfg(not(target_arch = "wasm32"))]
+    RerunRecordingStream(String),
 }
 
-impl serde::Serialize for SwarmyTauriError {
+impl serde::Serialize for SwarmyError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::ser::Serializer,
@@ -118,6 +131,9 @@ impl serde::Serialize for SwarmyTauriError {
             Self::TokioJoin(_) => ErrorKind::TokioJoin(error_message),
 
             Self::Other(_) => ErrorKind::Other(error_message),
+
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::RerunRecordingStream(_) => ErrorKind::RerunRecordingStream(error_message),
         };
         error_kind.serialize(serializer)
     }

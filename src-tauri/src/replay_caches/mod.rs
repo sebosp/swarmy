@@ -9,7 +9,7 @@ use tracing::instrument;
 #[tauri::command(rename_all = "snake_case")]
 pub async fn download_replay_caches(
     state: State<'_, SetupState>,
-) -> Result<ApiResponse, SwarmyTauriError> {
+) -> Result<ApiResponse, SwarmyError> {
     let mdp_tx = state.majordomo_tx.clone();
     let init_time = std::time::Instant::now();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
@@ -44,7 +44,7 @@ pub async fn download_replay_caches(
 
 pub async fn try_download_replay_caches(
     app_handle: tauri::AppHandle,
-) -> Result<String, SwarmyTauriError> {
+) -> Result<String, SwarmyError> {
     let app_settings = crate::settings::load_app_settings(app_handle).await?;
     let replay_path = app_settings.replay_path;
     let replay_path = sanitize_replay_path(&replay_path)?;
@@ -112,7 +112,7 @@ pub async fn try_download_replay_caches(
 }
 
 #[instrument]
-pub async fn download_cache(handle: &str, destination: &Path) -> Result<(), SwarmyTauriError> {
+pub async fn download_cache(handle: &str, destination: &Path) -> Result<(), SwarmyError> {
     log::info!("Downloading cache with handle: {}", handle);
     let cache_download_target = destination.join(format!("{}.s2ma", handle));
     if cache_download_target.exists() {
@@ -129,7 +129,7 @@ pub async fn download_cache(handle: &str, destination: &Path) -> Result<(), Swar
     ))
     .await?;
     if !response.status().is_success() {
-        return Err(SwarmyTauriError::Other(format!(
+        return Err(SwarmyError::Other(format!(
             "Failed to download cache {}, status code: {}",
             handle,
             response.status()
