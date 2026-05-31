@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use swarmy_common::AppSettings;
 
 /// The different stages from source selection to snapshot and cache download completion.
-#[derive(Debug, Default, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Eq)]
 pub enum ActivityStage {
     #[default]
     None,
@@ -127,6 +127,32 @@ impl ActivityStage {
             Self::OptimizeDone => DATABASE,
             Self::DownloadingCachesDone => SHIPPING_CONTAINER,
         }
+    }
+    fn enum_index(&self) -> u8 {
+        match *self {
+            Self::None => 0,
+            Self::DirectoryEntered => 1,
+            Self::ScanInit => 2,
+            Self::ScanFailure => 3,
+            Self::ScanDone => 4,
+            Self::OptimizeInit => 5,
+            Self::OptimizeFailure => 6,
+            Self::OptimizeDone => 7,
+            Self::DownloadingCachesInit => 8,
+            Self::DownloadingCachesFailure => 9,
+            Self::DownloadingCachesDone => 10,
+        }
+    }
+}
+
+impl Ord for ActivityStage {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.enum_index().cmp(&other.enum_index())
+    }
+}
+impl PartialOrd for ActivityStage {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other))
     }
 }
 

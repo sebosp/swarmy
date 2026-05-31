@@ -2,15 +2,15 @@
 
 use leptos::prelude::*;
 use swarmy_ui::components::left_sidebar_menu::LeftSideBarMenu;
-use swarmy_ui::config::view::Config;
 use swarmy_ui::map_details::view::MapDetails;
 use swarmy_ui::map_stats::view::StatsByMap;
 use swarmy_ui::replay_list::view::ReplayList;
 use swarmy_ui::scan::view::ScanDirectory;
+use swarmy_ui::settings::view::Config;
 
 #[component]
 pub fn Main() -> impl IntoView {
-    let active_page = RwSignal::new("Scan".to_string());
+    let active_page = RwSignal::new("Config".to_string());
 
     view! {
         <div id="swarmy-tauri-window" class="flex w-screen h-screen bg-gray-800 rounded">

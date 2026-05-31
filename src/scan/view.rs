@@ -25,10 +25,13 @@ pub fn ScanDirectory() -> impl IntoView {
     });
     let (snapshot_stats, set_snapshot_stats) = signal(SnapshotStats::default());
 
-    crate::config::fetch_get_current_app_config(set_app_settings, move |settings: AppSettings| {
-        *set_snapshot_stats.write() = settings.snapshot_stats.clone();
-        *set_activity_stage.write() = ActivityStage::from(settings);
-    });
+    crate::settings::with_fetch_current_app_config(
+        set_app_settings,
+        move |settings: AppSettings| {
+            *set_snapshot_stats.write() = settings.snapshot_stats.clone();
+            *set_activity_stage.write() = ActivityStage::from(settings);
+        },
+    );
     let tx_update_replay_dir = move |ev| {
         let v = event_target_value(&ev);
         set_app_settings.update(|settings| {
@@ -135,7 +138,7 @@ pub fn ScanDirectory() -> impl IntoView {
                 <Show when=move || { activity_stage.get() == ActivityStage::ScanDone }>
                     <ReplayScanTable dir_stats_data />
                 </Show>
-                <Show when=move || { activity_stage.get() > ActivityStage::OptimizeDone }>
+                <Show when=move || { activity_stage.get() >= ActivityStage::OptimizeDone }>
                     <ArrowIpcStats snapshot_stats=snapshot_stats />
                 </Show>
             </div>

@@ -15,7 +15,7 @@ pub async fn get_snapshot_metadata(replay_path: String) -> ApiResponse {
                 serde_json::to_string(&val).unwrap_or_default(),
             ),
             Err(e) => {
-                log::error!("Error getting snapshot metadata: {}", e);
+                tracing::error!("Error getting snapshot metadata: {}", e);
                 ApiResponse::new(
                     ResponseMetaBuilder::new(false)
                         .duration_ms(init_time.elapsed().as_millis() as u64)
@@ -34,7 +34,7 @@ pub fn try_get_snapshot_metadata(replay_path: String) -> Result<SnapshotStats, S
     let replay_path = replay_path.trim_end_matches('/').to_string();
     let ipc_path = format!("{}/{}/", replay_path, IPC_DIR);
     let file_cache_path = format!("{}/{}/", replay_path, CACHES_DIR);
-    log::info!("Getting snapshot metadata from: {}", ipc_path);
+    tracing::info!("Getting snapshot metadata from: {}", ipc_path);
     // Add the size of all the files in state.source_dir
     let mut ipc_dir_size = 0;
     for entry in std::fs::read_dir(&ipc_path)? {

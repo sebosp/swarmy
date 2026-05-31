@@ -16,7 +16,8 @@
         "title": "swarmy",
         "width": 1000,
         "height": 800,
-        "alwaysOnBottom": true
+        "alwaysOnBottom": true,
+        "titleBarStyle": "Transparent"
       }
     ],
     "security": {

@@ -21,7 +21,7 @@ pub async fn download_replay_caches(
             "Triggered download caches task on background".to_string(),
         ),
         Err(e) => {
-            log::error!("Error download caches: {}", e);
+            tracing::error!("Error download caches: {}", e);
             ApiResponse::new(
                 ResponseMetaBuilder::new(true)
                     .duration_ms(init_time.elapsed().as_millis() as u64)
@@ -31,7 +31,7 @@ pub async fn download_replay_caches(
         }
     };
     if let Err(e) = res_rx.await {
-        log::error!("Error waiting for download caches result: {}", e);
+        tracing::error!("Error waiting for download caches result: {}", e);
         res = ApiResponse::new(
             ResponseMetaBuilder::new(true)
                 .duration_ms(init_time.elapsed().as_millis() as u64)
@@ -55,7 +55,7 @@ pub async fn try_download_replay_caches(
     if !destination.exists() {
         std::fs::create_dir_all(&destination)?;
     }
-    log::info!(
+    tracing::info!(
         "Downloading replay caches from files in {} and storing into {}",
         cache_path.display(),
         destination.display()
@@ -66,7 +66,7 @@ pub async fn try_download_replay_caches(
             Default::default(),
             Default::default(),
         )?;
-        log::info!("Loaded details.ipc, extracting unique cache handles...");
+        tracing::info!("Loaded details.ipc, extracting unique cache handles...");
         details_query
             .unique(
                 Some(Selector::Matches("cache_handles".into())),
@@ -78,7 +78,7 @@ pub async fn try_download_replay_caches(
     .await??;
     // TODO: Maybe we don't need the cache region or s2ma format...
     let mut unique_cache_handles: Vec<String> = vec![];
-    log::info!("Extracting unique cache handles from details.ipc...");
+    tracing::info!("Extracting unique cache handles from details.ipc...");
     for idx in 0..res.height() {
         let slice = res.slice(idx as i64, 1);
         let cache_handles_str = slice.column("cache_handles")?.str()?.get(0).unwrap_or("");
@@ -90,22 +90,22 @@ pub async fn try_download_replay_caches(
             unique_cache_handles.push(handle.to_string());
         }
     }
-    log::info!(
+    tracing::info!(
         "Found {} unique cache handles, starting download...",
         unique_cache_handles.len()
     );
     for (idx, handle) in unique_cache_handles.iter().enumerate() {
-        log::info!(
+        tracing::info!(
             "Downloading cache {}/{}: {}",
             idx + 1,
             unique_cache_handles.len(),
             handle
         );
         if let Err(e) = download_cache(handle, &destination).await {
-            log::error!("Error downloading cache {}: {}", handle, e);
+            tracing::error!("Error downloading cache {}: {}", handle, e);
         }
         if let Err(e) = download_cache(handle, &destination).await {
-            log::error!("Error downloading cache {}: {}", handle, e);
+            tracing::error!("Error downloading cache {}: {}", handle, e);
         }
     }
     Ok(String::from("Download caches finished successfully."))
@@ -113,10 +113,10 @@ pub async fn try_download_replay_caches(
 
 #[instrument]
 pub async fn download_cache(handle: &str, destination: &Path) -> Result<(), SwarmyError> {
-    log::info!("Downloading cache with handle: {}", handle);
+    tracing::info!("Downloading cache with handle: {}", handle);
     let cache_download_target = destination.join(format!("{}.s2ma", handle));
     if cache_download_target.exists() {
-        log::info!(
+        tracing::info!(
             "Cache {} already exists, skipping download.",
             cache_download_target.display()
         );

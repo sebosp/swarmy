@@ -6,7 +6,7 @@ pub mod replay_list;
 pub mod scan;
 pub use common::*;
 pub mod components;
-pub mod config;
+pub mod settings;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

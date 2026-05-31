@@ -30,7 +30,7 @@ tauri-plugin-persisted-scope = "2"
 tauri-plugin-store = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-clipboard-manager = "2"
-log = "0.4"
+# log = "0.4"
 chrono = { version = "0.4.41", features = [] }
 # tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 colored = "3.1"

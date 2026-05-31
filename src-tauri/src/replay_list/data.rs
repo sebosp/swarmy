@@ -11,7 +11,7 @@ pub fn try_query_replay_list(
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
 
-    log::info!(
+    tracing::info!(
         "Querying map stats from replay path: {} for map_title: {} and player_name: {}",
         ipc_path,
         query.map_title,

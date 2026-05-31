@@ -39,7 +39,7 @@ pub async fn query_replay_list(
                 serde_json::to_string(&val).unwrap_or_default(),
             ),
             Err(e) => {
-                log::error!("Error query maps: {}", e);
+                tracing::error!("Error query maps: {}", e);
                 ApiResponse::new(
                     ResponseMetaBuilder::new(false)
                         .duration_ms(init_time.elapsed().as_millis() as u64)
@@ -68,7 +68,7 @@ pub async fn exec_swarmy_rerun_replay(
         }
     };
     let file_cache_path = format!("{}/{}/", app_config.replay_path, CACHES_DIR);
-    log::info!(
+    tracing::info!(
         "Trying /home/seb/git/swarmy-bevy/target/release/swarmy-bevy {} {} {}",
         &map_title,
         &file_cache_path,
@@ -111,7 +111,7 @@ pub async fn exec_swarmy_rerun_replay(
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn copy_path_to_clipboard(app_handle: tauri::AppHandle, data: String) -> ApiResponse {
-    log::info!("Writing {data} to clipboard.",);
+    tracing::info!("Writing {data} to clipboard.",);
     app_handle.clipboard().write_text(data).unwrap();
     ApiResponse::new(
         ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
@@ -121,7 +121,7 @@ pub async fn copy_path_to_clipboard(app_handle: tauri::AppHandle, data: String) 
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn open_folder(app_handle: tauri::AppHandle, folder: String) -> ApiResponse {
-    log::info!("Requesting open on folder: {}", folder);
+    tracing::info!("Requesting open on folder: {}", folder);
     match app_handle.opener().open_path(folder, None::<&str>) {
         Ok(_) => ApiResponse::new(
             ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
@@ -141,7 +141,7 @@ pub async fn connect_swarmy_rerun(
     app_handle: tauri::AppHandle,
     replay_file_name: String,
 ) -> ApiResponse {
-    log::info!(
+    tracing::info!(
         "Requesting open rerun on replay_file_name: {}",
         replay_file_name
     );

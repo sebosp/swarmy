@@ -42,9 +42,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .build(),
+        )
         .manage(SetupState { majordomo_tx })
         .setup(|app| {
-            log::info!(
+            tracing::info!(
                 "Starting Tauri application setup {}:{:?}",
                 process::id(),
                 thread::current().id()
@@ -52,7 +57,7 @@ pub fn run() {
             // Spawn setup as a non-blocking task so the windows can be
             // created and ran while it executes
             spawn(setup(majordomo_rx, app.handle().clone()));
-            log::info!(
+            tracing::info!(
                 "Setup function called on {}:{:?}",
                 process::id(),
                 thread::current().id()
@@ -66,6 +71,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_current_app_config,
+            set_current_app_config,
             basic_scan_replay_path,
             optimize_replay_path,
             get_snapshot_metadata,
@@ -84,7 +90,7 @@ pub fn run() {
 
 // An async function that does some heavy setup task
 async fn setup(rx: mpsc::Receiver<AsyncTask>, app: AppHandle) -> Result<(), ()> {
-    log::info!(
+    tracing::info!(
         "Starting majordomo setup task{}:{:?}",
         process::id(),
         thread::current().id()

@@ -31,7 +31,7 @@ impl MajordomoCoordinator {
         })
     }
 
-    #[instrument]
+    #[instrument(level = "info", skip(self))]
     pub async fn process_message_queue(&mut self) -> Result<(), SwarmyError> {
         info!("majordomo coordinator: Main loop starting");
         let current_tokio_handle = Handle::current();
@@ -71,7 +71,7 @@ impl MajordomoCoordinator {
         main_rx: mpsc::Receiver<AsyncTask>,
         app: AppHandle,
     ) -> Result<std::thread::JoinHandle<()>, SwarmyError> {
-        log::info!("init_coordinator_thread: Starting Majordomo Coordinator thread");
+        tracing::info!("init_coordinator_thread: Starting Majordomo Coordinator thread");
         let current_tokio_handle = Handle::current();
         let coordinator_thread = std::thread::Builder::new()
             .name("Majordomo Coordinator I/O".to_owned())

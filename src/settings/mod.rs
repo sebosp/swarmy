@@ -3,10 +3,13 @@ use crate::*;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use serde::{Deserialize, Serialize};
 use swarmy_common::*;
+pub mod actions;
 pub mod view;
 
-pub fn fetch_get_current_app_config<F>(set_app_settings: WriteSignal<AppSettings>, update_fn: F)
+/// Allows fetching app configs with a function to enrich state.
+pub fn with_fetch_current_app_config<F>(set_app_settings: WriteSignal<AppSettings>, update_fn: F)
 where
     F: Fn(AppSettings) -> () + 'static,
 {
@@ -25,4 +28,10 @@ where
             }
         }
     });
+}
+
+/// Wraps the AppSettings to send over wasm without sending each param individually
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct WrapAppSettings {
+    pub app_settings: AppSettings,
 }

@@ -33,7 +33,7 @@ pub async fn query_map_stats(
                 serde_json::to_string(&val).unwrap_or_default(),
             ),
             Err(e) => {
-                log::error!("Error query maps: {}", e);
+                tracing::error!("Error query maps: {}", e);
                 ApiResponse::new(
                     ResponseMetaBuilder::new(false)
                         .duration_ms(init_time.elapsed().as_millis() as u64)
@@ -62,7 +62,7 @@ pub async fn exec_swarmy_bevy_map_caches(
         }
     };
     let file_cache_path = format!("{}/{}/", app_config.replay_path, CACHES_DIR);
-    log::info!(
+    tracing::info!(
         "Trying /home/seb/git/swarmy-bevy/target/release/swarmy-bevy {} {} {}",
         &map_title,
         &file_cache_path,

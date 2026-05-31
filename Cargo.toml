@@ -34,6 +34,7 @@ s2protocol = { path = "../s2protocol-rs/", default-features = false, features = 
     "tracing_off",
 ] }
 tracing = "0.1.44"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [profile.dev]
 incremental = true

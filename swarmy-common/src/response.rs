@@ -17,6 +17,17 @@ impl ResponseMeta {
             is_complete: false,
         }
     }
+
+    /// TODO: move duration_ms to Interval to avoid carrying around counters.
+    pub fn complete_with_success(&mut self) {
+        self.success = true;
+        self.is_complete = true;
+    }
+
+    pub fn complete_with_failure(&mut self) {
+        self.success = false;
+        self.is_complete = true;
+    }
 }
 
 #[derive(Debug, Clone)]
