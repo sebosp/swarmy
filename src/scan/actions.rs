@@ -70,6 +70,7 @@ pub fn trigger_optimize_replay_path(
     app_settings: ReadSignal<AppSettings>,
     set_backend_response: WriteSignal<ApiResponse>,
     set_activity_stage: WriteSignal<ActivityStage>,
+    set_snapshot_stats: WriteSignal<SnapshotStats>,
 ) {
     *set_activity_stage.write() = ActivityStage::OptimizeInit;
     // Reset backend response status.
@@ -97,6 +98,8 @@ pub fn trigger_optimize_replay_path(
                 } else {
                     console_log(&format!("Optimize replay path failed: {:?}", res.message));
                 }
+                *set_snapshot_stats.write() =
+                    serde_json::from_str(&res.message).unwrap_or_default();
                 set_backend_response.set(res);
             }
             Err(e) => {

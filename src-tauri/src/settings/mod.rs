@@ -85,11 +85,14 @@ pub async fn load_app_settings(app_handle: tauri::AppHandle) -> Result<AppSettin
     let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));
     let arrow_ipc_stats = if ipc_path.exists() && ipc_path.is_dir() {
         let replay_path_cp = replay_path.clone();
-        let t = std::thread::spawn(move || match try_get_snapshot_metadata(replay_path_cp) {
-            Ok(val) => val,
-            Err(e) => {
-                tracing::error!("Error getting snapshot metadata: {}", e);
-                SnapshotStats::default()
+        let cache_path_cp = cache_path.clone();
+        let t = std::thread::spawn(move || {
+            match try_get_snapshot_metadata(replay_path_cp, cache_path_cp) {
+                Ok(val) => val,
+                Err(e) => {
+                    tracing::error!("Error getting snapshot metadata: {}", e);
+                    SnapshotStats::default()
+                }
             }
         });
         t.join().unwrap()

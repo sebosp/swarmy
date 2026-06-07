@@ -22,4 +22,3 @@ pub const INIT_DATA_IPC: &str = "init_data.arrow";
 pub const UNIT_BORN_IPC: &str = "unit_born.arrow";
 
 pub const IPC_DIR: &str = "ipcs";
-pub const CACHES_DIR: &str = "caches";

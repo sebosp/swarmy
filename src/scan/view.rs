@@ -94,6 +94,7 @@ pub fn ScanDirectory() -> impl IntoView {
                         app_settings,
                         set_backend_response,
                         set_activity_stage,
+                        set_snapshot_stats,
                     )
                     disabled=move || {
                         activity_stage.get() == ActivityStage::DirectoryEntered

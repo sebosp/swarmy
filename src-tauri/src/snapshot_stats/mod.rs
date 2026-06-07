@@ -3,11 +3,11 @@ use polars::prelude::*;
 use swarmy_common::*;
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn get_snapshot_metadata(replay_path: String) -> ApiResponse {
+pub async fn get_snapshot_metadata(replay_path: String, file_cache_path: String) -> ApiResponse {
     // create a thread to get the metadata in the background:
     let t = std::thread::spawn(move || {
         let init_time = std::time::Instant::now();
-        match try_get_snapshot_metadata(replay_path) {
+        match try_get_snapshot_metadata(replay_path, file_cache_path) {
             Ok(val) => ApiResponse::new(
                 ResponseMetaBuilder::new(true)
                     .duration_ms(init_time.elapsed().as_millis() as u64)
@@ -29,11 +29,13 @@ pub async fn get_snapshot_metadata(replay_path: String) -> ApiResponse {
 }
 
 /// Gets the list of maps from the details.ipc file
-pub fn try_get_snapshot_metadata(replay_path: String) -> Result<SnapshotStats, SwarmyError> {
+pub fn try_get_snapshot_metadata(
+    replay_path: String,
+    file_cache_path: String,
+) -> Result<SnapshotStats, SwarmyError> {
     // remove trailing slash if exists
     let replay_path = replay_path.trim_end_matches('/').to_string();
     let ipc_path = format!("{}/{}/", replay_path, IPC_DIR);
-    let file_cache_path = format!("{}/{}/", replay_path, CACHES_DIR);
     tracing::info!("Getting snapshot metadata from: {}", ipc_path);
     // Add the size of all the files in state.source_dir
     let mut ipc_dir_size = 0;
@@ -86,7 +88,7 @@ pub fn try_get_snapshot_metadata(replay_path: String) -> Result<SnapshotStats, S
     let min_date = col_ymd_to_naive_date(&res, "min_date")?;
     let max_date = col_ymd_to_naive_date(&res, "max_date")?;
     let num_games = res.column("num_games")?.u64()?.get(0).unwrap_or(0) + 1;
-    let num_maps = res.column("num_maps")?.u32()?.get(0).unwrap_or(0) + 1;
+    let num_maps = res.column("num_maps")?.u32()?.get(0).unwrap_or(0);
     // let data_str = crate::common::convert_df_to_json_data(&res)?;
 
     Ok(SnapshotStats {

@@ -67,11 +67,10 @@ pub async fn exec_swarmy_rerun_replay(
             );
         }
     };
-    let file_cache_path = format!("{}/{}/", app_config.replay_path, CACHES_DIR);
     tracing::info!(
         "Trying /home/seb/git/swarmy-bevy/target/release/swarmy-bevy {} {} {}",
         &map_title,
-        &file_cache_path,
+        &app_config.cache_path,
         &cache_ids
     );
     let init_time = std::time::Instant::now();
@@ -83,7 +82,7 @@ pub async fn exec_swarmy_rerun_replay(
                 "--map-title",
                 &map_title,
                 "--snapshot-path",
-                &file_cache_path,
+                &app_config.cache_path,
                 "--cache-handle-ids",
                 &cache_ids,
             ])

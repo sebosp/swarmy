@@ -34,6 +34,10 @@ Rerun 0.26.0:
   and showing what regions of a map have been more active than others.
 - We can add many data visualizations.
 
+# DONE
+
+- "caches" should be stored in a global location to avoid double downloading for different snapshots.
+
 # TODO
 
 ## Tauri
@@ -44,7 +48,6 @@ Rerun 0.26.0:
   and that already changes the caches, maybe I should locate the t3HeightMap and MapInfo
   and use them for deduplication, tho visual element changes wouldn't be account for?
 - Currently only one version can be running at a time because of the settings.json that is written on "scan" tab.
-- "caches" should be stored in a global location to avoid double downloading for different snapshots.
 - In the current queries, I only use one-player, however it should be easy to add multi-user queries,
   either for 2v2 or for specific player vs specific player.
 

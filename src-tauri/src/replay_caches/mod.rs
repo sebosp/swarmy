@@ -50,14 +50,12 @@ pub async fn try_download_replay_caches(
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
 
-    let cache_path = PathBuf::from(&replay_path);
-    let destination = cache_path.join("caches");
+    let destination = PathBuf::from(app_settings.cache_path);
     if !destination.exists() {
         std::fs::create_dir_all(&destination)?;
     }
     tracing::info!(
-        "Downloading replay caches from files in {} and storing into {}",
-        cache_path.display(),
+        "Downloading replay caches from replay references and storing into {}",
         destination.display()
     );
     let res = tokio::task::spawn_blocking(move || {
