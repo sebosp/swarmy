@@ -19,7 +19,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 nom-mpq = "2.0.7"
-s2protocol = { workspace = true }
 swarmy-common = { path = "../swarmy-common" }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
@@ -30,22 +29,23 @@ tauri-plugin-persisted-scope = "2"
 tauri-plugin-store = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-clipboard-manager = "2"
-# log = "0.4"
-chrono = { version = "0.4.41", features = [] }
-# tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+log = "0.4"
+chrono = { version = "0.4.45", features = [] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 colored = "3.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-convert_case = "0.11.0"
+convert_case = "0.12.0"
 
 [dev-dependencies]
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-polars = { version = "0.53.0", default-features = false }
-reqwest = "0.13"
+polars = { version = "0.55", default-features = false }
 tokio = { version = "1", features = ["full"] }
-tracing = { workspace = true }
+s2protocol = { workspace = true, features = ["dep_arrow"] }
+
+tracing = { workspace = true, features = [] }
 rerun = "0.25"
 mimalloc = "0.1.52"
 

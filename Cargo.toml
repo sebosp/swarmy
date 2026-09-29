@@ -29,12 +29,8 @@ chrono = { version = "0.4.41", features = ["serde"] }
 members = ["src-tauri", "swarmy-common"]
 
 [workspace.dependencies]
-s2protocol = { path = "../s2protocol-rs/", default-features = false, features = [
-    "dep_arrow",
-    "tracing_off",
-] }
+s2protocol = { version = "3.5.9", default-features = false }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [profile.dev]
 incremental = true
