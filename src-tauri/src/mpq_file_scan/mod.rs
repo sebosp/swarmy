@@ -1,16 +1,19 @@
 //! Swarmy Tauri UI - SC2Replay Directory Scan and Export to Arrow IPC Module
 
+use crate::SetupState;
 use s2protocol::arrow_store::ArrowIpcTypes;
 use s2protocol::dir_stats::SC2ReplaysDirStats;
 use s2protocol::game_events::read_balance_data_from_included_assets;
 use std::path::PathBuf;
 use swarmy_common::*;
+use tauri::State;
 use tauri_plugin_store::StoreBuilder;
 
 use crate::try_get_snapshot_metadata;
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn basic_scan_replay_path(
+    state: State<'_, SetupState>,
     app_handle: tauri::AppHandle,
     replay_path: String,
     disable_parallelism: bool,
@@ -80,7 +83,7 @@ pub async fn optimize_replay_path(
 }
 
 #[tracing::instrument(level = "debug")]
-fn try_optimize_replay_path(
+async fn try_optimize_replay_path(
     replay_path: String,
     cache_path: String,
     disable_parallelism: bool,
@@ -110,7 +113,8 @@ fn try_optimize_replay_path(
         &props,
         &versioned_abilities,
         disable_parallelism,
-    )?;
+    )
+    .await?;
     // if the ipc directory exists do basic scan.
     let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));
     let arrow_ipc_stats = if ipc_path.exists() && ipc_path.is_dir() {

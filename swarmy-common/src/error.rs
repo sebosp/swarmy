@@ -32,10 +32,6 @@ pub enum SwarmyError {
     SerdeWasmBindgen(#[from] serde_wasm_bindgen::Error),
 
     #[cfg(not(target_arch = "wasm32"))]
-    #[error("Reqwest Error: {0}")]
-    Reqwest(#[from] reqwest::Error),
-
-    #[cfg(not(target_arch = "wasm32"))]
     #[error("Tokio JoinError: {0}")]
     TokioJoin(#[from] JoinError),
 
@@ -64,8 +60,6 @@ impl From<SwarmyError> for String {
             SwarmyError::SerdeWasmBindgen(e) => format!("Serde Wasm Bindgen Error: {}", e),
 
             #[cfg(not(target_arch = "wasm32"))]
-            SwarmyError::Reqwest(e) => format!("Reqwest Error: {}", e),
-            #[cfg(not(target_arch = "wasm32"))]
             SwarmyError::TokioJoin(e) => format!("Tokio JoinError: {}", e),
             SwarmyError::Other(e) => format!("Other Error: {}", e),
 
@@ -91,9 +85,6 @@ enum ErrorKind {
 
     Serde(String),
     SerdeWasmBindgen(String),
-
-    #[cfg(not(target_arch = "wasm32"))]
-    Reqwest(String),
 
     #[cfg(not(target_arch = "wasm32"))]
     TokioJoin(String),
@@ -123,9 +114,6 @@ impl serde::Serialize for SwarmyError {
 
             Self::SerdeJson(_) => ErrorKind::Serde(error_message),
             Self::SerdeWasmBindgen(_) => ErrorKind::SerdeWasmBindgen(error_message),
-
-            #[cfg(not(target_arch = "wasm32"))]
-            Self::Reqwest(_) => ErrorKind::Reqwest(error_message),
 
             #[cfg(not(target_arch = "wasm32"))]
             Self::TokioJoin(_) => ErrorKind::TokioJoin(error_message),

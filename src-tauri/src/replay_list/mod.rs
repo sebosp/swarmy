@@ -13,43 +13,19 @@ pub async fn query_replay_list(
     player_name: String,
     min_date: chrono::NaiveDate,
     max_date: chrono::NaiveDate,
-) -> ApiResponse {
-    let app_config = match get_current_app_config(app_handle.clone()).await {
-        Ok(config) => config,
-        Err(e) => {
-            return ApiResponse::new(
-                ResponseMetaBuilder::new(false).duration_ms(0).build(),
-                format!("Error getting current app config: {:?}", e),
-            );
-        }
-    };
+) -> Result<ApiResponse, SwarmyError> {
+    let app_config = get_current_app_config(app_handle.clone()).await?;
     let t = std::thread::spawn(move || {
-        let init_time = std::time::Instant::now();
+        let res = ApiResponseBuilder::new();
         let query = ReplayListQuery {
             map_title,
             player_name,
             min_date,
             max_date,
         };
-        match try_query_replay_list(app_config.replay_path, query) {
-            Ok(val) => ApiResponse::new(
-                ResponseMetaBuilder::new(true)
-                    .duration_ms(init_time.elapsed().as_millis() as u64)
-                    .build(),
-                serde_json::to_string(&val).unwrap_or_default(),
-            ),
-            Err(e) => {
-                tracing::error!("Error query maps: {}", e);
-                ApiResponse::new(
-                    ResponseMetaBuilder::new(false)
-                        .duration_ms(init_time.elapsed().as_millis() as u64)
-                        .build(),
-                    format!("Error querying maps: {:?}", e),
-                )
-            }
-        }
+        res.process_result(try_query_replay_list(app_config.replay_path, query))
     });
-    t.join().unwrap()
+    Ok(t.join().unwrap())
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -57,23 +33,15 @@ pub async fn exec_swarmy_rerun_replay(
     app_handle: tauri::AppHandle,
     map_title: String,
     cache_ids: String,
-) -> ApiResponse {
-    let app_config = match get_current_app_config(app_handle.clone()).await {
-        Ok(config) => config,
-        Err(e) => {
-            return ApiResponse::new(
-                ResponseMetaBuilder::new(false).duration_ms(0).build(),
-                format!("Error getting current app config: {:?}", e),
-            );
-        }
-    };
+) -> Result<ApiResponse, SwarmyError> {
+    let app_config = get_current_app_config(app_handle.clone()).await?;
+    let res = ApiResponseBuilder::new();
     tracing::info!(
         "Trying /home/seb/git/swarmy-bevy/target/release/swarmy-bevy {} {} {}",
         &map_title,
         &app_config.cache_path,
         &cache_ids
     );
-    let init_time = std::time::Instant::now();
     let t = std::thread::spawn(async move || {
         let shell = app_handle.shell();
         shell
@@ -91,72 +59,82 @@ pub async fn exec_swarmy_rerun_replay(
             .unwrap()
     });
     let output = t.join().unwrap().await;
-    ApiResponse::new(
-        ResponseMetaBuilder::new(output.status.success())
-            .duration_ms(init_time.elapsed().as_millis() as u64)
-            .build(),
-        match output.status.success() {
-            true => "Succesfully called swarmy-bevy".to_string(),
-            false => match String::from_utf8(output.stderr.clone()) {
-                Ok(utf8_str) => format!("Error executing swarmy bevy: {}", utf8_str),
-                Err(_) => format!(
-                    "Error executing swarmy bevy (also non-utf8): {:?}",
-                    output.stderr
-                ),
-            },
+    let message = match output.status.success() {
+        true => "Succesfully called swarmy-bevy".to_string(),
+        false => match String::from_utf8(output.stderr.clone()) {
+            Ok(utf8_str) => format!("Error executing swarmy bevy: {}", utf8_str),
+            Err(_) => format!(
+                "Error executing swarmy bevy (also non-utf8): {:?}",
+                output.stderr
+            ),
         },
-    )
+    };
+    Ok(res
+        .with_status(output.status.success())
+        .with_message(message)
+        .build())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn copy_path_to_clipboard(app_handle: tauri::AppHandle, data: String) -> ApiResponse {
+pub async fn copy_path_to_clipboard(
+    app_handle: tauri::AppHandle,
+    data: String,
+) -> Result<ApiResponse, SwarmyError> {
+    let res = ApiResponseBuilder::new();
     tracing::info!("Writing {data} to clipboard.",);
     app_handle.clipboard().write_text(data).unwrap();
-    ApiResponse::new(
-        ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
-        "Succesfully wrote to clipboard.".to_string(),
-    )
+    Ok(res
+        .with_message("Succesfully wrote to clipboard.".to_string())
+        .with_success()
+        .build())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn open_folder(app_handle: tauri::AppHandle, folder: String) -> ApiResponse {
+pub async fn open_folder(
+    app_handle: tauri::AppHandle,
+    folder: String,
+) -> Result<ApiResponse, SwarmyError> {
     tracing::info!("Requesting open on folder: {}", folder);
-    match app_handle.opener().open_path(folder, None::<&str>) {
-        Ok(_) => ApiResponse::new(
-            ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
-            "Succesfully called open.".to_string(),
-        ),
-        Err(err) => ApiResponse::new(
-            ResponseMetaBuilder::new(false)
-                .duration_ms(0 as u64)
-                .build(),
-            format!("Error requesting open: {:?}", err),
-        ),
-    }
+    let res = match app_handle.opener().open_path(folder, None::<&str>) {
+        Ok(_) => ApiResponseBuilder::new()
+            .with_message("Succesfully called open.".to_string())
+            .with_success()
+            .build(),
+        Err(err) => {
+            tracing::error!("Unable to open folder: {:?}", err);
+            ApiResponseBuilder::new()
+                .with_message(format!("Error requesting open: {:?}", err))
+                .with_failure()
+                .build()
+        }
+    };
+    Ok(res)
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn connect_swarmy_rerun(
     app_handle: tauri::AppHandle,
     replay_file_name: String,
-) -> ApiResponse {
+) -> Result<ApiResponse, SwarmyError> {
     tracing::info!(
         "Requesting open rerun on replay_file_name: {}",
         replay_file_name
     );
-    match app_handle
+    let res = match app_handle
         .opener()
         .open_path(replay_file_name, None::<&str>)
     {
-        Ok(_) => ApiResponse::new(
-            ResponseMetaBuilder::new(true).duration_ms(0 as u64).build(),
-            "Succesfully called open.".to_string(),
-        ),
-        Err(err) => ApiResponse::new(
-            ResponseMetaBuilder::new(false)
-                .duration_ms(0 as u64)
-                .build(),
-            format!("Error requesting open: {:?}", err),
-        ),
-    }
+        Ok(_) => ApiResponseBuilder::new()
+            .with_message(format!("Succesfully called rerun for {replay_file_name}."))
+            .with_success()
+            .build(),
+        Err(err) => {
+            tracing::error!("Unable to call rerun", err);
+            ApiResponseBuilder::new()
+                .with_message(format!("Error calling rerun", err))
+                .with_failure()
+                .build()
+        }
+    };
+    Ok(res)
 }

@@ -1,4 +1,5 @@
 use crate::try_download_replay_caches;
+use s2protocol::dir_stats::SC2ReplaysDirStats;
 use swarmy_common::SwarmyError;
 use tauri::AppHandle;
 use tokio::sync::mpsc;
@@ -11,6 +12,7 @@ use tracing::{info, instrument};
 pub enum AsyncTask {
     Shutdown,
     DownloadCaches(oneshot::Sender<()>),
+    BasicScanReplayPath(oneshot::Sender<SC2ReplaysDirStats>),
 }
 
 /// A MajordomoCoordinator that keeps the state to be shared across async tasks
@@ -60,6 +62,9 @@ impl MajordomoCoordinator {
                         }
                     });
                     res_tx.send(()).unwrap();
+                }
+                AsyncTask::BasicScanReplayPath(_) => {
+                    unimplemented!()
                 }
             }
         }

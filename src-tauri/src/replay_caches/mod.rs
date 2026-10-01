@@ -1,11 +1,12 @@
 use crate::SetupState;
 use crate::{data::*, majordomo::AsyncTask};
 use polars::prelude::*;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use swarmy_common::*;
 use tauri::State;
 use tracing::instrument;
 
+#[instrument]
 #[tauri::command(rename_all = "snake_case")]
 pub async fn download_replay_caches(
     state: State<'_, SetupState>,
@@ -13,23 +14,14 @@ pub async fn download_replay_caches(
     let mdp_tx = state.majordomo_tx.clone();
     let init_time = std::time::Instant::now();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
-    let mut res = match mdp_tx.send(AsyncTask::DownloadCaches(res_tx)).await {
-        Ok(_) => ApiResponse::new(
-            ResponseMetaBuilder::new(true)
-                .duration_ms(init_time.elapsed().as_millis() as u64)
-                .build(),
-            "Triggered download caches task on background".to_string(),
-        ),
-        Err(e) => {
-            tracing::error!("Error download caches: {}", e);
-            ApiResponse::new(
-                ResponseMetaBuilder::new(true)
-                    .duration_ms(init_time.elapsed().as_millis() as u64)
-                    .build(),
-                format!("Error triggering download cache: {:?}", e),
-            )
-        }
-    };
+    let mut res_meta = ResponseMetaBuilder::new();
+    if let Err(e) = mdp_tx.send(AsyncTask::DownloadCaches(res_tx)).await {
+        tracing::error!("Error download caches: {}", e);
+        return Err(ApiResponse::new(
+            res_meta.with_failure().build(),
+            format!("Error triggering download cache: {:?}", e),
+        ));
+    }
     if let Err(e) = res_rx.await {
         tracing::error!("Error waiting for download caches result: {}", e);
         res = ApiResponse::new(
@@ -99,41 +91,12 @@ pub async fn try_download_replay_caches(
             unique_cache_handles.len(),
             handle
         );
-        if let Err(e) = download_cache(handle, &destination).await {
+        if let Err(e) = s2protocol::cache_handles::download_cache(handle, &destination).await {
             tracing::error!("Error downloading cache {}: {}", handle, e);
         }
-        if let Err(e) = download_cache(handle, &destination).await {
+        if let Err(e) = s2protocol::cache_handles::download_cache(handle, &destination).await {
             tracing::error!("Error downloading cache {}: {}", handle, e);
         }
     }
     Ok(String::from("Download caches finished successfully."))
-}
-
-#[instrument]
-pub async fn download_cache(handle: &str, destination: &Path) -> Result<(), SwarmyError> {
-    tracing::info!("Downloading cache with handle: {}", handle);
-    let cache_download_target = destination.join(format!("{}.s2ma", handle));
-    if cache_download_target.exists() {
-        tracing::info!(
-            "Cache {} already exists, skipping download.",
-            cache_download_target.display()
-        );
-        return Ok(());
-    }
-
-    let response = reqwest::get(format!(
-        "https://eu-s2-depot.classic.blizzard.com/{}.s2ma",
-        handle
-    ))
-    .await?;
-    if !response.status().is_success() {
-        return Err(SwarmyError::Other(format!(
-            "Failed to download cache {}, status code: {}",
-            handle,
-            response.status()
-        )));
-    }
-    let response_bytes = response.bytes().await?;
-    std::fs::write(&cache_download_target, response_bytes)?;
-    Ok(())
 }
