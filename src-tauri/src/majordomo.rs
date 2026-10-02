@@ -1,19 +1,16 @@
-use crate::try_download_replay_caches;
+//! A Tokio MPSC Majorodomo inspeired by ZMQ.
+
 use s2protocol::dir_stats::SC2ReplaysDirStats;
-use swarmy_common::SwarmyError;
+use swarmy_common::{ApiResponse, ApiResponseBuilder, MapStatsQuery, SwarmyError};
 use tauri::AppHandle;
+use tokio::runtime::Handle;
 use tokio::sync::mpsc;
-/// A Tokio MPSC Majorodomo inspeired by ZMQ.
-///
-use tokio::{runtime::Handle, sync::oneshot};
 use tracing::{info, instrument};
 
-#[derive(Debug)]
-pub enum AsyncTask {
-    Shutdown,
-    DownloadCaches(oneshot::Sender<()>),
-    BasicScanReplayPath(oneshot::Sender<SC2ReplaysDirStats>),
-}
+use crate::map_stats::data::try_query_map_stats;
+use crate::{get_current_app_config, try_get_snapshot_metadata, try_optimize_replay_path};
+
+pub use swarmy_common::AsyncTask;
 
 /// A MajordomoCoordinator that keeps the state to be shared across async tasks
 #[derive(Debug)]
@@ -36,7 +33,6 @@ impl MajordomoCoordinator {
     #[instrument(level = "info", skip(self))]
     pub async fn process_message_queue(&mut self) -> Result<(), SwarmyError> {
         info!("majordomo coordinator: Main loop starting");
-        let current_tokio_handle = Handle::current();
         while let Some(message) = self.rx.recv().await {
             info!("majordomo coordinator: message: {:?}", message);
             match message {
@@ -44,27 +40,22 @@ impl MajordomoCoordinator {
                     info!("majordomo coordinator: Shutting down");
                     break;
                 }
-                AsyncTask::DownloadCaches(res_tx) => {
-                    info!("majordomo coordinator: Downloading caches");
-                    // Spawn a task to download the caches so we don't block the main loop
-                    let app_handle_clone = self.app_handle.clone();
-                    current_tokio_handle.spawn(async move {
-                        // Call the download caches function and wait for it to complete
-                        let result = try_download_replay_caches(app_handle_clone).await;
-                        // Handle the result of the download caches function
-                        match result {
-                            Ok(_) => info!(
-                                "majordomo coordinator: Download caches completed successfully"
-                            ),
-                            Err(e) => {
-                                info!("majordomo coordinator: Error downloading caches: {:?}", e)
-                            }
-                        }
-                    });
-                    res_tx.send(()).unwrap();
+                AsyncTask::BasicScanReplayPath(res_tx) => {
+                    self.spawn_try_basic_scan_replay_path(res_tx).await;
                 }
-                AsyncTask::BasicScanReplayPath(_) => {
-                    unimplemented!()
+                AsyncTask::OptimizeReplayPath(res_tx) => {
+                    self.spawn_try_optimize_replay_path(res_tx).await;
+                }
+                AsyncTask::QueryMapStats {
+                    map_title,
+                    player_name,
+                    res_tx,
+                } => {
+                    self.spawn_try_query_map_stats(map_title, player_name, res_tx)
+                        .await;
+                }
+                AsyncTask::GetSnapshotStats(res_tx) => {
+                    self.spawn_try_get_snapshot_stats(res_tx).await;
                 }
             }
         }
@@ -98,5 +89,110 @@ impl MajordomoCoordinator {
     #[instrument]
     pub async fn shutdown(tx: mpsc::Sender<AsyncTask>) {
         tx.send(AsyncTask::Shutdown).await.unwrap();
+    }
+
+    #[tracing::instrument(level = "debug")]
+    async fn spawn_try_basic_scan_replay_path(
+        &self,
+        res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
+    ) {
+        let app_handle_clone = self.app_handle.clone();
+        let current_tokio_handle = Handle::current();
+        current_tokio_handle.spawn(async move {
+            let res = ApiResponseBuilder::new();
+            let app_settings = crate::settings::load_app_settings(app_handle_clone)
+                .await
+                .unwrap();
+            let replay_path = app_settings.replay_path.clone();
+            let disable_parallelism = app_settings.disable_parallelism;
+
+            tracing::info!("Scanning replays directory: {}", replay_path);
+
+            res_tx
+                .send(res.process_result(
+                    SC2ReplaysDirStats::from_directory(&replay_path, disable_parallelism).map_err(
+                        |e| SwarmyError::Other(format!("Error scanning replays directory: {}", e)),
+                    ),
+                ))
+                .expect("Failed to send response");
+        });
+    }
+
+    #[tracing::instrument(level = "debug")]
+    async fn spawn_try_optimize_replay_path(
+        &self,
+        res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
+    ) {
+        let app_handle_clone = self.app_handle.clone();
+        let current_tokio_handle = Handle::current();
+        current_tokio_handle.spawn(async move {
+            let res = ApiResponseBuilder::new();
+            let snapshot_stats = try_optimize_replay_path(app_handle_clone).await;
+            res_tx
+                .send(res.process_result(snapshot_stats))
+                .expect("Failed to send response");
+        });
+    }
+
+    #[tracing::instrument(level = "debug")]
+    async fn spawn_try_query_map_stats(
+        &self,
+        map_title: String,
+        player_name: String,
+        res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
+    ) {
+        let res = ApiResponseBuilder::new();
+        let query = MapStatsQuery {
+            map_title,
+            player_name,
+        };
+        let current_tokio_handle = Handle::current();
+        let app_config = match get_current_app_config(self.app_handle.clone()).await {
+            Ok(config) => config,
+            Err(e) => {
+                res_tx
+                    .send(
+                        res.with_failure()
+                            .with_message(format!("Error getting app config: {}", e))
+                            .build(),
+                    )
+                    .expect("Failed to send response");
+                return;
+            }
+        };
+        current_tokio_handle.spawn(async move {
+            let res = ApiResponseBuilder::new();
+            res_tx.send(res.process_result(try_query_map_stats(app_config.replay_path, query)))
+        });
+    }
+
+    #[tracing::instrument(level = "debug")]
+    pub async fn spawn_try_get_snapshot_stats(
+        &self,
+        res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
+    ) {
+        let res = ApiResponseBuilder::new();
+        let app_config = match get_current_app_config(self.app_handle.clone()).await {
+            Ok(config) => config,
+            Err(e) => {
+                res_tx
+                    .send(
+                        res.with_failure()
+                            .with_message(format!("Error getting app config: {}", e))
+                            .build(),
+                    )
+                    .expect("Failed to send response");
+                return;
+            }
+        };
+        let current_tokio_handle = Handle::current();
+        current_tokio_handle.spawn(async move {
+            res_tx
+                .send(res.process_result(try_get_snapshot_metadata(
+                    app_config.replay_path,
+                    app_config.cache_path,
+                )))
+                .expect("Failed to send response");
+        });
     }
 }

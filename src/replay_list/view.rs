@@ -9,7 +9,7 @@ use reactive_stores::Store;
 use swarmy_common::*;
 
 #[component]
-pub fn ReplayList(active_page: RwSignal<String>) -> impl IntoView {
+pub fn ReplayList(/*active_page: RwSignal<String>*/) -> impl IntoView {
     let player_name = RwSignal::new(String::new());
     let map_title = RwSignal::new(String::new());
     let query = move || ReplayListQuery {
@@ -75,7 +75,7 @@ pub fn ReplayList(active_page: RwSignal<String>) -> impl IntoView {
                 {move || replay_list_store.total().get()} " Unique maps found in snapshot."
             </h2>
             <Show when=move || { replay_list_store.total().get() > 0 }>
-                <ReplayListDataTable replay_list_store active_page />
+                <ReplayListDataTable replay_list_store />
             </Show>
         </div>
     }
@@ -84,7 +84,7 @@ pub fn ReplayList(active_page: RwSignal<String>) -> impl IntoView {
 #[component]
 pub fn ReplayListDataTable(
     replay_list_store: Store<ReplayListDataTable>,
-    active_page: RwSignal<String>,
+    // active_page: RwSignal<String>,
 ) -> impl IntoView {
     view! {
         <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">

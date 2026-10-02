@@ -12,6 +12,8 @@ pub mod map_details;
 pub use map_details::*;
 pub mod replay_list;
 pub use replay_list::*;
+#[cfg(not(target_arch = "wasm32"))]
+use tokio::sync::oneshot;
 
 pub mod dataframe;
 #[cfg(not(target_arch = "wasm32"))]
@@ -22,3 +24,17 @@ pub const INIT_DATA_IPC: &str = "init_data.arrow";
 pub const UNIT_BORN_IPC: &str = "unit_born.arrow";
 
 pub const IPC_DIR: &str = "ipcs";
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub enum AsyncTask {
+    Shutdown,
+    BasicScanReplayPath(oneshot::Sender<ApiResponse>),
+    OptimizeReplayPath(oneshot::Sender<ApiResponse>),
+    QueryMapStats {
+        map_title: String,
+        player_name: String,
+        res_tx: oneshot::Sender<ApiResponse>,
+    },
+    GetSnapshotStats(oneshot::Sender<ApiResponse>),
+}

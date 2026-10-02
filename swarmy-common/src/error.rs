@@ -3,6 +3,9 @@ use thiserror::Error;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::task::JoinError;
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::AsyncTask;
+
 #[derive(Error, Debug)]
 pub enum SwarmyError {
     #[cfg(not(target_arch = "wasm32"))]
@@ -35,6 +38,14 @@ pub enum SwarmyError {
     #[error("Tokio JoinError: {0}")]
     TokioJoin(#[from] JoinError),
 
+    #[cfg(not(target_arch = "wasm32"))]
+    #[error("Tokio Recv: {0}")]
+    TokioOneShotRecv(#[from] tokio::sync::oneshot::error::RecvError),
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[error("Tokio Send: {0}")]
+    TokioMpscSend(#[from] tokio::sync::mpsc::error::SendError<AsyncTask>),
+
     #[error("Other Error: {0}")]
     Other(String),
 
@@ -61,6 +72,13 @@ impl From<SwarmyError> for String {
 
             #[cfg(not(target_arch = "wasm32"))]
             SwarmyError::TokioJoin(e) => format!("Tokio JoinError: {}", e),
+
+            #[cfg(not(target_arch = "wasm32"))]
+            SwarmyError::TokioOneShotRecv(e) => format!("Tokio RecvError: {}", e),
+
+            #[cfg(not(target_arch = "wasm32"))]
+            SwarmyError::TokioMpscSend(e) => format!("Tokio MpscSend: {}", e),
+
             SwarmyError::Other(e) => format!("Other Error: {}", e),
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -88,6 +106,12 @@ enum ErrorKind {
 
     #[cfg(not(target_arch = "wasm32"))]
     TokioJoin(String),
+
+    #[cfg(not(target_arch = "wasm32"))]
+    TokioRecv(String),
+
+    #[cfg(not(target_arch = "wasm32"))]
+    TokioMpscSend(String),
 
     Other(String),
 
@@ -117,6 +141,12 @@ impl serde::Serialize for SwarmyError {
 
             #[cfg(not(target_arch = "wasm32"))]
             Self::TokioJoin(_) => ErrorKind::TokioJoin(error_message),
+
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::TokioOneShotRecv(_) => ErrorKind::TokioRecv(error_message),
+
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::TokioMpscSend(_) => ErrorKind::TokioMpscSend(error_message),
 
             Self::Other(_) => ErrorKind::Other(error_message),
 

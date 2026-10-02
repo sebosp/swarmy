@@ -1,31 +1,22 @@
 //! Provides information about the analyzed game collection.
+use crate::SetupState;
 use polars::prelude::*;
 use swarmy_common::*;
+use tauri::State;
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn get_snapshot_metadata(replay_path: String, file_cache_path: String) -> ApiResponse {
-    // create a thread to get the metadata in the background:
-    let t = std::thread::spawn(move || {
-        let init_time = std::time::Instant::now();
-        match try_get_snapshot_metadata(replay_path, file_cache_path) {
-            Ok(val) => ApiResponse::new(
-                ResponseMetaBuilder::new(true)
-                    .duration_ms(init_time.elapsed().as_millis() as u64)
-                    .build(),
-                serde_json::to_string(&val).unwrap_or_default(),
-            ),
-            Err(e) => {
-                tracing::error!("Error getting snapshot metadata: {}", e);
-                ApiResponse::new(
-                    ResponseMetaBuilder::new(false)
-                        .duration_ms(init_time.elapsed().as_millis() as u64)
-                        .build(),
-                    format!("Error getting snapshot metadata: {:?}", e),
-                )
-            }
-        }
-    });
-    t.join().unwrap()
+pub async fn get_snapshot_metadata(
+    state: State<'_, SetupState>,
+) -> Result<ApiResponse, SwarmyError> {
+    let mdp_tx = state.majordomo_tx.clone();
+    let res = ApiResponseBuilder::new();
+    let (res_tx, res_rx) = tokio::sync::oneshot::channel();
+
+    mdp_tx.send(AsyncTask::GetSnapshotStats(res_tx)).await?;
+    let snapshot_medatha = res_rx.await?;
+    Ok(res
+        .with_message(serde_json::to_string(&snapshot_medatha)?)
+        .build())
 }
 
 /// Gets the list of maps from the details.ipc file

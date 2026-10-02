@@ -48,7 +48,7 @@ pub fn Main() -> impl IntoView {
                         id="swarmy-tauri-stats-by-map-content"
                         class="flex flex-col grow p-2 rounded"
                     >
-                        <ReplayList active_page />
+                        <ReplayList />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == "Config">

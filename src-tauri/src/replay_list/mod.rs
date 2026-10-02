@@ -122,16 +122,16 @@ pub async fn connect_swarmy_rerun(
     );
     let res = match app_handle
         .opener()
-        .open_path(replay_file_name, None::<&str>)
+        .open_path(&replay_file_name, None::<&str>)
     {
         Ok(_) => ApiResponseBuilder::new()
             .with_message(format!("Succesfully called rerun for {replay_file_name}."))
             .with_success()
             .build(),
         Err(err) => {
-            tracing::error!("Unable to call rerun", err);
+            tracing::error!("Unable to call rerun: {:?}", err);
             ApiResponseBuilder::new()
-                .with_message(format!("Error calling rerun", err))
+                .with_message(format!("Error calling rerun: {:?}", err))
                 .with_failure()
                 .build()
         }

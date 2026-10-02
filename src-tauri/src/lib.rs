@@ -10,11 +10,9 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
-pub mod map_details;
-pub mod replay_caches;
-pub use replay_caches::*;
 pub mod data;
 pub mod majordomo;
+pub mod map_details;
 pub mod replay_list;
 pub mod replay_rerun;
 use crate::replay_list::{
@@ -23,8 +21,8 @@ use crate::replay_list::{
 use std::process;
 use std::thread;
 
-use tauri::AppHandle;
 use tauri::async_runtime::spawn;
+use tauri::AppHandle;
 use tokio::sync::mpsc;
 
 use crate::majordomo::AsyncTask;
@@ -76,7 +74,6 @@ pub fn run() {
             optimize_replay_path,
             get_snapshot_metadata,
             query_map_stats,
-            download_replay_caches,
             exec_swarmy_bevy_map_caches,
             query_replay_list,
             copy_path_to_clipboard,
