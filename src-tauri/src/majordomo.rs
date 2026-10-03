@@ -91,11 +91,12 @@ impl MajordomoCoordinator {
         tx.send(AsyncTask::Shutdown).await.unwrap();
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self, res_tx))]
     async fn spawn_try_basic_scan_replay_path(
         &self,
         res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
     ) {
+        tracing::info!("spawn_try_basic_scan_replay_path: Spawning task to scan replays directory");
         let app_handle_clone = self.app_handle.clone();
         let current_tokio_handle = Handle::current();
         current_tokio_handle.spawn(async move {
@@ -141,7 +142,6 @@ impl MajordomoCoordinator {
         player_name: String,
         res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
     ) {
-        let res = ApiResponseBuilder::new();
         let query = MapStatsQuery {
             map_title,
             player_name,
@@ -152,7 +152,8 @@ impl MajordomoCoordinator {
             Err(e) => {
                 res_tx
                     .send(
-                        res.with_failure()
+                        ApiResponseBuilder::new()
+                            .with_failure()
                             .with_message(format!("Error getting app config: {}", e))
                             .build(),
                     )

@@ -34,9 +34,29 @@ pub fn trigger_basic_scan_replay_path(
     spawn_local(async move {
         let args = serde_wasm_bindgen::to_value(&app_settings_cp).unwrap();
         // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-        match serde_wasm_bindgen::from_value::<SC2ReplaysDirStats>(
+        let api_response = match serde_wasm_bindgen::from_value::<ApiResponse>(
             invoke("basic_scan_replay_path", args).await,
         ) {
+            Ok(res) => res,
+            Err(err) => {
+                console_log(&format!("Error invoking basic_scan_replay_path: {:?}", err));
+                *set_backend_response.write() = ApiResponse {
+                    meta: ResponseMeta {
+                        success: false,
+                        duration_ms: 0,
+                        is_complete: true,
+                    },
+                    message: format!("Error invoking basic_scan_replay_path: {:?}", err),
+                };
+                *set_activity_stage.write() = ActivityStage::ScanDone;
+                return;
+            }
+        };
+        // We need to deseriaize the message from the ApiResponse into SC2ReplaysDirStats
+
+        let stats: Result<SC2ReplaysDirStats, serde_json::Error> =
+            serde_json::from_str(&api_response.message);
+        match stats {
             Ok(stats) => {
                 let mut stats_table: SC2ReplaysDirStatsTable = stats.into();
                 console_log(&format!("New data = {:?}", stats_table));

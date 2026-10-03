@@ -1,9 +1,9 @@
 //! Swarmy Tauri UI - SC2Replay Directory Scan and Export to Arrow IPC Module
 
-use crate::SetupState;
 use crate::majordomo::AsyncTask;
-use s2protocol::ArrowIpcTypes;
+use crate::SetupState;
 use s2protocol::game_events::read_balance_data_from_included_assets;
+use s2protocol::ArrowIpcTypes;
 use std::path::PathBuf;
 use swarmy_common::*;
 use tauri::AppHandle;
@@ -12,11 +12,10 @@ use tracing::instrument;
 
 use crate::try_get_snapshot_metadata;
 
-#[instrument]
+#[instrument(level = "debug", skip(state))]
 #[tauri::command(rename_all = "snake_case")]
 pub async fn basic_scan_replay_path(
     state: State<'_, SetupState>,
-    app_handle: AppHandle,
 ) -> Result<ApiResponse, SwarmyError> {
     let mdp_tx = state.majordomo_tx.clone();
     let res = ApiResponseBuilder::new();
@@ -24,7 +23,7 @@ pub async fn basic_scan_replay_path(
 
     mdp_tx.send(AsyncTask::BasicScanReplayPath(res_tx)).await?;
     let stats = res_rx.await?;
-    Ok(res.with_message(serde_json::to_string(&stats)?).build())
+    Ok(res.with_message(stats.message).build())
 }
 
 #[instrument]
@@ -51,9 +50,7 @@ pub async fn optimize_replay_path(
             .build());
     }
     let snapshot_stats = res_rx.await?;
-    Ok(res
-        .with_message(serde_json::to_string(&snapshot_stats)?)
-        .build())
+    Ok(res.with_message(snapshot_stats.message).build())
 }
 
 #[tracing::instrument(level = "debug")]
