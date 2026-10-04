@@ -21,8 +21,8 @@ use crate::replay_list::{
 use std::process;
 use std::thread;
 
-use tauri::async_runtime::spawn;
 use tauri::AppHandle;
+use tauri::async_runtime::spawn;
 use tokio::sync::mpsc;
 
 use crate::majordomo::AsyncTask;
@@ -42,7 +42,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .level(tauri_plugin_log::log::LevelFilter::Error)
                 .build(),
         )
         .manage(SetupState { majordomo_tx })

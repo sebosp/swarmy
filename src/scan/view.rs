@@ -8,7 +8,7 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
-use phosphor_leptos::{DATABASE, Icon, IconWeight, SHIPPING_CONTAINER};
+use phosphor_leptos::{DATABASE, Icon, IconWeight};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
 use s2protocol::dir_stats::SC2ReplaysDirStats;
@@ -105,32 +105,6 @@ pub fn ScanDirectory() -> impl IntoView {
                 >
                     <Icon icon=DATABASE weight=IconWeight::Light prop:class="stroke-current" />
                     "Optimize"
-                </button>
-                <button
-                    class=move || {
-                        if !app_settings.get().replay_path.is_empty() {
-                            "btn btn-info btn-sm"
-                        } else {
-                            "btn btn-disabled btn-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 disabled:outline-gray-200"
-                        }
-                    }
-                    on:click=move |_| trigger_download_replay_caches(
-                        app_settings,
-                        set_backend_response,
-                        set_activity_stage,
-                    )
-                    disabled=move || {
-                        activity_stage.get() == ActivityStage::DirectoryEntered
-                            && activity_stage.get() != ActivityStage::OptimizeInit
-                    }
-                    title="Downloads the caches from Starcraft II servers that contain map information such as Height Map"
-                >
-                    <Icon
-                        icon=SHIPPING_CONTAINER
-                        weight=IconWeight::Light
-                        prop:class="stroke-current"
-                    />
-                    "Download Caches"
                 </button>
             </div>
             <DisplayBackendStatus backend_response />

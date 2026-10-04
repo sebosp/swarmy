@@ -33,26 +33,13 @@ pub fn trigger_basic_scan_replay_path(
 
     spawn_local(async move {
         let args = serde_wasm_bindgen::to_value(&app_settings_cp).unwrap();
-        // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-        let api_response = match serde_wasm_bindgen::from_value::<ApiResponse>(
+        let Ok(api_response) = get_api_response_from_invoke(
             invoke("basic_scan_replay_path", args).await,
-        ) {
-            Ok(res) => res,
-            Err(err) => {
-                console_log(&format!("Error invoking basic_scan_replay_path: {:?}", err));
-                *set_backend_response.write() = ApiResponse {
-                    meta: ResponseMeta {
-                        success: false,
-                        duration_ms: 0,
-                        is_complete: true,
-                    },
-                    message: format!("Error invoking basic_scan_replay_path: {:?}", err),
-                };
-                *set_activity_stage.write() = ActivityStage::ScanDone;
-                return;
-            }
+            set_backend_response,
+        ) else {
+            return;
         };
-        // We need to deseriaize the message from the ApiResponse into SC2ReplaysDirStats
+        *set_activity_stage.write() = ActivityStage::ScanDone;
 
         let stats: Result<SC2ReplaysDirStats, serde_json::Error> =
             serde_json::from_str(&api_response.message);
@@ -78,7 +65,6 @@ pub fn trigger_basic_scan_replay_path(
                 console_log(&format!("Error invoking basic_scan_replay_path: {:?}", e));
             }
         }
-        *set_activity_stage.write() = ActivityStage::ScanDone;
     });
 }
 
@@ -104,85 +90,15 @@ pub fn trigger_optimize_replay_path(
     let app_settings_cp = app_settings.get();
     spawn_local(async move {
         let args = serde_wasm_bindgen::to_value(&app_settings_cp).unwrap();
-        console_log(&format!(
-            "Invoking optimize_replay_path with args: {:?}",
-            args
-        ));
-        // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-        let response = invoke("optimize_replay_path", args).await;
-        console_log(&format!("optimize_replay_path response: {:?}", response));
-        match serde_wasm_bindgen::from_value::<ApiResponse>(response) {
-            Ok(res) => {
-                if res.meta.success {
-                    console_log("Optimize replay path succeeded.");
-                } else {
-                    console_log(&format!("Optimize replay path failed: {:?}", res.message));
-                }
-                *set_snapshot_stats.write() =
-                    serde_json::from_str(&res.message).unwrap_or_default();
-                set_backend_response.set(res);
-            }
-            Err(e) => {
-                console_log(&format!("Error invoking optimize_replay_path: {:?}", e));
-                set_backend_response.set(ApiResponse {
-                    meta: ResponseMeta {
-                        success: false,
-                        duration_ms: 0,
-                        is_complete: true,
-                    },
-                    message: format!("Error invoking optimize_replay_path: {:?}", e),
-                });
-            }
-        }
+        let Ok(api_response) = get_api_response_from_invoke(
+            invoke("optimize_replay_path", args).await,
+            set_backend_response,
+        ) else {
+            return;
+        };
+        *set_snapshot_stats.write() =
+            serde_json::from_str(&api_response.message).unwrap_or_default();
+        set_backend_response.set(api_response);
         *set_activity_stage.write() = ActivityStage::OptimizeDone;
-    });
-}
-
-pub fn trigger_download_replay_caches(
-    app_settings: ReadSignal<AppSettings>,
-    set_backend_response: WriteSignal<ApiResponse>,
-    set_activity_stage: WriteSignal<ActivityStage>,
-) {
-    *set_activity_stage.write() = ActivityStage::DownloadingCachesInit;
-    // Reset backend response status.
-    *set_backend_response.write() = ApiResponse::new_incomplete();
-
-    if app_settings.get().replay_path.is_empty() {
-        console_log("Replay path is empty.");
-        return;
-    }
-
-    let app_settings_cp = app_settings.get();
-    spawn_local(async move {
-        let args = serde_wasm_bindgen::to_value(&app_settings_cp).unwrap();
-        console_log(&format!(
-            "Invoking download_replay_caches with args: {:?}",
-            args
-        ));
-        // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-        let response = invoke("download_replay_caches", args).await;
-        console_log(&format!("download_replay_caches response: {:?}", response));
-        match serde_wasm_bindgen::from_value::<ApiResponse>(response) {
-            Ok(res) => {
-                if res.meta.success {
-                    console_log("Download replay caches succeeded.");
-                } else {
-                    console_log(&format!("Download replay caches failed: {:?}", res.message));
-                }
-                set_backend_response.set(res);
-            }
-            Err(e) => {
-                console_log(&format!("Error invoking download_replay_caches: {:?}", e));
-                set_backend_response.set(ApiResponse {
-                    meta: ResponseMeta {
-                        success: false,
-                        duration_ms: 0,
-                        is_complete: true,
-                    },
-                    message: format!("Error invoking download_replay_caches: {:?}", e),
-                });
-            }
-        }
-        *set_activity_stage.write() = ActivityStage::DownloadingCachesDone;
     });
 }

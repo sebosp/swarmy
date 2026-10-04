@@ -1,6 +1,8 @@
 /// Common views.
 use leptos::{leptos_dom::logging::console_log, prelude::*};
 use phosphor_leptos::{Icon, IconWeight, X_CIRCLE};
+use swarmy_common::{ApiResponse, ResponseMeta};
+use wasm_bindgen::JsValue;
 
 pub fn text_input_tailwind_classes() -> Vec<&'static str> {
     vec![
@@ -65,5 +67,26 @@ pub fn DisplayBackendStatus(
                 </div>
             </div>
         </Show>
+    }
+}
+
+pub fn get_api_response_from_invoke(
+    backend_response: JsValue,
+    set_backend_response: WriteSignal<ApiResponse>,
+) -> Result<ApiResponse, serde_wasm_bindgen::Error> {
+    match serde_wasm_bindgen::from_value::<ApiResponse>(backend_response) {
+        Ok(res) => Ok(res),
+        Err(err) => {
+            console_log(&format!("Error invoking basic_scan_replay_path: {:?}", err));
+            *set_backend_response.write() = ApiResponse {
+                meta: ResponseMeta {
+                    success: false,
+                    duration_ms: 0,
+                    is_complete: true,
+                },
+                message: format!("Error invoking basic_scan_replay_path: {:?}", err),
+            };
+            Err(err)
+        }
     }
 }
