@@ -103,7 +103,7 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
                             >
-                                "Cache Handles"
+                                "MapInfo Sha256"
                             </th>
                             <th
                                 scope="col"
@@ -122,18 +122,11 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                     <tbody class="divide-y divide-white/10 bg-gray-900">
                         <For
                             each=move || map_stats_store.data()
-                            key=|row| {
-                                format!("{}:{}", row.read().title.clone(), row.read().cache_handles)
-                            }
+                            key=|row| row.read().map_info_sha256.clone()
                             children=|child| {
                                 let cache_ids: String = child.read().cache_handles.clone();
+                                let map_info_sha256: String = child.read().cache_handles.clone();
                                 let map_title: String = child.read().title.clone();
-                                let handles_count = child
-                                    .read()
-                                    .cache_handles
-                                    .split(",")
-                                    .collect::<Vec<&str>>()
-                                    .len();
                                 view! {
                                     <tr>
                                         <td>
@@ -151,7 +144,7 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {child.read().num_games}
                                         </td>
-                                        <td>{handles_count}</td>
+                                        <td>{map_info_sha256}</td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().min_date)}
                                         </td>

@@ -10,7 +10,7 @@ use swarmy_common::*;
 #[derive(Store, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct MapStatsDataTable {
     pub total: usize,
-    #[store(key: String = |row| format!("{}:{}",row.title.clone(), row.cache_handles.clone()))]
+    #[store(key: String = |row| row.map_info_sha256.clone())]
     pub data: Vec<MapStats>,
     pub start: usize,
     pub end: usize,

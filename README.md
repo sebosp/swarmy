@@ -37,16 +37,12 @@ Rerun 0.26.0:
 # DONE
 
 - "caches" should be stored in a global location to avoid double downloading for different snapshots.
+- cache_handles are analized to be able to process the MapInfo uniqueness. However the version of the map hasn't been found on the MapInfo contents.
 
 # TODO
 
 ## Tauri
 
-- Initially I thought of making maps unique based on their cache_handles
-  to compensate for the fact that maps have versions and I wanted to account for that.
-  however, it seems that when on tournaments, additional images are added to maps
-  and that already changes the caches, maybe I should locate the t3HeightMap and MapInfo
-  and use them for deduplication, tho visual element changes wouldn't be account for?
 - Currently only one version can be running at a time because of the settings.json that is written on "scan" tab.
 - In the current queries, I only use one-player, however it should be easy to add multi-user queries,
   either for 2v2 or for specific player vs specific player.

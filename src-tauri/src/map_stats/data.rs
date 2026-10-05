@@ -48,7 +48,7 @@ pub fn try_query_map_stats(
     );
 
     let res = details_query
-        .group_by([col("title"), col("cache_handles")])
+        .group_by([col("title"), col("map_info_sha256")])
         .agg([
             col("ext_datetime")
                 .min()
@@ -61,6 +61,7 @@ pub fn try_query_map_stats(
                 .to_string("%Y-%m-%d")
                 .alias("max_date"),
             len().alias("num_games"),
+            col("cache_handles").first().alias("cache_handles"),
         ])
         .sort(
             ["num_games"],
@@ -86,8 +87,14 @@ fn extract_map_stats_from_df_row(row: &DataFrame) -> Result<MapStats, SwarmyErro
         .get(0)
         .unwrap_or("Empty Title")
         .to_string();
+    let map_info_sha256 = row
+        .column("map_info_sha256")?
+        .str()?
+        .get(0)
+        .unwrap_or("")
+        .to_string();
     let cache_handles = row
-        .column("cache_handles")?
+        .column("map_info_sha256")?
         .str()?
         .get(0)
         .unwrap_or("")
@@ -99,5 +106,6 @@ fn extract_map_stats_from_df_row(row: &DataFrame) -> Result<MapStats, SwarmyErro
         num_games,
         title,
         cache_handles,
+        map_info_sha256,
     })
 }

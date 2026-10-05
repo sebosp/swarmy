@@ -13,9 +13,10 @@ pub async fn get_snapshot_metadata(
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
 
     mdp_tx.send(AsyncTask::GetSnapshotStats(res_tx)).await?;
-    let snapshot_medatha = res_rx.await?;
+    let snapshot_medata = res_rx.await?;
     Ok(res
-        .with_message(serde_json::to_string(&snapshot_medatha)?)
+        .with_message(serde_json::to_string(&snapshot_medata)?)
+        .with_status(snapshot_medata.meta.success)
         .build())
 }
 

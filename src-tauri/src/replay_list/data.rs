@@ -76,7 +76,6 @@ pub fn try_query_replay_list(
         )
         .limit(1000)
         .collect()?;
-    println!("{res}");
     let res: Vec<ReplayListEntry> = (0..res.height())
         .map(|idx| extract_replay_list_from_df_row(&res.slice(idx as i64, 1)))
         .collect::<Result<_, _>>()?;

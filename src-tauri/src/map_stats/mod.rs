@@ -23,7 +23,11 @@ pub async fn query_map_stats(
             res_tx,
         })
         .await?;
-    Ok(res.process_result(Ok(res_rx.await?)))
+    let map_stats = res_rx.await?;
+    Ok(res
+        .with_message(map_stats.message)
+        .with_status(map_stats.meta.success)
+        .build())
 }
 
 #[tauri::command(rename_all = "snake_case")]

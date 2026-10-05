@@ -1,18 +1,17 @@
 use serde::{Deserialize, Serialize};
 
 /// Contains metadata information related to the minimun, maximum date of the map in the snapshot.
-/// The cache_handles contain downloadable assets from blizzard's CDN, even tho two maps may have
-/// the same title, if their cache_handles differ, they are considered different, maybe different
-/// versions, tests, etc.
-/// TODO: We should not use the cache_handle IDs joined to dedup them, we should use some internal
-/// Information i.e. inside MapInfo or T3HeightMap/etc.
+/// When building the snapshot stats, the caches are downloaded and the mapinfo extracted,
+/// The map_info_sha256 is used to identify unique maps
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MapStats {
     /// The number of games
     pub num_games: u32,
     /// The name of the map.
     pub title: String,
-    /// The cache_handles for the map.
+    /// The sha256 of the mapinfo file.
+    pub map_info_sha256: String,
+    /// The cache_handles of the game, used as swarmy-bevy parameters.
     pub cache_handles: String,
     /// The minimum date of the snapshot taken
     pub min_date: chrono::NaiveDate,
@@ -27,6 +26,7 @@ impl Default for MapStats {
             max_date: chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap(),
             num_games: 0,
             title: String::new(),
+            map_info_sha256: String::new(),
             cache_handles: String::new(),
         }
     }

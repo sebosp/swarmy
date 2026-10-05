@@ -53,11 +53,23 @@ pub fn DisplayBackendStatus(
                     </div>
                     <div class="ml-3">
                         <p class="text-ellipsis overflow-hidden text-sm text-red-300">
-                            <p class="text-sm text-red-300">"Directory is optimized."</p>
+                            <p class="text-sm text-red-300"></p>
                             <For
                                 each=move || error_lines()
                                 key=|line| line.clone()
                                 children=move |line: String| {
+                                    console_log(
+                                        &format!(
+                                            "success: {:?}",
+                                            backend_response.get().meta.success,
+                                        ),
+                                    );
+                                    console_log(
+                                        &format!(
+                                            "is_complete: {:?}",
+                                            backend_response.get().meta.is_complete,
+                                        ),
+                                    );
                                     console_log(&format!("Error line: {:?}", line));
                                     view! { <span>{move || line.clone()}<br /></span> }
                                 }
