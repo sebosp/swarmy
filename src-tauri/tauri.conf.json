@@ -36,7 +36,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "../../swarmy-bevy/target/release/swarmy-bevy"
+      "../assets/swarmy-bevy"
     ]
   },
   "plugins": {

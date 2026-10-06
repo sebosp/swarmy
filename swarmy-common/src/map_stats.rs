@@ -50,8 +50,6 @@ pub struct MapStatsQuery {
 /// - Another mode shows the frequency of units per location ? Maybe effective?
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct SwarmyBevyMapCacheParams {
-    /// The name of the map. I don't know where to read it yet from the Downloaded Caches.
-    pub map_title: String,
     /// A string that contains the comma separated list of cacheids to search for t3 height map and
     /// mapinfo
     pub cache_ids: String,

@@ -33,31 +33,23 @@ pub async fn query_map_stats(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn exec_swarmy_bevy_map_caches(
     app_handle: tauri::AppHandle,
-    map_title: String,
     cache_ids: String,
 ) -> Result<ApiResponse, SwarmyError> {
     let app_config = get_current_app_config(app_handle.clone()).await?;
     tracing::info!(
-        "Trying /home/seb/git/swarmy-bevy/target/release/swarmy-bevy {} {} {}",
+        "Trying swarmy-bevy {} {} {}",
         &map_title,
         &app_config.cache_path,
         &cache_ids
     );
     let t = std::thread::spawn(async move || {
-        let shell = app_handle.shell();
-        shell
-            .command("/home/seb/git/swarmy-bevy/target/debug/swarmy-bevy")
-            .args([
-                "--map-title",
-                &map_title,
-                "--path",
-                &app_config.cache_path,
-                "--ids",
-                &cache_ids,
-            ])
-            .output()
-            .await
-            .unwrap()
+        let shell = app_handle
+            .shell()
+            .sidecar("swarmy-bevy")
+            .expect("failed to create swarmy-bevy sidecar")
+            .args(["--path", &app_config.cache_path, "--ids", &cache_ids]);
+        println!("Executing swarmy-bevy with args: {:?}", shell);
+        shell.output().await.unwrap()
     });
     let output = t.join().unwrap().await;
     Ok(ApiResponseBuilder::new()

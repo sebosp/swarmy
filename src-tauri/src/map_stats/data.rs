@@ -94,7 +94,7 @@ fn extract_map_stats_from_df_row(row: &DataFrame) -> Result<MapStats, SwarmyErro
         .unwrap_or("")
         .to_string();
     let cache_handles = row
-        .column("map_info_sha256")?
+        .column("cache_handles")?
         .str()?
         .get(0)
         .unwrap_or("")

@@ -12,6 +12,16 @@
     "log:default",
     "fs:default",
     "store:default",
-    "shell:default"
+    "shell:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "args": true,
+          "name": "../assets/swarmy-bevy",
+          "sidecar": true
+        }
+      ]
+    }
   ]
 }

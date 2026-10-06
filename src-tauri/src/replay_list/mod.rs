@@ -45,7 +45,8 @@ pub async fn exec_swarmy_rerun_replay(
     let t = std::thread::spawn(async move || {
         let shell = app_handle.shell();
         shell
-            .command("/home/seb/git/swarmy-bevy/target/debug/swarmy-bevy")
+            .sidecar("swarmy-bevy")
+            .expect("failed to create swarmy-bevy sidecar")
             .args([
                 "--map-title",
                 &map_title,

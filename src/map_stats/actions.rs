@@ -51,10 +51,7 @@ pub fn trigger_fetch_query_map_stats(
 pub fn trigger_swarmy_bevy_exec_on_caches(map_title: &str, cache_ids: &str) {
     let cache_ids = cache_ids.to_string();
     let map_title = map_title.to_string();
-    let swarmy_bevy_params = SwarmyBevyMapCacheParams {
-        map_title,
-        cache_ids,
-    };
+    let swarmy_bevy_params = SwarmyBevyMapCacheParams { cache_ids };
     spawn_local(async move {
         let args = serde_wasm_bindgen::to_value(&swarmy_bevy_params).unwrap();
         console_log(&format!(

@@ -103,12 +103,6 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
                             >
-                                "MapInfo Sha256"
-                            </th>
-                            <th
-                                scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
-                            >
                                 "Min Date"
                             </th>
                             <th
@@ -125,7 +119,6 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                             key=|row| row.read().map_info_sha256.clone()
                             children=|child| {
                                 let cache_ids: String = child.read().cache_handles.clone();
-                                let map_info_sha256: String = child.read().cache_handles.clone();
                                 let map_title: String = child.read().title.clone();
                                 view! {
                                     <tr>
@@ -144,7 +137,6 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {child.read().num_games}
                                         </td>
-                                        <td>{map_info_sha256}</td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().min_date)}
                                         </td>
