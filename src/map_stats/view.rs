@@ -119,7 +119,6 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                             key=|row| row.read().map_info_sha256.clone()
                             children=|child| {
                                 let cache_ids: String = child.read().cache_handles.clone();
-                                let map_title: String = child.read().title.clone();
                                 view! {
                                     <tr>
                                         <td>
@@ -127,7 +126,7 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                                 class="btn btn-primary btn-sm b-0 p-0 m-0"
                                                 on:click=move |ev: MouseEvent| {
                                                     ev.prevent_default();
-                                                    trigger_swarmy_bevy_exec_on_caches(&map_title, &cache_ids)
+                                                    trigger_swarmy_bevy_exec_on_caches(&cache_ids)
                                                 }
                                                 title="Open in Swarmy-Bevy"
                                             >

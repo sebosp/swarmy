@@ -37,15 +37,14 @@ pub async fn exec_swarmy_bevy_map_caches(
 ) -> Result<ApiResponse, SwarmyError> {
     let app_config = get_current_app_config(app_handle.clone()).await?;
     tracing::info!(
-        "Trying swarmy-bevy {} {} {}",
-        &map_title,
+        "Trying swarmy-bevy {} {}",
         &app_config.cache_path,
         &cache_ids
     );
     let t = std::thread::spawn(async move || {
         let shell = app_handle
             .shell()
-            .sidecar("swarmy-bevy")
+            .sidecar("../../assets/swarmy-bevy-x86_64-unknown-linux-gnu")
             .expect("failed to create swarmy-bevy sidecar")
             .args(["--path", &app_config.cache_path, "--ids", &cache_ids]);
         println!("Executing swarmy-bevy with args: {:?}", shell);
