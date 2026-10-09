@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 /// Contains metadata information related to the minimun, maximum date of the map in the snapshot.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ReplayListEntry {
+    /// The external filesystem id of the replay
+    pub ext_fs_id: u64,
     /// The title of the map
     pub map_title: String,
     /// The game date

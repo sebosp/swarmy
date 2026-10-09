@@ -29,7 +29,7 @@ chrono = { version = "0.4.41", features = ["serde"] }
 members = ["src-tauri", "swarmy-common"]
 
 [workspace.dependencies]
-s2protocol = { path = "../s2protocol-rs" }
+s2protocol = { version = "3.5.10", default-features = false }
 tracing = "0.1.44"
 
 [profile.dev]

@@ -42,12 +42,15 @@ pub fn try_query_replay_list(
                 .contains(lit(query.player_name.to_lowercase()), false),
         );
     }
-    details_query = details_query.unique(
-        Some(Selector::Matches("ext_fs_id".into())),
-        UniqueKeepStrategy::Any,
-    );
+    // We need to create two extra columns, one with the list of winners and one with the list of losers.
 
     let res = details_query
+        .with_column(
+            when(col("player_result").eq(lit("Win")))
+                .then(col("player_name"))
+                .otherwise(lit(NULL))
+                .alias("winner_list"),
+        )
         .group_by([col("ext_fs_id")])
         .agg([
             col("title").first(),
@@ -61,9 +64,8 @@ pub fn try_query_replay_list(
                 .join(",", true)
                 .alias("player_list"),
             col("ext_fs_file_name").first().alias("replay_location"),
-            col("ext_fs_file_name").first().alias("sha256_sum"),
-            col("player_name")
-                .filter(col("player_result") == lit("Win"))
+            col("map_info_sha256").first().alias("map_info_sha256"),
+            col("winner_list")
                 .str()
                 .join(", ", true)
                 .alias("winner_list"),
@@ -83,6 +85,7 @@ pub fn try_query_replay_list(
 }
 
 fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, SwarmyError> {
+    let ext_fs_id = row.column("ext_fs_id")?.u64()?.get(0).unwrap_or(0);
     let map_title = row
         .column("title")?
         .str()?
@@ -99,7 +102,7 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
         .map(|val| val.to_string())
         .collect();
     let sha256_sum = row
-        .column("sha256_sum")?
+        .column("map_info_sha256")?
         .str()?
         .get(0)
         .unwrap_or("")
@@ -128,6 +131,7 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
             ),
         };
     Ok(ReplayListEntry {
+        ext_fs_id,
         map_title,
         replay_date,
         replay_location,

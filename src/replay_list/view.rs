@@ -4,7 +4,7 @@ use crate::*;
 use chrono::Utc;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
-use phosphor_leptos::{FILE, FOLDER_OPEN, Icon, IconWeight};
+use phosphor_leptos::{CLIPBOARD, FOLDER_OPEN, Icon, IconWeight, STRATEGY};
 use reactive_stores::Store;
 use swarmy_common::*;
 
@@ -96,6 +96,12 @@ pub fn ReplayListDataTable(
                                 scope="col"
                                 class="py-3.5 pr-3 pl-4 text-left text-sm font-semibold whitespace-nowrap sm:pl-0 text-white"
                             >
+                                "ID"
+                            </th>
+                            <th
+                                scope="col"
+                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                            >
                                 "Map"
                             </th>
                             <th
@@ -133,10 +139,15 @@ pub fn ReplayListDataTable(
                     <tbody class="divide-y divide-white/10 bg-gray-900">
                         <For
                             each=move || replay_list_store.data()
-                            key=|row| { row.read().sha256_sum.clone() }
+                            key=|row| { row.read().ext_fs_id }
                             children=|child| {
                                 view! {
                                     <tr>
+                                        <td>
+                                            <span class="px-0 py-0 text-xs text-gray-400">
+                                                {child.read().ext_fs_id}
+                                            </span>
+                                        </td>
                                         <td>
                                             <span class="px-0 py-0 text-xs text-gray-400">
                                                 {child.read().map_title.clone()}
@@ -154,7 +165,7 @@ pub fn ReplayListDataTable(
                                                 title="Copy filename to clipboard"
                                             >
                                                 <Icon
-                                                    icon=FILE
+                                                    icon=CLIPBOARD
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
                                                 />
@@ -185,21 +196,46 @@ pub fn ReplayListDataTable(
                                                         trigger_swarmy_rerun_on_replay(&location)
                                                     }
                                                 }
-                                                title="Open directory"
+                                                title="Open replay preview in swarmy-rerun"
                                             >
                                                 <Icon
-                                                    icon=FOLDER_OPEN
+                                                    icon=STRATEGY
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
                                                 />
                                             </button>
                                         </td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
-                                            {child.read().player_list.join(", ")}
+                                            {child
+                                                .read()
+                                                .player_list
+                                                .iter()
+                                                .map(|player| {
+                                                    player
+                                                        .replace("&lt;", "<")
+                                                        .replace("&gt;", ">")
+                                                        .replace("<sp/>", " ")
+                                                })
+                                                .collect::<Vec<String>>()
+                                                .join(", ")}
                                         </td>
                                         <td>{child.read().duration}</td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
-                                            {format!("{}", child.read().winner_list.join(", "))}
+                                            {format!(
+                                                "{}",
+                                                child
+                                                    .read()
+                                                    .winner_list
+                                                    .iter()
+                                                    .map(|player| {
+                                                        player
+                                                            .replace("&lt;", "<")
+                                                            .replace("&gt;", ">")
+                                                            .replace("<sp/>", " ")
+                                                    })
+                                                    .collect::<Vec<String>>()
+                                                    .join(", "),
+                                            )}
                                         </td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().replay_date)}

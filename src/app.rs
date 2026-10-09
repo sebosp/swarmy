@@ -10,7 +10,7 @@ use swarmy_ui::settings::view::Config;
 
 #[component]
 pub fn Main() -> impl IntoView {
-    let active_page = RwSignal::new("Stats By Map".to_string());
+    let active_page = RwSignal::new("Replay List".to_string());
 
     view! {
         <div id="swarmy-tauri-window" class="flex w-screen h-screen bg-gray-800 rounded">
