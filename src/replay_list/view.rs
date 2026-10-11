@@ -4,7 +4,7 @@ use crate::*;
 use chrono::Utc;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
-use phosphor_leptos::{CLIPBOARD, FOLDER_OPEN, Icon, IconWeight, STRATEGY};
+use phosphor_leptos::{Icon, IconWeight, CLIPBOARD, FOLDER_OPEN, STRATEGY};
 use reactive_stores::Store;
 use swarmy_common::*;
 
@@ -108,13 +108,12 @@ pub fn ReplayListDataTable(
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
                             >
-                                "Path"
                             </th>
                             <th
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
                             >
-                                "Player List"
+                                "Players"
                             </th>
                             <th
                                 scope="col"
@@ -126,7 +125,13 @@ pub fn ReplayListDataTable(
                                 scope="col"
                                 class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
                             >
-                                "Player Win"
+                                "Races"
+                            </th>
+                            <th
+                                scope="col"
+                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                            >
+                                "Winner"
                             </th>
                             <th
                                 scope="col"
@@ -141,11 +146,20 @@ pub fn ReplayListDataTable(
                             each=move || replay_list_store.data()
                             key=|row| { row.read().ext_fs_id }
                             children=|child| {
+                                let player_list =
+                                            child
+                                                .read()
+                                                .player_list
+                                                .iter()
+                                                .map(|player| {
+                                                    clean_player_name_clan_escapes(player)
+                                                })
+                                                .collect::<Vec<String>>();
                                 view! {
                                     <tr>
                                         <td>
-                                            <span class="px-0 py-0 text-xs text-gray-400">
-                                                {child.read().ext_fs_id}
+                                            <span class="ps-0 pe-1 py-0 text-xs text-green-400">
+                                                <code>{child.read().ext_fs_id}</code>
                                             </span>
                                         </td>
                                         <td>
@@ -206,20 +220,33 @@ pub fn ReplayListDataTable(
                                             </button>
                                         </td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
+                                        <ul>
+                                        { player_list
+                                                .into_iter()
+                                                .map(|p|
+                                                    view! {
+                                                        <li>{p}</li>
+                                                    }
+                                                )
+                                                .collect_view()
+                                        }
+                                        </ul>
+                                        </td>
+                                        <td>{child.read().duration}</td>
+                                        <td>
                                             {child
                                                 .read()
-                                                .player_list
+                                                .player_races
                                                 .iter()
-                                                .map(|player| {
-                                                    player
-                                                        .replace("&lt;", "<")
-                                                        .replace("&gt;", ">")
-                                                        .replace("<sp/>", " ")
+                                                .map(|race| {
+                                                    race
+                                                        .replace("Zerg", "Z")
+                                                        .replace("Protoss", "P")
+                                                        .replace("Terran", "T")
                                                 })
                                                 .collect::<Vec<String>>()
                                                 .join(", ")}
                                         </td>
-                                        <td>{child.read().duration}</td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!(
                                                 "{}",
@@ -228,10 +255,7 @@ pub fn ReplayListDataTable(
                                                     .winner_list
                                                     .iter()
                                                     .map(|player| {
-                                                        player
-                                                            .replace("&lt;", "<")
-                                                            .replace("&gt;", ">")
-                                                            .replace("<sp/>", " ")
+                                                        clean_player_name_clan_escapes(player)
                                                     })
                                                     .collect::<Vec<String>>()
                                                     .join(", "),
@@ -248,5 +272,30 @@ pub fn ReplayListDataTable(
                 </table>
             </div>
         </div>
+    }
+}
+
+pub fn clean_player_name_clan_escapes(player_name: &str) -> String {
+    player_name
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("<sp/>", " ")
+}
+
+pub fn blizzard_profile_link_href(
+    player_toon_region: String,
+    player_toon_realm: String,
+    player_toon_id: String,
+    player_name: String,
+) -> impl IntoView {
+    view! {
+        <a
+        href=move || format!(
+            "https://starcraft2.blizzard.com/en-us/profile/{}/{}/{}",
+            player_toon_region, player_toon_realm, player_toon_id
+        )
+        >
+            {player_name}
+        </a>
     }
 }

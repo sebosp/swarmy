@@ -16,13 +16,6 @@ tracing = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tauri-plugin-store = "2"
-polars = { version = "0.55", features = [
-  "full",
-  "trigonometry",
-  "regex",
-  "strings",
-  "top_k",
-  "dtype-full",
-] }
-rerun = "0.25"
+polars = { workspace = true }
+rerun = "0.38"
 tokio = { version = "1", features = ["full"] }

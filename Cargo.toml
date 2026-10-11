@@ -31,6 +31,14 @@ members = ["src-tauri", "swarmy-common"]
 [workspace.dependencies]
 s2protocol = { version = "3.5.10", default-features = false }
 tracing = "0.1.44"
+polars = { version = "0.55", default-features = false, features = [
+  "full",
+  "trigonometry",
+  "regex",
+  "strings",
+  "top_k",
+  "dtype-full",
+] }
 
 [profile.dev]
 incremental = true

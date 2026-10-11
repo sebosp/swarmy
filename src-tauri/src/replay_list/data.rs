@@ -59,16 +59,32 @@ pub fn try_query_replay_list(
                 .dt()
                 .to_string("%Y-%m-%d")
                 .alias("replay_date"),
-            col("player_name")
+            col("player_toon_region")
                 .str()
-                .join(",", true)
-                .alias("player_list"),
+                .join(",", false)
+                .alias("player_toon_regions"),
+            col("player_toon_realm")
+                .str()
+                .join(",", false)
+                .alias("player_toon_realms"),
+            col("player_toon_id")
+                .str()
+                .join(",", false)
+                .alias("player_toon_ids"),
+            col("player_toon_name")
+                .str()
+                .join(",", false)
+                .alias("player_toon_names"),
             col("ext_fs_file_name").first().alias("replay_location"),
             col("map_info_sha256").first().alias("map_info_sha256"),
             col("winner_list")
                 .str()
                 .join(", ", true)
                 .alias("winner_list"),
+            col("player_race")
+                .str()
+                .join(", ", true)
+                .alias("player_races"),
         ])
         .sort(
             ["replay_date"],
@@ -94,12 +110,11 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
         .to_string();
     let replay_date = col_ymd_to_naive_date(row, "replay_date")?;
     let player_list = row
-        .column("player_list")?
+        .column("player_name")?
+        .as_materialized_series()
         .str()?
-        .get(0)
-        .unwrap_or("")
-        .split(",")
-        .map(|val| val.to_string())
+        .iter()
+        .filter_map(|opt_val| opt_val.map(|val| val.to_string()))
         .collect();
     let sha256_sum = row
         .column("map_info_sha256")?
@@ -116,12 +131,12 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
     let duration = 0;
     let winner_list = row
         .column("winner_list")?
+        .as_materialized_series()
         .str()?
-        .get(0)
-        .unwrap_or("")
-        .split(",")
-        .map(|val| val.to_string())
+        .iter()
+        .filter_map(|opt_val| opt_val.map(|val| val.to_string()))
         .collect();
+
     let replay_file_name: String =
         match std::path::PathBuf::from(replay_location.clone()).file_name() {
             Some(val) => format!("{}", val.display()),
@@ -130,6 +145,13 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
                 replay_location
             ),
         };
+    let player_races = row
+        .column("player_races")?
+        .as_materialized_series()
+        .str()?
+        .iter()
+        .filter_map(|opt_val| opt_val.map(|val| val.to_string()))
+        .collect();
     Ok(ReplayListEntry {
         ext_fs_id,
         map_title,
@@ -140,5 +162,6 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
         sha256_sum,
         duration,
         winner_list,
+        player_races,
     })
 }

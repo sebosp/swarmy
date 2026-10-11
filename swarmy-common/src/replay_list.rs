@@ -21,6 +21,8 @@ pub struct ReplayListEntry {
     pub duration: i32,
     /// The player(s) that won the game:
     pub winner_list: Vec<String>,
+    /// The race(s) of the player(s) in the game
+    pub player_races: Vec<String>,
 }
 
 /// Initial set of query params for the map stats arrow IPC file.
