@@ -1,0 +1,7 @@
+{
+  "emmet.includeLanguages": {
+    "rust": "html"
+  },
+  "rust-analyzer.cargo.features": "all", 
+  "editor.formatOnSave": true
+}

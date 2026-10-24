@@ -1,0 +1,167 @@
+//! Dataframe for map statistics.
+
+use crate::data::*;
+use polars::prelude::*;
+use swarmy_common::*;
+
+pub fn try_query_replay_list(
+    replay_path: String,
+    query: ReplayListQuery,
+) -> Result<Vec<ReplayListEntry>, SwarmyError> {
+    let replay_path = sanitize_replay_path(&replay_path)?;
+    let ipc_path = build_ipc_path(&replay_path)?;
+
+    tracing::info!(
+        "Querying map stats from replay path: {} for map_title: {} and player_name: {}",
+        ipc_path,
+        query.map_title,
+        query.player_name
+    );
+
+    let mut details_query = LazyFrame::scan_ipc(
+        PlRefPath::new(&format!("{}/{}", ipc_path, DETAILS_IPC)),
+        Default::default(),
+        Default::default(),
+    )?;
+
+    if !query.map_title.is_empty() {
+        details_query = details_query.filter(
+            col("title")
+                .str()
+                .to_lowercase()
+                .str()
+                .contains(lit(query.map_title.to_lowercase()), false),
+        );
+    }
+    if !query.player_name.is_empty() {
+        details_query = details_query.filter(
+            col("player_name")
+                .str()
+                .to_lowercase()
+                .str()
+                .contains(lit(query.player_name.to_lowercase()), false),
+        );
+    }
+    // We need to create two extra columns, one with the list of winners and one with the list of losers.
+
+    let res = details_query
+        .with_column(
+            when(col("player_result").eq(lit("Win")))
+                .then(col("player_name"))
+                .otherwise(lit(NULL))
+                .alias("winner_list"),
+        )
+        .group_by([col("ext_fs_id")])
+        .agg([
+            col("title").first(),
+            col("ext_datetime")
+                .first()
+                .dt()
+                .to_string("%Y-%m-%d")
+                .alias("replay_date"),
+            col("player_toon_region")
+                .str()
+                .join(",", false)
+                .alias("player_toon_regions"),
+            col("player_toon_realm")
+                .str()
+                .join(",", false)
+                .alias("player_toon_realms"),
+            col("player_toon_id")
+                .str()
+                .join(",", false)
+                .alias("player_toon_ids"),
+            col("player_toon_name")
+                .str()
+                .join(",", false)
+                .alias("player_toon_names"),
+            col("ext_fs_file_name").first().alias("replay_location"),
+            col("map_info_sha256").first().alias("map_info_sha256"),
+            col("winner_list")
+                .str()
+                .join(", ", true)
+                .alias("winner_list"),
+            col("player_race")
+                .str()
+                .join(", ", true)
+                .alias("player_races"),
+        ])
+        .sort(
+            ["replay_date"],
+            SortMultipleOptions::default()
+                .with_order_descending(true)
+                .with_nulls_last(true),
+        )
+        .limit(1000)
+        .collect()?;
+    let res: Vec<ReplayListEntry> = (0..res.height())
+        .map(|idx| extract_replay_list_from_df_row(&res.slice(idx as i64, 1)))
+        .collect::<Result<_, _>>()?;
+    Ok(res)
+}
+
+fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, SwarmyError> {
+    let ext_fs_id = row.column("ext_fs_id")?.u64()?.get(0).unwrap_or(0);
+    let map_title = row
+        .column("title")?
+        .str()?
+        .get(0)
+        .unwrap_or("Empty Title")
+        .to_string();
+    let replay_date = col_ymd_to_naive_date(row, "replay_date")?;
+    let player_list = row
+        .column("player_name")?
+        .as_materialized_series()
+        .str()?
+        .iter()
+        .filter_map(|opt_val| opt_val.map(|val| val.to_string()))
+        .collect();
+    let sha256_sum = row
+        .column("map_info_sha256")?
+        .str()?
+        .get(0)
+        .unwrap_or("")
+        .to_string();
+    let replay_location = row
+        .column("replay_location")?
+        .str()?
+        .get(0)
+        .unwrap_or("")
+        .to_string();
+    let duration = 0;
+    let winner_list = row
+        .column("winner_list")?
+        .as_materialized_series()
+        .str()?
+        .iter()
+        .filter_map(|opt_val| opt_val.map(|val| val.to_string()))
+        .collect();
+
+    let replay_file_name: String =
+        match std::path::PathBuf::from(replay_location.clone()).file_name() {
+            Some(val) => format!("{}", val.display()),
+            None => format!(
+                "Unable to locate file_name for replay_location: {}",
+                replay_location
+            ),
+        };
+    let player_races = row
+        .column("player_races")?
+        .as_materialized_series()
+        .str()?
+        .iter()
+        .filter_map(|opt_val| opt_val.map(|val| val.to_string()))
+        .collect();
+    Ok(ReplayListEntry {
+        ext_fs_id,
+        map_title,
+        replay_date,
+        replay_location,
+        replay_file_name,
+        player_list,
+        sha256_sum,
+        duration,
+        winner_list,
+        player_races,
+    })
+}
