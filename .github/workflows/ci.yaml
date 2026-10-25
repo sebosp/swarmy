@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  tests:
+    name: Tests and frontend
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/develop' }}
+
+      - name: Install the Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      # tauri-build checks that the sidecars exist, the tests do not run them, see
+      # scripts/download-sidecars.sh for the real ones.
+      - name: Placeholder sidecars
+        run: |
+          target="$(rustc -vV | sed -n 's/^host: //p')"
+          touch "assets/rerun-cli-$target" "assets/swarmy-bevy-$target"
+          chmod +x assets/rerun-cli-* assets/swarmy-bevy-*
+
+      - name: Run the tests
+        run: cargo test --locked -p swarmy -p swarmy-common
+
+      - name: Check the frontend
+        run: cargo check --locked -p swarmy-ui --target wasm32-unknown-unknown

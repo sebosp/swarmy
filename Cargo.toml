@@ -1,6 +1,6 @@
 [package]
 name = "swarmy-ui"
-version = "0.2.0"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "Starcraft II - Replay collection analyser and visualizer"

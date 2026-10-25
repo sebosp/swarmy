@@ -205,3 +205,12 @@ annual revenue, with attribution.
 ### Sortable tables
 `public/table_sort.js` sorts any table by clicking on the headers of its `<thead>`, a table sorted by
 the backend has `data-server-sort`, a header that should not sort has `data-no-sort`.
+
+## Releases
+`.github/workflows/ci.yaml` checks the formatting, runs the tests and checks the frontend.
+`.github/workflows/release.yaml` builds the bundles of Linux (x86_64, aarch64), Windows (x86_64) and
+macOS (Apple Silicon) for a `v*` tag, the platforms of the rerun-cli releases, with the sidecars
+downloaded by `scripts/download-sidecars.sh`, so the swarmy-bevy release must exist first. The
+updater artifacts are signed with the `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets, without them the bundles have no updater
+artifacts.

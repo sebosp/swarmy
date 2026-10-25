@@ -1,7 +1,6 @@
 **/*.rs.bk
 /dist/
 /target/
-/Cargo.lock
 /node_modules/
 
 # The sidecars, downloaded by scripts/download-sidecars.sh or built locally.
