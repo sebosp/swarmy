@@ -7,6 +7,11 @@ const CHANGELOG: &[(&str, &[&str])] = &[
     (
         "2026-10-25",
         &[
+            "Optimize no longer shows the snapshot statistics as an error, the new replays banner ignores the copies of another replay that Optimize skips.",
+            "Replay List: the games of the same map are all listed, they showed the first one repeated.",
+            "Replay Detail fits in the window, the long games made it wider than the window.",
+            "Config: the minimum and maximum patch versions are 0, no filter, by default.",
+            "README: a walkthrough video and screenshots of every view.",
             "Replay List: filter by matchup (TvP is the same as PvT), game type (1v1 to 4v4), time frame and patch. The headers sort the replays, the newest first by default, and the duration of each game is shown.",
             "Map Details: clicking a Race vs race row opens the Replay List with the games of that map and matchup.",
             "Every table can be sorted by clicking its headers, ascending then descending.",

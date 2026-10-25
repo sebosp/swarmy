@@ -35,14 +35,14 @@ pub fn Main() -> impl IntoView {
                 class="flex grow w-full min-h-0 overflow-auto text-gray-400 bg-gray-900 rounded"
             >
                 <Show when=move || active_page.get() == HOME_PAGE>
-                    <div id="swarmy-tauri-home-content" class="flex flex-col grow p-2 rounded">
+                    <div id="swarmy-tauri-home-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <Home />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == SCAN_PAGE>
                     <div
                         id="swarmy-tauri-scan-directory-content"
-                        class="flex flex-col grow p-2 rounded"
+                        class="flex flex-col grow min-w-0 p-2 rounded"
                     >
                         <ScanDirectory />
                     </div>
@@ -50,7 +50,7 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == MAP_LIST_PAGE>
                     <div
                         id="swarmy-tauri-stats-by-map-content"
-                        class="flex flex-col grow p-2 rounded"
+                        class="flex flex-col grow min-w-0 p-2 rounded"
                     >
                         <StatsByMap />
                     </div>
@@ -58,7 +58,7 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == MAP_DETAILS_PAGE>
                     <div
                         id="swarmy-tauri-map-details-content"
-                        class="flex flex-col grow p-2 rounded"
+                        class="flex flex-col grow min-w-0 p-2 rounded"
                     >
                         <MapDetailsView />
                     </div>
@@ -66,7 +66,7 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == REPLAY_LIST_PAGE>
                     <div
                         id="swarmy-tauri-stats-by-map-content"
-                        class="flex flex-col grow p-2 rounded"
+                        class="flex flex-col grow min-w-0 p-2 rounded"
                     >
                         <ReplayList />
                     </div>
@@ -74,25 +74,25 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == REPLAY_DETAIL_PAGE>
                     <div
                         id="swarmy-tauri-replay-detail-content"
-                        class="flex flex-col grow p-2 rounded"
+                        class="flex flex-col grow min-w-0 p-2 rounded"
                     >
                         <ReplayDetailView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == PLAYER_PAGE>
-                    <div id="swarmy-tauri-player-content" class="flex flex-col grow p-2 rounded">
+                    <div id="swarmy-tauri-player-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <PlayerDetailView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == MAP_SCOUT_PAGE>
-                    <div id="swarmy-tauri-map-scout-content" class="flex flex-col grow p-2 rounded">
+                    <div id="swarmy-tauri-map-scout-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <MapScoutView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == PATCH_OVERVIEW_PAGE>
                     <div
                         id="swarmy-tauri-patch-overview-content"
-                        class="flex flex-col grow p-2 rounded"
+                        class="flex flex-col grow min-w-0 p-2 rounded"
                     >
                         <PatchOverviewView />
                     </div>
@@ -100,18 +100,18 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == UNIT_OVERVIEW_PAGE>
                     <div
                         id="swarmy-tauri-unit-overview-content"
-                        class="flex flex-col grow p-2 rounded"
+                        class="flex flex-col grow min-w-0 p-2 rounded"
                     >
                         <UnitOverviewView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == HELP_PAGE>
-                    <div id="swarmy-tauri-help-content" class="flex flex-col grow p-2 rounded">
+                    <div id="swarmy-tauri-help-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <Help />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == CHANGELOG_PAGE>
-                    <div id="swarmy-tauri-changelog-content" class="flex flex-col grow p-2 rounded">
+                    <div id="swarmy-tauri-changelog-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <Changelog />
                     </div>
                 </Show>

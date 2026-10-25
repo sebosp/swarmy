@@ -94,7 +94,8 @@ fn ApexChart(
     view! {
         <div
             id=next_chart_id(name)
-            class=format!("w-full {class}")
+            // The chart is drawn at the width of the container, it must not widen its parent.
+            class=format!("w-full min-w-0 overflow-hidden {class}")
             data-name=name
             data-chart-values=values_json
             data-chart-labels=to_json(&data.labels)

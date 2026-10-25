@@ -54,11 +54,38 @@ fn emit_status(app_handle: &AppHandle, status: &NewReplaysStatus) {
     }
 }
 
-/// The replays of the directory that are not in the snapshot and the days of the snapshot
-/// written by another version of s2protocol.
+/// The replays Optimize did not add, copies of another replay or unreadable, in the snapshot
+/// directory, one path per line.
+const SKIPPED_REPLAYS_FILE: &str = "swarmy-skipped-replays.txt";
+
+fn read_skipped_replays(ipc_path: &Path) -> HashSet<String> {
+    std::fs::read_to_string(ipc_path.join(SKIPPED_REPLAYS_FILE))
+        .map(|skipped| skipped.lines().map(str::to_string).collect())
+        .unwrap_or_default()
+}
+
+/// Remembers the replays that Optimize did not add, so that they are not new replays.
+pub fn record_skipped_replays(replay_path: &str) {
+    let ipc_path = Path::new(replay_path).join(IPC_DIR);
+    // The previous ones are skipped again if they are still not in the snapshot.
+    let _ = std::fs::remove_file(ipc_path.join(SKIPPED_REPLAYS_FILE));
+    let (skipped, _) = find_new_replays(replay_path);
+    let mut skipped: Vec<String> = skipped
+        .iter()
+        .filter_map(|path| path.to_str().map(str::to_string))
+        .collect();
+    skipped.sort();
+    if let Err(err) = std::fs::write(ipc_path.join(SKIPPED_REPLAYS_FILE), skipped.join("\n")) {
+        tracing::error!("Unable to write the skipped replays: {err}");
+    }
+}
+
+/// The replays of the directory that are not in the snapshot nor skipped by Optimize, and the
+/// days of the snapshot written by another version of s2protocol.
 fn find_new_replays(replay_path: &str) -> (HashSet<PathBuf>, usize) {
     let ipc_path = Path::new(replay_path).join(IPC_DIR);
     let index = SnapshotIndex::read(&ipc_path).unwrap_or_default();
+    let skipped = read_skipped_replays(&ipc_path);
     let outdated_days = list_partitions(&ipc_path)
         .unwrap_or_default()
         .iter()
@@ -68,7 +95,10 @@ fn find_new_replays(replay_path: &str) -> (HashSet<PathBuf>, usize) {
         s2protocol::get_matching_files(PathBuf::from(replay_path), MAX_FILES, MAX_DEPTH)
             .unwrap_or_default()
             .into_iter()
-            .filter(|path| !index.file_names.contains(path.to_str().unwrap_or_default()))
+            .filter(|path| {
+                let path = path.to_str().unwrap_or_default();
+                !index.file_names.contains(path) && !skipped.contains(path)
+            })
             .collect();
     (new_replays, outdated_days)
 }

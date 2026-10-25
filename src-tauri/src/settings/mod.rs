@@ -102,12 +102,12 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
     let min_version = store
         .get("min_version")
         .and_then(|v| v.as_i64())
-        .unwrap_or(DEFAULT_SCAN_MAX_FILES);
+        .unwrap_or(DEFAULT_MIN_VERSION);
 
     let max_version = store
         .get("max_version")
         .and_then(|v| v.as_i64())
-        .unwrap_or(DEFAULT_SCAN_MAX_FILES);
+        .unwrap_or(DEFAULT_MAX_VERSION);
 
     let balance_data_path = store
         .get("balance_data_path")

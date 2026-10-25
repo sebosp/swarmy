@@ -138,7 +138,7 @@ pub fn ArrowIpcStats(snapshot_stats: ReadSignal<SnapshotStats>) -> impl IntoView
         });
     view! {
         <div>
-            <h3 class="text-base font-semibold text-white ml-2">Snapshot Stastics</h3>
+            <h3 class="text-base font-semibold text-white ml-2">Snapshot Statistics</h3>
 
             <dl class="px-5 mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <StatDescriptionItem

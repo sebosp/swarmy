@@ -37,7 +37,6 @@ pub async fn optimize_replay_path(
     disable_parallelism: bool,
     recreate: bool,
 ) -> Result<ApiResponse, SwarmyError> {
-    let res = ApiResponseBuilder::new();
     let mdp_tx = state.majordomo_tx.clone();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
     // create a thread to scan the directory in the background:
@@ -54,8 +53,8 @@ pub async fn optimize_replay_path(
             ))
             .build());
     }
-    let snapshot_stats = res_rx.await?;
-    Ok(res.with_message(snapshot_stats.message).build())
+    // The response is a success or a failure of the snapshot already, with the stats as message.
+    Ok(res_rx.await?)
 }
 
 #[tracing::instrument(level = "debug")]
@@ -113,7 +112,8 @@ pub async fn try_optimize_replay_path(
     // The sender is dropped with the snapshot, so the forwarding ends after the last update.
     let _ = forward_progress.await;
     result.map_err(SwarmyError::Other)?;
-    // The replays added are no longer new.
+    // The replays added are no longer new, the copies and unreadable ones are not either.
+    crate::replay_watcher::record_skipped_replays(&replay_path);
     crate::replay_watcher::refresh(&app_handle_clone);
     // if the ipc directory exists do basic scan.
     let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));

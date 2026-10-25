@@ -204,7 +204,7 @@ fn section_band<V: IntoView + 'static>(
     let cells = players
         .iter()
         .map(|summary| {
-            view! { <div class=format!("scroll-section px-2 py-1 {height}")>{content(summary)}</div> }
+            view! { <div class=format!("scroll-section min-w-0 px-2 py-1 {height}")>{content(summary)}</div> }
         })
         .collect_view();
     view! {
