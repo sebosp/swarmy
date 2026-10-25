@@ -48,8 +48,3 @@ debug = true
 [profile.dev.package."*"]
 opt-level = 1
 debug = false
-
-# The local s2protocol-rs checkout until 3.6.0, the snapshot partitioned by day, is published on
-# crates.io.
-[patch.crates-io]
-s2protocol = { path = "../s2protocol-rs" }
