@@ -29,11 +29,39 @@ pub async fn set_current_app_config(
     store.set("process_max_files", app_settings.process_max_files);
     store.set("min_version", app_settings.min_version);
     store.set("max_version", app_settings.max_version);
+    store.set("balance_data_path", app_settings.balance_data_path);
+    store.set("watch_new_replays", app_settings.watch_new_replays);
+    // The watcher follows the replay path and the watch setting.
+    crate::replay_watcher::configure(&app_handle);
     Ok(())
 }
 
+/// The stored settings and the stats of the snapshot, for the Config and Scan views.
 pub async fn load_app_settings(app_handle: tauri::AppHandle) -> Result<AppSettings, SwarmyError> {
-    let store = StoreBuilder::new(&app_handle, "settings.json").build()?;
+    let mut settings = load_stored_app_settings(&app_handle)?;
+    // if the ipc directory exists do basic scan.
+    let ipc_path = std::path::Path::new(&settings.replay_path).join(IPC_DIR);
+    if ipc_path.exists() && ipc_path.is_dir() {
+        let replay_path_cp = settings.replay_path.clone();
+        let cache_path_cp = settings.cache_path.clone();
+        let t = std::thread::spawn(move || {
+            match try_get_snapshot_metadata(replay_path_cp, cache_path_cp) {
+                Ok(val) => val,
+                Err(e) => {
+                    tracing::error!("Error getting snapshot metadata: {}", e);
+                    SnapshotStats::default()
+                }
+            }
+        });
+        settings.snapshot_stats = t.join().unwrap();
+    }
+    Ok(settings)
+}
+
+/// The stored settings only, without scanning the snapshot, for the commands that only need
+/// the paths. The `snapshot_stats` are left empty.
+pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSettings, SwarmyError> {
+    let store = StoreBuilder::new(app_handle, "settings.json").build()?;
 
     // If there are no saved settings yet, this will return an error so we ignore the return value.
     let _ = store.reload();
@@ -81,34 +109,111 @@ pub async fn load_app_settings(app_handle: tauri::AppHandle) -> Result<AppSettin
         .and_then(|v| v.as_i64())
         .unwrap_or(DEFAULT_SCAN_MAX_FILES);
 
-    // if the ipc directory exists do basic scan.
-    let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));
-    let arrow_ipc_stats = if ipc_path.exists() && ipc_path.is_dir() {
-        let replay_path_cp = replay_path.clone();
-        let cache_path_cp = cache_path.clone();
-        let t = std::thread::spawn(move || {
-            match try_get_snapshot_metadata(replay_path_cp, cache_path_cp) {
-                Ok(val) => val,
-                Err(e) => {
-                    tracing::error!("Error getting snapshot metadata: {}", e);
-                    SnapshotStats::default()
-                }
-            }
-        });
-        t.join().unwrap()
-    } else {
-        SnapshotStats::default()
-    };
+    let balance_data_path = store
+        .get("balance_data_path")
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_default()
+        .trim_end_matches('/')
+        .to_string();
+
+    let watch_new_replays = store
+        .get("watch_new_replays")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     Ok(AppSettings {
         replay_path,
         cache_path,
-        snapshot_stats: arrow_ipc_stats,
+        snapshot_stats: SnapshotStats::default(),
         disable_parallelism: disable_parallelism,
         scan_max_files,
         process_max_files,
         traverse_max_depth,
         min_version,
         max_version,
+        balance_data_path,
+        watch_new_replays,
     })
+}
+
+/// The versions of swarmy and the libraries it is built with, see build.rs.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn get_app_versions() -> Result<ApiResponse, SwarmyError> {
+    let versions = AppVersions {
+        swarmy: env!("CARGO_PKG_VERSION").to_string(),
+        s2protocol: env!("SWARMY_S2PROTOCOL_VERSION").to_string(),
+        rerun: env!("SWARMY_RERUN_VERSION").to_string(),
+        polars: env!("SWARMY_POLARS_VERSION").to_string(),
+        tauri: env!("SWARMY_TAURI_VERSION").to_string(),
+    };
+    Ok(ApiResponseBuilder::new().process_result(Ok(versions)))
+}
+
+/// The links the frontend may open, the trailing slash keeps the host fixed to github.com.
+const EXTERNAL_URL_PREFIXES: [&str; 4] = [
+    "https://github.com/sebosp/",
+    // The projects swarmy is based on, referenced in the Home view.
+    "https://github.com/Blizzard/s2protocol/",
+    "https://github.com/arkx/mpyq/",
+    "https://github.com/RFEphemeration/sc2-map-analyzer/",
+];
+
+/// Whether the link is one of the project pages, other schemes or hosts could launch local
+/// files or protocol handlers.
+fn is_allowed_external_url(url: &str) -> bool {
+    EXTERNAL_URL_PREFIXES
+        .iter()
+        .any(|prefix| url.starts_with(prefix))
+}
+
+/// Opens a link, i.e. to report issues, in the default browser.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn open_external_url(
+    app_handle: tauri::AppHandle,
+    url: String,
+) -> Result<ApiResponse, SwarmyError> {
+    use tauri_plugin_opener::OpenerExt;
+    if !is_allowed_external_url(&url) {
+        tracing::warn!("Refused to open {url}");
+        return Ok(ApiResponseBuilder::new()
+            .with_message(format!(
+                "Refused to open {url}, only project links are allowed"
+            ))
+            .with_failure()
+            .build());
+    }
+    Ok(match app_handle.opener().open_url(&url, None::<&str>) {
+        Ok(_) => ApiResponseBuilder::new()
+            .with_message(format!("Opened {url}"))
+            .with_success()
+            .build(),
+        Err(err) => ApiResponseBuilder::new()
+            .with_message(format!("Unable to open {url}: {err:?}"))
+            .with_failure()
+            .build(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_only_allows_project_links() {
+        assert!(is_allowed_external_url(
+            "https://github.com/sebosp/swarmy/issues"
+        ));
+        assert!(!is_allowed_external_url("file:///usr/bin/xterm"));
+        assert!(!is_allowed_external_url("http://github.com/sebosp/swarmy"));
+        assert!(!is_allowed_external_url(
+            "https://github.com/sebosp.evil.com/"
+        ));
+        assert!(!is_allowed_external_url("https://github.com/other/repo"));
+        assert!(is_allowed_external_url(
+            "https://github.com/Blizzard/s2protocol/"
+        ));
+        assert!(!is_allowed_external_url(
+            "https://github.com/Blizzard/other"
+        ));
+    }
 }

@@ -3,3 +3,57 @@
 @tailwind components;
 @tailwind utilities;
 @plugin "daisyui";
+/* Scrollable sections always show their scrollbar, the webview hides it until scrolling. */
+.scroll-section {
+  overflow-y: scroll;
+  scrollbar-width: thin;
+  scrollbar-color: #6b7280 #1f2937;
+}
+.scroll-section::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-section::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+.scroll-section::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 4px;
+}
+/* Names that open another view: dotted underline and pointer, solid underline on hover. */
+.nav-link {
+  cursor: pointer;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: rgb(129 140 248 / 0.7);
+  text-underline-offset: 3px;
+}
+.nav-link:hover {
+  color: #a5b4fc;
+  text-decoration-style: solid;
+  text-decoration-color: #a5b4fc;
+}
+/* The dropdowns and their open list are opaque, so they never show the text behind them. */
+select,
+select option,
+select optgroup {
+  background-color: #1f2937;
+  color: #e5e7eb;
+  opacity: 1;
+}
+
+/* The table headers sort their table, see public/table_sort.js. */
+table:not([data-server-sort]) thead th:not([data-no-sort]) {
+  cursor: pointer;
+  user-select: none;
+}
+table:not([data-server-sort]) thead th:not([data-no-sort]):hover {
+  color: white;
+}
+thead th[aria-sort="ascending"]::after {
+  content: " ▲";
+  font-size: 0.7em;
+}
+thead th[aria-sort="descending"]::after {
+  content: " ▼";
+  font-size: 0.7em;
+}

@@ -3,12 +3,13 @@
 use super::actions::*;
 use super::arrow_ipc_stats::ArrowIpcStats;
 use super::mpq_file_scan::ReplayScanTable;
+use super::optimize_progress::OptimizeProgress;
 use super::*;
 use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
-use phosphor_leptos::{DATABASE, Icon, IconWeight};
+use phosphor_leptos::{Icon, IconWeight, DATABASE};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
 use s2protocol::dir_stats::SC2ReplaysDirStats;
@@ -24,12 +25,25 @@ pub fn ScanDirectory() -> impl IntoView {
         message: String::new(),
     });
     let (snapshot_stats, set_snapshot_stats) = signal(SnapshotStats::default());
+    let (confirm_rebuild, set_confirm_rebuild) = signal(false);
 
+    let navigation = crate::navigation::use_navigation();
     crate::settings::with_fetch_current_app_config(
         set_app_settings,
         move |settings: AppSettings| {
             *set_snapshot_stats.write() = settings.snapshot_stats.clone();
             *set_activity_stage.write() = ActivityStage::from(settings);
+            // The new replays banner asked to add the new replays.
+            if navigation.optimize_requested.get_untracked() {
+                navigation.optimize_requested.set(false);
+                trigger_optimize_replay_path(
+                    false,
+                    app_settings,
+                    set_backend_response,
+                    set_activity_stage,
+                    set_snapshot_stats,
+                );
+            }
         },
     );
     let tx_update_replay_dir = move |ev| {
@@ -91,6 +105,7 @@ pub fn ScanDirectory() -> impl IntoView {
                         }
                     }
                     on:click=move |_| trigger_optimize_replay_path(
+                        false,
                         app_settings,
                         set_backend_response,
                         set_activity_stage,
@@ -101,15 +116,50 @@ pub fn ScanDirectory() -> impl IntoView {
                             && activity_stage.get() != ActivityStage::ScanInit
                             && activity_stage.get() != ActivityStage::OptimizeInit
                     }
-                    title="Optimize the replay generating Arrow files (may take some time)"
+                    title="Adds the replays that are not in the snapshot yet, generating Arrow files per day (may take some time)"
                 >
                     <Icon icon=DATABASE weight=IconWeight::Light prop:class="stroke-current" />
                     "Optimize"
+                </button>
+                // Deleting the snapshot needs a second click.
+                <button
+                    class=move || {
+                        if confirm_rebuild.get() {
+                            "btn btn-error btn-sm ml-2"
+                        } else {
+                            "btn btn-outline btn-sm ml-2"
+                        }
+                    }
+                    on:click=move |_| {
+                        if confirm_rebuild.get() {
+                            set_confirm_rebuild.set(false);
+                            trigger_optimize_replay_path(
+                                true,
+                                app_settings,
+                                set_backend_response,
+                                set_activity_stage,
+                                set_snapshot_stats,
+                            );
+                        } else {
+                            set_confirm_rebuild.set(true);
+                        }
+                    }
+                    on:mouseleave=move |_| set_confirm_rebuild.set(false)
+                    disabled=move || {
+                        app_settings.get().replay_path.is_empty()
+                            || activity_stage.get() == ActivityStage::OptimizeInit
+                    }
+                    title="Deletes the snapshot and generates it again from all the replays"
+                >
+                    {move || {
+                        if confirm_rebuild.get() { "Click again to delete and rebuild" } else { "Rebuild" }
+                    }}
                 </button>
             </div>
             <DisplayBackendStatus backend_response />
             <div class="col-span-10 m-0 p-0">
                 <SnapshotStatusHeader app_settings=app_settings dir_stats_data activity_stage />
+                <OptimizeProgress />
                 <Show when=move || { activity_stage.get() == ActivityStage::ScanDone }>
                     <ReplayScanTable dir_stats_data />
                 </Show>

@@ -35,6 +35,10 @@ colored = "3.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 convert_case = "0.12.0"
+uuid = { version = "1", features = ["v4"] }
+rayon = "1"
+png = "0.18"
+base64 = "0.22"
 
 [dev-dependencies]
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
@@ -43,8 +47,10 @@ test-log = { version = "0.2", default-features = false, features = ["trace"] }
 polars = { workspace = true }
 tokio = { version = "1", features = ["full"] }
 s2protocol = { workspace = true, features = ["dep_arrow"] }
-rerun = "0.38"
+rerun = { version = "0.40", default-features = false, features = ["sdk"] }
 tracing = { workspace = true, features = [] }
+# Watches the replay directory for new replays, inotify on Linux.
+notify = "8"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

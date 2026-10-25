@@ -36,7 +36,8 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "../assets/swarmy-bevy"
+      "../assets/swarmy-bevy",
+      "../assets/rerun-cli"
     ]
   },
   "plugins": {

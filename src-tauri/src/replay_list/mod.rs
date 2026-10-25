@@ -1,79 +1,41 @@
 pub mod data;
-use crate::get_current_app_config;
-use data::try_query_replay_list;
+use crate::replay_rerun::viewer::{ensure_viewer_running, stream_replay_to_viewer};
+use crate::run_query;
+use crate::settings::load_stored_app_settings;
+use data::{try_list_protocol_versions, try_list_years, try_query_replay_list};
 use swarmy_common::*;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_shell::ShellExt;
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn query_replay_list(
     app_handle: tauri::AppHandle,
-    map_title: String,
-    player_name: String,
-    min_date: chrono::NaiveDate,
-    max_date: chrono::NaiveDate,
+    query: ReplayListQuery,
 ) -> Result<ApiResponse, SwarmyError> {
-    let app_config = get_current_app_config(app_handle.clone()).await?;
-    let t = std::thread::spawn(move || {
+    let app_config = load_stored_app_settings(&app_handle)?;
+    run_query(move || {
         let res = ApiResponseBuilder::new();
-        let query = ReplayListQuery {
-            map_title,
-            player_name,
-            min_date,
-            max_date,
-        };
         res.process_result(try_query_replay_list(app_config.replay_path, query))
-    });
-    Ok(t.join().unwrap())
+    })
+    .await
 }
 
+/// The patches and years of the snapshot, for the dropdowns of the replay list.
 #[tauri::command(rename_all = "snake_case")]
-pub async fn exec_swarmy_rerun_replay(
-    app_handle: tauri::AppHandle,
-    map_title: String,
-    cache_ids: String,
-) -> Result<ApiResponse, SwarmyError> {
-    let app_config = get_current_app_config(app_handle.clone()).await?;
-    let res = ApiResponseBuilder::new();
-    tracing::info!(
-        "Trying /home/seb/git/swarmy-bevy/target/release/swarmy-bevy {} {} {}",
-        &map_title,
-        &app_config.cache_path,
-        &cache_ids
-    );
-    let t = std::thread::spawn(async move || {
-        let shell = app_handle.shell();
-        shell
-            .sidecar("swarmy-bevy")
-            .expect("failed to create swarmy-bevy sidecar")
-            .args([
-                "--map-title",
-                &map_title,
-                "--snapshot-path",
-                &app_config.cache_path,
-                "--cache-handle-ids",
-                &cache_ids,
-            ])
-            .output()
-            .await
-            .unwrap()
-    });
-    let output = t.join().unwrap().await;
-    let message = match output.status.success() {
-        true => "Succesfully called swarmy-bevy".to_string(),
-        false => match String::from_utf8(output.stderr.clone()) {
-            Ok(utf8_str) => format!("Error executing swarmy bevy: {}", utf8_str),
-            Err(_) => format!(
-                "Error executing swarmy bevy (also non-utf8): {:?}",
-                output.stderr
-            ),
-        },
-    };
-    Ok(res
-        .with_status(output.status.success())
-        .with_message(message)
-        .build())
+pub async fn list_replay_filters(app_handle: tauri::AppHandle) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(&app_handle)?;
+    run_query(move || {
+        let filters = try_list_protocol_versions(app_config.replay_path.clone()).and_then(
+            |protocol_versions| {
+                Ok(ReplayListFilters {
+                    protocol_versions,
+                    years: try_list_years(app_config.replay_path)?,
+                })
+            },
+        );
+        ApiResponseBuilder::new().process_result(filters)
+    })
+    .await
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -121,12 +83,20 @@ pub async fn connect_swarmy_rerun(
         "Requesting open rerun on replay_file_name: {}",
         replay_file_name
     );
-    let res = match app_handle
-        .opener()
-        .open_path(&replay_file_name, None::<&str>)
-    {
-        Ok(_) => ApiResponseBuilder::new()
-            .with_message(format!("Succesfully called rerun for {replay_file_name}."))
+    let app_config = load_stored_app_settings(&app_handle)?;
+    ensure_viewer_running(&app_handle).await?;
+    let stream_file_name = replay_file_name.clone();
+    let streamed = tauri::async_runtime::spawn_blocking(move || {
+        // SwarmyError is not Send, so it crosses the thread boundary as a String.
+        stream_replay_to_viewer(&stream_file_name, &app_config.cache_path).map_err(String::from)
+    })
+    .await
+    .map_err(|e| SwarmyError::Other(format!("Rerun streaming task failed: {e}")))?;
+    let res = match streamed {
+        Ok(total_events) => ApiResponseBuilder::new()
+            .with_message(format!(
+                "Succesfully sent {total_events} events to rerun for {replay_file_name}."
+            ))
             .with_success()
             .build(),
         Err(err) => {

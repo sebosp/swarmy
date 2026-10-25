@@ -7,6 +7,7 @@ use s2protocol::ArrowIpcTypes;
 use std::path::PathBuf;
 use swarmy_common::*;
 use tauri::AppHandle;
+use tauri::Emitter;
 use tauri::State;
 use tracing::instrument;
 
@@ -34,12 +35,16 @@ pub async fn optimize_replay_path(
     replay_path: String,
     cache_path: String,
     disable_parallelism: bool,
+    recreate: bool,
 ) -> Result<ApiResponse, SwarmyError> {
     let res = ApiResponseBuilder::new();
     let mdp_tx = state.majordomo_tx.clone();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
     // create a thread to scan the directory in the background:
-    if let Err(e) = mdp_tx.send(AsyncTask::OptimizeReplayPath(res_tx)).await {
+    if let Err(e) = mdp_tx
+        .send(AsyncTask::OptimizeReplayPath { recreate, res_tx })
+        .await
+    {
         tracing::error!("Error optimizing replay path.: {}", e);
         return Ok(ApiResponseBuilder::new()
             .with_failure()
@@ -54,12 +59,13 @@ pub async fn optimize_replay_path(
 }
 
 #[tracing::instrument(level = "debug")]
+/// Adds the replays that are not in the snapshot yet, `recreate` deletes the snapshot first.
 pub async fn try_optimize_replay_path(
     app_handle_clone: AppHandle,
+    recreate: bool,
 ) -> Result<SnapshotStats, SwarmyError> {
-    let app_settings = crate::settings::load_app_settings(app_handle_clone)
-        .await
-        .unwrap();
+    let emitter = app_handle_clone.clone();
+    let app_settings = crate::settings::load_stored_app_settings(&app_handle_clone).unwrap();
     let replay_path = app_settings.replay_path.clone();
     let cache_path = app_settings.cache_path.clone();
     let disable_parallelism = app_settings.disable_parallelism;
@@ -81,16 +87,34 @@ pub async fn try_optimize_replay_path(
         traverse_max_depth: 8,
         min_version: None,
         max_version: None,
+        recreate,
     };
-    ArrowIpcTypes::handle_arrow_ipc_cmd(
+    // The progress of the snapshot is forwarded to the frontend as Tauri events.
+    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
+    let forward_progress = tokio::spawn(async move {
+        while let Some(progress) = progress_rx.recv().await {
+            if let Err(err) = emitter.emit(OPTIMIZE_PROGRESS_EVENT, &progress) {
+                tracing::error!("Error sending the optimize progress: {}", err);
+            }
+        }
+    });
+    let result = ArrowIpcTypes::handle_arrow_ipc_cmd_with_progress(
         path,
         destination.clone(),
         &props,
         &versioned_abilities,
         disable_parallelism,
         cache_path.clone(),
+        Some(progress_tx),
     )
-    .await?;
+    .await
+    .map(|_| ())
+    .map_err(|err| format!("Error optimizing the replays: {err}"));
+    // The sender is dropped with the snapshot, so the forwarding ends after the last update.
+    let _ = forward_progress.await;
+    result.map_err(SwarmyError::Other)?;
+    // The replays added are no longer new.
+    crate::replay_watcher::refresh(&app_handle_clone);
     // if the ipc directory exists do basic scan.
     let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));
     let arrow_ipc_stats = if ipc_path.exists() && ipc_path.is_dir() {

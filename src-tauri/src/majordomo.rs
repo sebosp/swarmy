@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use tracing::{info, instrument};
 
 use crate::map_stats::data::try_query_map_stats;
-use crate::{get_current_app_config, try_get_snapshot_metadata, try_optimize_replay_path};
+use crate::{try_get_snapshot_metadata, try_optimize_replay_path};
 
 pub use swarmy_common::AsyncTask;
 
@@ -43,8 +43,8 @@ impl MajordomoCoordinator {
                 AsyncTask::BasicScanReplayPath(res_tx) => {
                     self.spawn_try_basic_scan_replay_path(res_tx).await;
                 }
-                AsyncTask::OptimizeReplayPath(res_tx) => {
-                    self.spawn_try_optimize_replay_path(res_tx).await;
+                AsyncTask::OptimizeReplayPath { recreate, res_tx } => {
+                    self.spawn_try_optimize_replay_path(recreate, res_tx).await;
                 }
                 AsyncTask::QueryMapStats {
                     map_title,
@@ -101,9 +101,8 @@ impl MajordomoCoordinator {
         let current_tokio_handle = Handle::current();
         current_tokio_handle.spawn(async move {
             let res = ApiResponseBuilder::new();
-            let app_settings = crate::settings::load_app_settings(app_handle_clone)
-                .await
-                .unwrap();
+            let app_settings =
+                crate::settings::load_stored_app_settings(&app_handle_clone).unwrap();
             let replay_path = app_settings.replay_path.clone();
             let disable_parallelism = app_settings.disable_parallelism;
 
@@ -122,13 +121,14 @@ impl MajordomoCoordinator {
     #[tracing::instrument(level = "debug")]
     async fn spawn_try_optimize_replay_path(
         &self,
+        recreate: bool,
         res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
     ) {
         let app_handle_clone = self.app_handle.clone();
         let current_tokio_handle = Handle::current();
         current_tokio_handle.spawn(async move {
             let res = ApiResponseBuilder::new();
-            let snapshot_stats = try_optimize_replay_path(app_handle_clone).await;
+            let snapshot_stats = try_optimize_replay_path(app_handle_clone, recreate).await;
             res_tx
                 .send(res.process_result(snapshot_stats))
                 .expect("Failed to send response");
@@ -147,7 +147,7 @@ impl MajordomoCoordinator {
             player_name,
         };
         let current_tokio_handle = Handle::current();
-        let app_config = match get_current_app_config(self.app_handle.clone()).await {
+        let app_config = match crate::settings::load_stored_app_settings(&self.app_handle) {
             Ok(config) => config,
             Err(e) => {
                 res_tx
@@ -173,7 +173,7 @@ impl MajordomoCoordinator {
         res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
     ) {
         let res = ApiResponseBuilder::new();
-        let app_config = match get_current_app_config(self.app_handle.clone()).await {
+        let app_config = match crate::settings::load_stored_app_settings(&self.app_handle) {
             Ok(config) => config,
             Err(e) => {
                 res_tx

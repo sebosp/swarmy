@@ -68,11 +68,20 @@ pub fn trigger_basic_scan_replay_path(
     });
 }
 
+/// The arguments of the `optimize_replay_path` command.
+#[derive(serde::Serialize)]
+struct OptimizeArgs {
+    replay_path: String,
+    cache_path: String,
+    disable_parallelism: bool,
+    recreate: bool,
+}
+
 /// Step 2: Once a directory has gone through the basic scan, the process of generating the
-/// ArrowIpc "snapshot" can be done.
-/// TODO: When an `ipc` directory already exists, we could mark this step as done, but provide the
-/// user the possibility to re-run the optimization.
+/// ArrowIpc "snapshot" can be done. Only the replays not in the snapshot yet are added, unless
+/// `recreate` is set, then the snapshot is deleted and generated from scratch.
 pub fn trigger_optimize_replay_path(
+    recreate: bool,
     app_settings: ReadSignal<AppSettings>,
     set_backend_response: WriteSignal<ApiResponse>,
     set_activity_stage: WriteSignal<ActivityStage>,
@@ -87,9 +96,15 @@ pub fn trigger_optimize_replay_path(
         return;
     }
 
-    let app_settings_cp = app_settings.get();
+    let settings = app_settings.get();
+    let args = OptimizeArgs {
+        replay_path: settings.replay_path,
+        cache_path: settings.cache_path,
+        disable_parallelism: settings.disable_parallelism,
+        recreate,
+    };
     spawn_local(async move {
-        let args = serde_wasm_bindgen::to_value(&app_settings_cp).unwrap();
+        let args = serde_wasm_bindgen::to_value(&args).unwrap();
         let Ok(api_response) = get_api_response_from_invoke(
             invoke("optimize_replay_path", args).await,
             set_backend_response,
