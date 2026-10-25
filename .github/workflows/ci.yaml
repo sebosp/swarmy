@@ -10,6 +10,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
+# rust-toolchain.toml selects nightly.
 env:
   CARGO_TERM_COLOR: always
 
@@ -21,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
 
@@ -35,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-unknown-unknown
 
@@ -43,10 +44,11 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/develop' }}
 
+      # .cargo/config.toml links with clang and mold on Linux.
       - name: Install the Tauri dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf clang mold
 
       # tauri-build checks that the sidecars exist, the tests do not run them, see
       # scripts/download-sidecars.sh for the real ones.
