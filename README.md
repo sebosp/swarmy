@@ -9,7 +9,43 @@ This repo is a frontend to bridge different tools to work together on data analy
 - Visualization Replay with [rerun](https://github.com/rerun-io/rerun) 
 - Pola.rs/DuckDB analysis via [s2-polars-data-analysis](https://github.com/sebosp/s2-polars-data-analysis), these queries will become part of the frontend.
 
-![Starcraft 2 Replay in Rerun](https://user-images.githubusercontent.com/873436/231281746-40fde3f1-fec6-49fe-8cf1-5fbd197589b7.png)
+## Walkthrough
+
+[![The swarmy walkthrough video](docs/screenshots/map_details.png)](docs/walkthrough.mp4)
+
+[The walkthrough video](docs/walkthrough.mp4) (3:37) goes from a fresh install to every view, with
+834 replays of the RSL season:
+
+| Time | Step |
+|------|------|
+| 0:00 | Home |
+| 0:09 | Config: the map caches, the replays and the balance data, watch the replay path for new replays |
+| 0:26 | Scan: the replays found, their top players and maps |
+| 0:36 | Optimize: the snapshot of the 654 new replays, 180 are copies of another replay |
+| 0:52 | Map List, sorted by games |
+| 1:00 | Map Details: the minimap, the resources, race vs race and the top players |
+| 1:09 | Replay List of the PvT games of the map, clicking on PvT in Map Details, sorted by duration |
+| 1:19 | Replay Detail |
+| 1:41 | Player |
+| 2:01 | Map Scout |
+| 2:09 | Patch Overview |
+| 2:13 | Unit Overview |
+| 2:20 | Rerun preview of the replay |
+| 2:49 | The replay in swarmy-bevy |
+
+| | |
+|---|---|
+| ![Config](docs/screenshots/config.png) Config, the paths and the new replays watcher | ![New replays](docs/screenshots/new_replays_banner.png) The watcher tells that there are replays to Optimize |
+| ![Scan](docs/screenshots/scan.png) Scan | ![Optimize](docs/screenshots/optimize.png) Optimize and the snapshot statistics |
+| ![Map List](docs/screenshots/map_list.png) Map List | ![Map Details](docs/screenshots/map_details.png) Map Details |
+| ![Replay List](docs/screenshots/replay_list.png) Replay List, filtered by map and matchup | ![Replay Detail](docs/screenshots/replay_detail.png) Replay Detail |
+| ![Replay Detail charts](docs/screenshots/replay_detail_charts.png) Replay Detail, macro, focus and economy | ![Player](docs/screenshots/player.png) Player |
+| ![Map Scout](docs/screenshots/map_scout.png) Map Scout | ![Patch Overview](docs/screenshots/patch_overview.png) Patch Overview |
+| ![Unit Overview](docs/screenshots/unit_overview.png) Unit Overview | ![Home](docs/screenshots/home.png) Home |
+| ![Rerun](docs/screenshots/rerun.png) A replay in Rerun | ![swarmy-bevy](docs/screenshots/swarmy_bevy.png) A replay in swarmy-bevy |
+
+The screenshots and the video are recorded on a headless display with `scripts/walkthrough/`, see
+its README to record them again.
 
 ## Requirements: the sidecars
 
