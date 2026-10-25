@@ -2,9 +2,12 @@
 
 use super::actions::*;
 use super::*;
+use crate::components::links::MapLink;
+use crate::components::loading::Loading;
 use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
+use phosphor_leptos::{Icon, IconWeight, CUBE};
 use reactive_stores::Store;
 use swarmy_common::*;
 
@@ -69,9 +72,14 @@ pub fn StatsByMap() -> impl IntoView {
         </div>
         <DisplayBackendStatus backend_response />
         <div class="col-span-10">
-            <h2 class="text-base/7 font-semibold text-white">
-                {move || map_stats_store.total().get()} " Unique maps found in snapshot."
-            </h2>
+            <Show when=move || !backend_response.get().meta.is_complete>
+                <Loading message="Collecting the maps of the snapshot..." />
+            </Show>
+            <Show when=move || backend_response.get().meta.is_complete>
+                <h2 class="text-base/7 font-semibold text-white">
+                    {move || map_stats_store.total().get()} " unique maps found in the snapshot."
+                </h2>
+            </Show>
             <Show when=move || { map_stats_store.total().get() > 0 }>
                 <MapStatsDataTable map_stats_store />
             </Show>
@@ -111,6 +119,13 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                             >
                                 "Max Date"
                             </th>
+                            <th
+                                scope="col"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
+                                data-no-sort
+                            >
+                                "Actions"
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/10 bg-gray-900">
@@ -121,17 +136,8 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                 let cache_ids: String = child.read().cache_handles.clone();
                                 view! {
                                     <tr>
-                                        <td>
-                                            <button
-                                                class="btn btn-primary btn-sm b-0 p-0 m-0"
-                                                on:click=move |ev: MouseEvent| {
-                                                    ev.prevent_default();
-                                                    trigger_swarmy_bevy_exec_on_caches(&cache_ids)
-                                                }
-                                                title="Open in Swarmy-Bevy"
-                                            >
-                                                {child.read().title.clone()}
-                                            </button>
+                                        <td class="py-2 pr-3 text-xs text-white">
+                                            <MapLink map_title=child.read().title.clone() />
                                         </td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {child.read().num_games}
@@ -141,6 +147,18 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                         </td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().max_date)}
+                                        </td>
+                                        <td class="px-2 py-2">
+                                            <button
+                                                class="btn btn-primary btn-xs b-0"
+                                                on:click=move |ev: MouseEvent| {
+                                                    ev.prevent_default();
+                                                    trigger_swarmy_bevy_exec_on_caches(&cache_ids)
+                                                }
+                                                title="Open in Swarmy-Bevy"
+                                            >
+                                                <Icon icon=CUBE weight=IconWeight::Light prop:class="stroke-current" />
+                                            </button>
                                         </td>
                                     </tr>
                                 }

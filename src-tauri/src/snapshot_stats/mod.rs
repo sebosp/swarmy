@@ -1,4 +1,5 @@
 //! Provides information about the analyzed game collection.
+use crate::data::scan_snapshot_ipc;
 use crate::SetupState;
 use polars::prelude::*;
 use swarmy_common::*;
@@ -27,17 +28,21 @@ pub fn try_get_snapshot_metadata(
 ) -> Result<SnapshotStats, SwarmyError> {
     // remove trailing slash if exists
     let replay_path = replay_path.trim_end_matches('/').to_string();
-    let ipc_path = format!("{}/{}/", replay_path, IPC_DIR);
+    let ipc_path = format!("{}/{}", replay_path, IPC_DIR);
     tracing::info!("Getting snapshot metadata from: {}", ipc_path);
-    // Add the size of all the files in state.source_dir
-    let mut ipc_dir_size = 0;
-    for entry in std::fs::read_dir(&ipc_path)? {
-        let entry = entry?;
-        let path = entry.path();
-        let metadata = std::fs::metadata(path)?;
-        let size = metadata.len();
-        ipc_dir_size += size;
-    }
+    let root = std::path::Path::new(&ipc_path);
+    let metadata = s2protocol::snapshot::SnapshotMetadata::read_from_dir(root).ok();
+    // The metadata has the sizes of the files of all the day partitions.
+    let ipc_dir_size = match &metadata {
+        Some(metadata) => metadata.files.iter().map(|file| file.bytes).sum(),
+        None => {
+            let mut ipc_dir_size = 0;
+            for entry in std::fs::read_dir(root)? {
+                ipc_dir_size += entry?.metadata()?.len();
+            }
+            ipc_dir_size
+        }
+    };
     let mut caches_size = 0;
     let mut num_caches = 0;
     if std::path::Path::new(&file_cache_path).exists() {
@@ -50,14 +55,11 @@ pub fn try_get_snapshot_metadata(
             num_caches += 1;
         }
     }
-    // get the date_modified of the details.ipc file
-    let details_ipc_filename = format!("{}/{}", ipc_path, DETAILS_IPC);
-    let date_modified = std::fs::metadata(details_ipc_filename)?.modified()?;
-    let details_query = LazyFrame::scan_ipc(
-        PlRefPath::new(&format!("{}/{}", ipc_path, DETAILS_IPC)),
-        Default::default(),
-        Default::default(),
-    )?;
+    let date_modified = match &metadata {
+        Some(metadata) => metadata.created_at.into(),
+        None => std::fs::metadata(root.join(DETAILS_IPC))?.modified()?,
+    };
+    let details_query = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?;
 
     // Date range from the details.ipc file
     let res = details_query
@@ -72,16 +74,19 @@ pub fn try_get_snapshot_metadata(
                 .dt()
                 .to_string("%Y-%m-%d")
                 .alias("max_date"),
-            col("ext_fs_id").max().alias("num_games"),
+            // The ids of the replays added later follow the existing ones, there can be gaps.
+            col("ext_fs_id")
+                .n_unique()
+                .cast(DataType::UInt64)
+                .alias("num_games"),
             col("title").n_unique().alias("num_maps"),
         ])
         .collect()?;
 
     let min_date = col_ymd_to_naive_date(&res, "min_date")?;
     let max_date = col_ymd_to_naive_date(&res, "max_date")?;
-    let num_games = res.column("num_games")?.u64()?.get(0).unwrap_or(0) + 1;
+    let num_games = res.column("num_games")?.u64()?.get(0).unwrap_or(0);
     let num_maps = res.column("num_maps")?.u32()?.get(0).unwrap_or(0);
-    // let data_str = crate::common::convert_df_to_json_data(&res)?;
 
     Ok(SnapshotStats {
         ipc_dir_size,
@@ -92,5 +97,11 @@ pub fn try_get_snapshot_metadata(
         num_maps,
         num_caches,
         caches_size,
+        is_compatible: metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.is_compatible()),
+        partitions: metadata.as_ref().map_or(0, |metadata| metadata.partitions),
+        added_replays: metadata.as_ref().map_or(0, |metadata| metadata.added),
+        s2protocol_version: metadata.map(|metadata| metadata.s2protocol_version),
     })
 }

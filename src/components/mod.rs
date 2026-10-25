@@ -1,1 +1,11 @@
+pub mod charts;
 pub mod left_sidebar_menu;
+pub mod links;
+pub mod loading;
+pub mod name_select;
+pub mod new_replays;
+pub mod patch;
+pub mod section;
+pub mod terrain;
+pub mod unit_icon;
+pub mod units;

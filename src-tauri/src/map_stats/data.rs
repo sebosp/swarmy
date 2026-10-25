@@ -18,11 +18,7 @@ pub fn try_query_map_stats(
         query.player_name
     );
 
-    let mut details_query = LazyFrame::scan_ipc(
-        PlRefPath::new(&format!("{}/{}", ipc_path, DETAILS_IPC)),
-        Default::default(),
-        Default::default(),
-    )?;
+    let mut details_query = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?;
 
     if !query.map_title.is_empty() {
         details_query = details_query.filter(
@@ -30,7 +26,7 @@ pub fn try_query_map_stats(
                 .str()
                 .to_lowercase()
                 .str()
-                .contains(lit(query.map_title.to_lowercase()), false),
+                .contains_literal(lit(query.map_title.to_lowercase())),
         );
     }
     if !query.player_name.is_empty() {
@@ -39,7 +35,7 @@ pub fn try_query_map_stats(
                 .str()
                 .to_lowercase()
                 .str()
-                .contains(lit(query.player_name.to_lowercase()), false),
+                .contains_literal(lit(query.player_name.to_lowercase())),
         );
     }
     details_query = details_query.unique(

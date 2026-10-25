@@ -102,3 +102,52 @@ pub fn get_api_response_from_invoke(
         }
     }
 }
+
+/// Invokes a backend command, the error is the message of a failed response.
+pub async fn invoke_response(
+    cmd: &str,
+    args: &impl serde::Serialize,
+) -> Result<ApiResponse, String> {
+    let args = serde_wasm_bindgen::to_value(args).map_err(|err| format!("{err:?}"))?;
+    let response = serde_wasm_bindgen::from_value::<ApiResponse>(crate::invoke(cmd, args).await)
+        .map_err(|err| format!("Error invoking {cmd}: {err:?}"))?;
+    if !response.meta.success {
+        return Err(response.message);
+    }
+    Ok(response)
+}
+
+/// Invokes a backend command whose ApiResponse message is the JSON of `T`.
+pub async fn invoke_json<T: serde::de::DeserializeOwned>(
+    cmd: &str,
+    args: &impl serde::Serialize,
+) -> Result<T, String> {
+    let response = invoke_response(cmd, args).await?;
+    serde_json::from_str(&response.message).map_err(|err| format!("Error reading {cmd}: {err:?}"))
+}
+
+/// Formats game seconds as `mm:ss`, so that the times align vertically.
+pub fn format_game_time(seconds: u32) -> String {
+    format!("{:02}:{:02}", seconds / 60, seconds % 60)
+}
+
+/// Formats a number of resources, i.e. `12.3k`.
+pub fn format_resources(resources: u32) -> String {
+    if resources >= 1000 {
+        format!("{:.1}k", resources as f32 / 1000.)
+    } else {
+        resources.to_string()
+    }
+}
+
+/// The error of a failed backend request.
+#[component]
+pub fn ErrorMessage(error: RwSignal<Option<String>>) -> impl IntoView {
+    view! {
+        <Show when=move || error.get().is_some()>
+            <div class="border-l-4 mt-1 p-2 border-red-500 bg-red-500/10 text-sm text-red-300">
+                {move || error.get().unwrap_or_default()}
+            </div>
+        </Show>
+    }
+}

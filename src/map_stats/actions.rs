@@ -30,7 +30,11 @@ pub fn trigger_fetch_query_map_stats(
             Err(e) => {
                 console_log(&format!("Error fetching map stats: {:?}", e));
                 *set_backend_response.write() = ApiResponse {
-                    meta: ResponseMeta::incomplete(),
+                    meta: ResponseMeta {
+                        success: false,
+                        duration_ms: 0,
+                        is_complete: true,
+                    },
                     message: format!("Error fetching map stats: {:?}", e),
                 };
             }

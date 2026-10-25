@@ -1,0 +1,121 @@
+name: Release
+
+# Builds the swarmy bundles of each platform with tauri-action and attaches them to a draft
+# GitHub release, published once every platform is built. The sidecars, rerun-cli and
+# swarmy-bevy, are downloaded by scripts/download-sidecars.sh. The platforms are the ones of the
+# rerun-cli releases.
+#
+# The updater artifacts (latest.json and the .sig files) are signed with the
+# TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets, without them the
+# bundles are built without updater artifacts (src-tauri/tauri.unsigned.conf.json).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      swarmy_bevy_version:
+        description: "The swarmy-bevy release with the sidecars, i.e. `v0.1.0`, empty for the latest"
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  SWARMY_BEVY_VERSION: ${{ inputs.swarmy_bevy_version }}
+  # linuxdeploy fails to strip the libraries of newer distributions.
+  NO_STRIP: "true"
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04-arm
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown,${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # .cargo/config.toml links with clang and mold on Linux.
+      - name: Install the Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf clang mold
+
+      - name: Install trunk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Download the sidecars
+        shell: bash
+        run: scripts/download-sidecars.sh ${{ matrix.target }}
+
+      - name: Build the bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          releaseName: "swarmy ${{ github.ref_name }}"
+          releaseBody: |
+            swarmy, a StarCraft II replay batch analyser. Download the bundle of your platform:
+            the .deb, .rpm or .AppImage for Linux, the .msi or .exe installer for Windows and the
+            .dmg for macOS (Apple Silicon). The builds are not signed by Apple or Microsoft, your
+            system may ask to confirm that you want to run them.
+
+            See the Changelog in the app for the changes.
+          releaseDraft: true
+          args: >-
+            --target ${{ matrix.target }}
+            ${{ secrets.TAURI_SIGNING_PRIVATE_KEY == '' && '--config src-tauri/tauri.unsigned.conf.json' || '' }}
+
+      # The bundles of the builds that are not tags, i.e. a manual run, to try them.
+      - name: Upload the bundles
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarmy-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/bundle/**/*.deb
+            target/${{ matrix.target }}/release/bundle/**/*.rpm
+            target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            target/${{ matrix.target }}/release/bundle/**/*.msi
+            target/${{ matrix.target }}/release/bundle/**/*.exe
+            target/${{ matrix.target }}/release/bundle/**/*.dmg
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false --latest

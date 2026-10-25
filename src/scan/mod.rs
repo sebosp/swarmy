@@ -3,11 +3,12 @@
 pub mod actions;
 pub mod arrow_ipc_stats;
 pub mod mpq_file_scan;
+pub mod optimize_progress;
 pub mod view;
 
 use leptos::leptos_dom::logging::console_log;
 use phosphor_leptos::{
-    BARCODE, DATABASE, FOLDERS, HOURGLASS, IconWeightData, KEYBOARD, SHIPPING_CONTAINER, X_CIRCLE,
+    IconWeightData, BARCODE, DATABASE, FOLDERS, HOURGLASS, KEYBOARD, SHIPPING_CONTAINER, X_CIRCLE,
 };
 use reactive_stores::Store;
 use s2protocol::dir_stats::SC2ReplaysDirStats;

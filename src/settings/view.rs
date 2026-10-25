@@ -4,19 +4,22 @@ use leptos::{ev::MouseEvent, prelude::*};
 use phosphor_leptos::{Icon, IconWeight, QUESTION};
 use swarmy_common::*;
 
-use crate::{DisplayBackendStatus, settings::actions::trigger_set_current_app_config};
+use crate::{settings::actions::trigger_set_current_app_config, DisplayBackendStatus};
 
 #[component]
 pub fn Config() -> impl IntoView {
     let (_app_settings, set_app_settings) = signal(AppSettings::default());
     let replay_path = RwSignal::new("".to_string());
     let cache_path = RwSignal::new("".to_string());
+    let balance_data_path = RwSignal::new("".to_string());
+    let unit_icons = use_context::<crate::components::unit_icon::UnitIconsContext>();
     let disable_parallelism = RwSignal::new(DEFAULT_DISABLE_PARALLELISM);
     let traverse_max_depth = RwSignal::new(DEFAULT_TRAVERSE_MAX_DEPTH);
     let scan_max_files = RwSignal::new(DEFAULT_SCAN_MAX_FILES);
     let process_max_files = RwSignal::new(DEFAULT_PROCESS_MAX_FILES);
     let min_version = RwSignal::new(DEFAULT_MIN_VERSION);
     let max_version = RwSignal::new(DEFAULT_MAX_VERSION);
+    let watch_new_replays = RwSignal::new(false);
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
@@ -26,12 +29,14 @@ pub fn Config() -> impl IntoView {
         move |settings: AppSettings| {
             *replay_path.write() = settings.replay_path.clone();
             *cache_path.write() = settings.cache_path.clone();
+            *balance_data_path.write() = settings.balance_data_path.clone();
             *disable_parallelism.write() = settings.disable_parallelism;
             *traverse_max_depth.write() = settings.traverse_max_depth;
             *scan_max_files.write() = settings.scan_max_files;
             *process_max_files.write() = settings.process_max_files;
             *min_version.write() = settings.min_version;
             *max_version.write() = settings.max_version;
+            *watch_new_replays.write() = settings.watch_new_replays;
             set_backend_response.update(|val| {
                 val.meta.success = true;
                 val.meta.is_complete = true;
@@ -123,6 +128,31 @@ pub fn Config() -> impl IntoView {
                         </div>
                     </div>
                 </fieldset>
+                <fieldset>
+                    <legend class="sr-only">"New replays"</legend>
+                    <div class="grid grid-cols-4 gap-4 py-6">
+                        <p class="text-sm/6 font-semibold text-white">"New replays"</p>
+                        <label class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white">
+                            <input
+                                id="watch_new_replays"
+                                type="checkbox"
+                                class="size-4 accent-indigo-500"
+                                prop:checked=move || watch_new_replays.get()
+                                on:change=move |ev| watch_new_replays.set(event_target_checked(&ev))
+                            />
+                            "Watch the replay path for new replays"
+                        </label>
+                        <div class="col-span-1 text-primary">
+                            <span title="Watches the replay path in the background (inotify on Linux) and tells you when there are replays that are not in the snapshot, Optimize then only parses the new replays and the ones parsed by another version of s2protocol.">
+                                <Icon
+                                    icon=QUESTION
+                                    weight=IconWeight::Fill
+                                    prop:class="stroke-current"
+                                />
+                            </span>
+                        </div>
+                    </div>
+                </fieldset>
             </div>
             <div class="grid grid-cols-4 sm:items-start sm:gap-4 sm:py-6">
                 <ConfigStringInput
@@ -136,6 +166,13 @@ pub fn Config() -> impl IntoView {
                     label="Replay Path"
                     description="The parent path for the replay collection to analyse."
                     value=replay_path
+                />
+                <ConfigStringInput
+                    name="balance_data_path"
+                    label="Balance Data Path"
+                    description="The balance data exported from the SC2 editor, a directory per patch version with Assets/Textures, i.e. ~/SC2Replays/BalanceData. The unit button icons are read from it. When empty, BalanceData inside or next to the replay path is used."
+                    value=balance_data_path
+                    optional=true
                 />
                 <ConfigNumberInput
                     name="scan_max_files"
@@ -176,13 +213,16 @@ pub fn Config() -> impl IntoView {
                             trigger_set_current_app_config(
                                 cache_path.get(),
                                 replay_path.get(),
+                                balance_data_path.get(),
                                 disable_parallelism.get(),
                                 traverse_max_depth.get(),
                                 scan_max_files.get(),
                                 process_max_files.get(),
                                 min_version.get(),
                                 max_version.get(),
+                                watch_new_replays.get(),
                                 set_backend_response,
+                                unit_icons,
                             )
                         }
                     >
@@ -264,7 +304,11 @@ pub fn ConfigStringInput(
     label: &'static str,
     description: &'static str,
     value: RwSignal<String>,
+    /// An empty optional value is not marked as invalid.
+    #[prop(optional)]
+    optional: bool,
 ) -> impl IntoView {
+    let is_missing = move || !optional && value.get().is_empty();
     view! {
         <div class="mt-2 col-span-1 sm:mt-0">
             <label class="block text-sm/6 font-medium text-white sm:pt-1.5">{label}</label>
@@ -272,10 +316,10 @@ pub fn ConfigStringInput(
         <div class="mt-2 col-span-2 sm:mt-0">
             <input
                 type="text"
-                aria-invalid=move || if value.get().is_empty() { "true" } else { "false" }
+                aria-invalid=move || if is_missing() { "true" } else { "false" }
                 aria-describedby=move || format!("{}-description", name)
                 class=move || {
-                    if value.get().is_empty() {
+                    if is_missing() {
                         "block w-full rounded-md bg-white/5 px-3 py-1.5 text-red-400 outline-1 -outline-offset-1 outline-red-500/50 placeholder:text-red-400/70 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 sm:pr-9 sm:text-sm/6"
                     } else {
                         "block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
@@ -290,7 +334,7 @@ pub fn ConfigStringInput(
             <p
                 id=move || format!("{}-description", name)
                 class=move || {
-                    if value.get().is_empty() {
+                    if is_missing() {
                         "mt-2 text-sm/6 text-red-400"
                     } else {
                         "mt-2 text-sm/6 text-gray-400"
@@ -298,7 +342,7 @@ pub fn ConfigStringInput(
                 }
             >
                 {move || {
-                    if value.get().is_empty() {
+                    if is_missing() {
                         "Please enter a directory".to_string()
                     } else {
                         "".to_string()

@@ -1,6 +1,6 @@
 //! Map stats module.
 
-mod actions;
+pub mod actions;
 pub mod view;
 
 use reactive_stores::Store;

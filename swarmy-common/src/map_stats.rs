@@ -55,6 +55,12 @@ pub struct SwarmyBevyMapCacheParams {
     pub cache_ids: String,
 }
 
+/// The replay shown by swarmy-bevy as the units born and died on its map.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct SwarmyBevyReplayParams {
+    pub replay_file_name: String,
+}
+
 /// The parameters for rerun streaming visualization
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct SwarmyRerunParams {

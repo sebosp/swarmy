@@ -1,6 +1,6 @@
 //! Leptos view for replay lists.
 
-mod actions;
+pub mod actions;
 pub mod view;
 
 use reactive_stores::Store;

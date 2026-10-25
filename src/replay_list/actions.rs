@@ -66,8 +66,13 @@ pub fn trigger_request_open_folder(replay_file_name: &str) {
         };
     });
 }
+#[derive(serde::Serialize)]
+struct ReplayListArgs {
+    query: ReplayListQuery,
+}
+
 pub async fn fetch_query_replay_list(query: ReplayListQuery) -> Result<ApiResponse, SwarmyError> {
-    let args = serde_wasm_bindgen::to_value(&query).unwrap();
+    let args = serde_wasm_bindgen::to_value(&ReplayListArgs { query }).unwrap();
     console_log(&format!(
         "Invoking fetch_query_replay_list with args: {:?}",
         args
@@ -88,18 +93,22 @@ pub fn trigger_fetch_query_replay_list(
         match fetch_query_replay_list(query).await {
             Err(e) => {
                 *set_backend_response.write() = ApiResponse {
-                    meta: ResponseMeta::incomplete(),
+                    meta: ResponseMeta {
+                        success: false,
+                        duration_ms: 0,
+                        is_complete: true,
+                    },
                     message: format!("Error fetching replay list: {:?}", e),
                 };
             }
             Ok(response) => {
                 console_log(&format!("1. Successfully fetched replay list",));
                 *set_backend_response.write() = response.clone();
-                let mut rows: Vec<ReplayListEntry> =
+                let mut list: ReplayList =
                     serde_json::from_str(&response.message).unwrap_or_default();
                 data.data().write().retain(|_| false);
-                data.total().patch(rows.len());
-                data.data().write().append(&mut rows);
+                data.total().patch(list.total);
+                data.data().write().append(&mut list.replays);
             }
         }
     });
@@ -127,6 +136,22 @@ pub fn trigger_swarmy_rerun_on_replay(replay_file_name: &str) {
                     response.message
                 ));
             }
+        }
+    });
+}
+
+/// Opens the replay in swarmy-bevy, the units born and died over time on its map.
+pub fn trigger_swarmy_bevy_on_replay(replay_file_name: &str) {
+    let params = SwarmyBevyReplayParams {
+        replay_file_name: replay_file_name.to_string(),
+    };
+    spawn_local(async move {
+        let args = serde_wasm_bindgen::to_value(&params).unwrap();
+        match serde_wasm_bindgen::from_value::<ApiResponse>(
+            invoke("exec_swarmy_bevy_replay", args).await,
+        ) {
+            Err(e) => console_log(&format!("Error calling exec_swarmy_bevy_replay: {e:?}")),
+            Ok(response) => console_log(&format!("exec_swarmy_bevy_replay: {response:?}")),
         }
     });
 }

@@ -13,16 +13,24 @@ pub use map_stats::*;
 pub mod data;
 pub mod majordomo;
 pub mod map_details;
+pub mod map_scout;
+pub mod patch_overview;
+pub mod player_detail;
+pub mod replay_detail;
 pub mod replay_list;
 pub mod replay_rerun;
+pub mod replay_watcher;
+pub mod swarmy_bevy;
+pub mod unit_icons;
 use crate::replay_list::{
     connect_swarmy_rerun, copy_path_to_clipboard, open_folder, query_replay_list,
 };
+use crate::replay_rerun::viewer::RerunViewerState;
 use std::process;
 use std::thread;
 
-use tauri::AppHandle;
 use tauri::async_runtime::spawn;
+use tauri::{AppHandle, Manager, RunEvent};
 use tokio::sync::mpsc;
 
 use crate::majordomo::AsyncTask;
@@ -46,6 +54,8 @@ pub fn run() {
                 .build(),
         )
         .manage(SetupState { majordomo_tx })
+        .manage(RerunViewerState::default())
+        .manage(replay_watcher::ReplayWatcherState::default())
         .setup(|app| {
             tracing::info!(
                 "Starting Tauri application setup {}:{:?}",
@@ -55,6 +65,7 @@ pub fn run() {
             // Spawn setup as a non-blocking task so the windows can be
             // created and ran while it executes
             spawn(setup(majordomo_rx, app.handle().clone()));
+            replay_watcher::configure(app.handle());
             tracing::info!(
                 "Setup function called on {}:{:?}",
                 process::id(),
@@ -74,15 +85,38 @@ pub fn run() {
             optimize_replay_path,
             get_snapshot_metadata,
             query_map_stats,
-            exec_swarmy_bevy_map_caches,
+            swarmy_bevy::exec_swarmy_bevy_map_caches,
+            swarmy_bevy::exec_swarmy_bevy_replay,
             query_replay_list,
+            replay_list::list_replay_filters,
+            replay_watcher::get_new_replays_status,
             copy_path_to_clipboard,
             open_folder,
             connect_swarmy_rerun,
+            replay_detail::query_replay_detail,
+            player_detail::query_player_detail,
+            player_detail::list_players,
+            player_detail::query_head_to_head,
+            map_scout::query_map_scout,
+            map_details::query_map_details,
+            map_details::list_maps,
+            patch_overview::list_patch_units,
+            unit_icons::list_unit_icons,
+            patch_overview::query_unit_overview,
+            patch_overview::query_unit_snapshot_stats,
+            patch_overview::query_patch_changes,
+            get_app_versions,
+            open_external_url,
         ])
         .plugin(tauri_plugin_store::Builder::default().build())
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // Sidecars spawned from rust are not killed by the shell plugin on exit.
+            if let RunEvent::Exit = event {
+                app.state::<RerunViewerState>().kill();
+            }
+        });
 }
 
 // An async function that does some heavy setup task
