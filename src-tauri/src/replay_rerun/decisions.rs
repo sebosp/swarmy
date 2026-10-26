@@ -65,6 +65,43 @@ pub fn base_unit_name(name: &str) -> &str {
     }
 }
 
+/// The base unit name of a column of unit names, as [`base_unit_name`] does.
+pub fn base_unit_name_expr(column: &str) -> polars::prelude::Expr {
+    use polars::prelude::*;
+    let renames = [
+        ("SiegeTankSieged", "SiegeTank"),
+        ("VikingAssault", "VikingFighter"),
+        ("LiberatorAG", "Liberator"),
+        ("ThorAP", "Thor"),
+        ("WarpPrismPhasing", "WarpPrism"),
+        ("ObserverSiegeMode", "Observer"),
+        ("OverseerSiegeMode", "Overseer"),
+    ];
+    let unburrowed = col(column).str().strip_suffix(lit("Burrowed"));
+    renames.iter().fold(unburrowed, |renamed, (name, base)| {
+        when(col(column).eq(lit(*name)))
+            .then(lit(*base))
+            .otherwise(renamed)
+    })
+}
+
+/// The value, minerals and vespene, of the units and structures that cost resources, as
+/// [`unit_cost`] and [`has_cost`]: columns `unit` and `value`.
+pub fn unit_values_frame(
+    balance_units: &VersionedBalanceUnits,
+) -> Result<polars::prelude::DataFrame, SwarmyError> {
+    use polars::prelude::*;
+    let (units, values): (Vec<&str>, Vec<u32>) = balance_units
+        .keys()
+        .filter(|name| has_cost(balance_units, name))
+        .map(|name| {
+            let cost = unit_cost(balance_units, name);
+            (name.as_str(), cost.minerals + cost.vespene)
+        })
+        .unzip();
+    Ok(df!("unit" => units, "value" => values)?)
+}
+
 /// The balance data has the build times at Normal speed, the game seconds are at Faster speed,
 /// i.e. a Nexus takes 100 seconds at Normal speed and 71 at Faster.
 pub const NORMAL_SECONDS_PER_FASTER_SECOND: f32 = 1.4;

@@ -67,7 +67,6 @@ pub fn try_query_map_stats(
         )
         .limit(1000)
         .collect()?;
-    println!("{res}");
     let res: Vec<MapStats> = (0..res.height())
         .map(|idx| extract_map_stats_from_df_row(&res.slice(idx as i64, 1)))
         .collect::<Result<_, _>>()?;

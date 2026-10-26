@@ -3,11 +3,10 @@
 use crate::data::*;
 use crate::replay_detail::data::EXPANSION_TOWNHALLS;
 use crate::replay_rerun::decisions::{
-    base_unit_name, has_cost, latest_balance_units, MORPH_SOURCES,
+    base_unit_name_expr, latest_balance_units, unit_values_frame, MORPH_SOURCES,
 };
 use crate::replay_rerun::terrain::Terrain;
 use polars::prelude::*;
-use std::collections::{BTreeMap, HashMap};
 use swarmy_common::*;
 
 /// The side, in map units, of the cells the commands are counted in.
@@ -18,25 +17,40 @@ const GAME_EVENT_POS_RATIO: f32 = 4096.;
 
 /// Rotates the positions of players that start on the top right half of the map by 180 degrees,
 /// so that every player starts on the bottom left. Most ladder maps are rotationally symmetric.
-#[derive(Debug, Clone, Copy)]
-struct Orientation {
-    center: (f32, f32),
-    rotate: bool,
+/// The positions are in the columns `x` and `y`, the start of their player in `start_x` and
+/// `start_y`.
+fn oriented(center: (f32, f32)) -> [Expr; 2] {
+    let top_right =
+        ((col("start_x") - lit(center.0)) + (col("start_y") - lit(center.1))).gt(lit(0.));
+    [("x", center.0), ("y", center.1)].map(|(axis, center)| {
+        when(top_right.clone())
+            .then(lit(2. * center) - col(axis))
+            .otherwise(col(axis))
+            .alias(axis)
+    })
 }
 
-impl Orientation {
-    fn new(center: (f32, f32), start: (f32, f32)) -> Self {
-        let rotate = (start.0 - center.0) + (start.1 - center.1) > 0.;
-        Self { center, rotate }
-    }
-
-    fn apply(&self, (x, y): (f32, f32)) -> (f32, f32) {
-        if self.rotate {
-            (2. * self.center.0 - x, 2. * self.center.1 - y)
-        } else {
-            (x, y)
-        }
-    }
+/// The start location of each player in the games, where its townhall is at the start.
+fn start_locations(ipc_path: &str, game_ids: &[u64]) -> Result<LazyFrame, SwarmyError> {
+    Ok(scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
+        .filter(
+            is_in_replays(game_ids)
+                .and(col("ext_replay_loop").eq(lit(0)))
+                .and(col("unit_type_name").is_in(
+                    lit(Series::new("townhalls".into(), EXPANSION_TOWNHALLS)).implode(false),
+                    false,
+                )),
+        )
+        .select([
+            col("ext_fs_id"),
+            col("player_name"),
+            col("x").cast(DataType::Float32).alias("start_x"),
+            col("y").cast(DataType::Float32).alias("start_y"),
+        ])
+        .unique(
+            Some(cols(["ext_fs_id", "player_name"])),
+            UniqueKeepStrategy::Last,
+        ))
 }
 
 fn contains_lowercase(column: &str, value: &str) -> Expr {
@@ -101,51 +115,58 @@ pub fn try_query_map_scout(
         None => (width as f32 / 2., height as f32 / 2.),
     };
 
-    let starts = scan_snapshot_ipc(&ipc_path, UNIT_BORN_IPC)?
-        .filter(
-            is_in_replays(&game_ids)
-                .and(col("ext_replay_loop").eq(lit(0)))
-                .and(col("unit_type_name").is_in(
-                    lit(Series::new("townhalls".into(), EXPANSION_TOWNHALLS)).implode(false),
-                    false,
-                )),
-        )
-        .select([col("ext_fs_id"), col("player_name"), col("x"), col("y")])
-        .collect()?;
-    let mut orientations: HashMap<(u64, String), Orientation> = HashMap::new();
-    for (((ext_fs_id, player), x), y) in u64_values(&starts, "ext_fs_id")?
-        .into_iter()
-        .zip(str_values(&starts, "player_name")?)
-        .zip(f32_values(&starts, "x")?)
-        .zip(f32_values(&starts, "y")?)
-    {
-        orientations.insert((ext_fs_id, player), Orientation::new(center, (x, y)));
-    }
-
+    let starts = start_locations(&ipc_path, &game_ids)?.cache();
     let points = match query.layer {
         ScoutLayer::Commands => command_points(&ipc_path, &game_ids, &query)?,
         ScoutLayer::Deaths => death_points(&ipc_path, &game_ids, &query)?,
     };
-    let mut cells: BTreeMap<(u32, u32), (u32, f32)> = BTreeMap::new();
-    let mut total_commands = 0;
-    for (ext_fs_id, player, (x, y), seconds) in points {
-        // Without a start location the command can not be oriented.
-        let Some(orientation) = orientations.get(&(ext_fs_id, player)) else {
-            continue;
-        };
-        let (x, y) = orientation.apply((x, y));
-        if x < 0. || y < 0. || x >= width as f32 || y >= height as f32 {
-            continue;
-        }
-        let cell = cells
-            .entry((x as u32 / SCOUT_CELL_SIZE, y as u32 / SCOUT_CELL_SIZE))
-            .or_default();
-        cell.0 += 1;
-        cell.1 += seconds as f32;
-        total_commands += 1;
-    }
-
-    let own_start = average_start(&ipc_path, &game_ids, &orientations, &query.player_name)?;
+    let cell = |axis: &str| {
+        col(axis)
+            .cast(DataType::UInt32)
+            .floor_div(lit(SCOUT_CELL_SIZE))
+            .alias(axis)
+    };
+    // Without a start location the position can not be oriented.
+    let cells = points
+        .join(
+            starts.clone(),
+            [col("ext_fs_id"), col("player_name")],
+            [col("ext_fs_id"), col("player_name")],
+            JoinArgs::new(JoinType::Inner),
+        )
+        .with_columns(oriented(center))
+        .filter(
+            col("x")
+                .gt_eq(lit(0.))
+                .and(col("y").gt_eq(lit(0.)))
+                .and(col("x").lt(lit(width as f32)))
+                .and(col("y").lt(lit(height as f32))),
+        )
+        .group_by([cell("x"), cell("y")])
+        .agg([
+            len().cast(DataType::UInt32).alias("count"),
+            col("game_seconds")
+                .cast(DataType::Float32)
+                .mean()
+                .alias("avg_seconds"),
+        ])
+        .sort(["x", "y"], Default::default())
+        .collect()?;
+    let counts = u32_values(&cells, "count")?;
+    let total_commands = counts.iter().map(|count| *count as usize).sum();
+    let cells = u32_values(&cells, "x")?
+        .into_iter()
+        .zip(u32_values(&cells, "y")?)
+        .zip(counts)
+        .zip(f32_values(&cells, "avg_seconds")?)
+        .map(|(((x, y), count), avg_seconds)| ScoutCell {
+            x: x * SCOUT_CELL_SIZE,
+            y: y * SCOUT_CELL_SIZE,
+            count,
+            avg_seconds,
+        })
+        .collect();
+    let own_start = average_start(starts, center, &query.player_name)?;
     Ok(MapScout {
         map_title,
         games: game_ids.len(),
@@ -153,30 +174,20 @@ pub fn try_query_map_scout(
         width,
         height,
         cell_size: SCOUT_CELL_SIZE,
-        cells: cells
-            .into_iter()
-            .map(|((x, y), (count, total_seconds))| ScoutCell {
-                x: x * SCOUT_CELL_SIZE,
-                y: y * SCOUT_CELL_SIZE,
-                count,
-                avg_seconds: total_seconds / count as f32,
-            })
-            .collect(),
+        cells,
         enemy_start: own_start.map(|(x, y)| (2. * center.0 - x, 2. * center.1 - y)),
         own_start,
         terrain: terrain.as_ref().map(Terrain::minimap),
     })
 }
 
-/// A position of a player in a game at a game second.
-type ScoutPoint = (u64, String, (f32, f32), u32);
-
-/// The targets of the commands issued by the players.
+/// The targets of the commands issued by the players: `ext_fs_id`, `player_name`, `x`, `y` and
+/// `game_seconds`.
 fn command_points(
     ipc_path: &str,
     game_ids: &[u64],
     query: &MapScoutQuery,
-) -> Result<Vec<ScoutPoint>, SwarmyError> {
+) -> Result<LazyFrame, SwarmyError> {
     let mut commands = scan_snapshot_ipc(ipc_path, CMD_TARGET_POINT_IPC)?
         .filter(is_in_replays(game_ids).and(game_seconds().lt_eq(lit(query.max_seconds))));
     if !query.player_name.is_empty() {
@@ -185,37 +196,22 @@ fn command_points(
     if !query.unit_name.is_empty() {
         commands = commands.filter(contains_lowercase("unit_name", &query.unit_name));
     }
-    let commands = commands
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            col("target_point_x"),
-            col("target_point_y"),
-            game_seconds(),
-        ])
-        .collect()?;
-    Ok(u64_values(&commands, "ext_fs_id")?
-        .into_iter()
-        .zip(str_values(&commands, "player_name")?)
-        .zip(i64_values(&commands, "target_point_x")?)
-        .zip(i64_values(&commands, "target_point_y")?)
-        .zip(u32_values(&commands, "game_seconds")?)
-        .map(|((((ext_fs_id, player), x), y), seconds)| {
-            let position = (
-                x as f32 / GAME_EVENT_POS_RATIO,
-                y as f32 / GAME_EVENT_POS_RATIO,
-            );
-            (ext_fs_id, player, position, seconds)
-        })
-        .collect())
+    Ok(commands.select([
+        col("ext_fs_id"),
+        col("player_name"),
+        (col("target_point_x").cast(DataType::Float32) / lit(GAME_EVENT_POS_RATIO)).alias("x"),
+        (col("target_point_y").cast(DataType::Float32) / lit(GAME_EVENT_POS_RATIO)).alias("y"),
+        game_seconds(),
+    ]))
 }
 
-/// Where the units of the players died, the owner is the player the unit was born for.
+/// Where the units of the players died, the owner is the player the unit was born for, with the
+/// columns of [`command_points`].
 fn death_points(
     ipc_path: &str,
     game_ids: &[u64],
     query: &MapScoutQuery,
-) -> Result<Vec<ScoutPoint>, SwarmyError> {
+) -> Result<LazyFrame, SwarmyError> {
     let unit_key = [
         col("ext_fs_id"),
         col("unit_tag_index"),
@@ -241,7 +237,11 @@ fn death_points(
     }
     // A Drone morphing into a structure or templars merging die without a killer.
     let morph_sources = Series::new("morph_sources".into(), MORPH_SOURCES);
-    let deaths = deaths
+    // InvisibleTargetDummy, Larva, Broodlings, etc are not losses, they have no value.
+    let valued_units = unit_values_frame(latest_balance_units()?)?
+        .lazy()
+        .select([col("unit")]);
+    Ok(deaths
         .filter(
             col("unit_died_name")
                 .is_in(lit(morph_sources).implode(false), false)
@@ -252,70 +252,47 @@ fn death_points(
             col("ext_fs_id"),
             col("unit_tag_index"),
             col("unit_tag_recycle"),
-            col("unit_died_name"),
-            col("x"),
-            col("y"),
+            base_unit_name_expr("unit_died_name").alias("unit"),
+            col("x").cast(DataType::Float32),
+            col("y").cast(DataType::Float32),
             game_seconds(),
         ])
+        .join(
+            valued_units,
+            [col("unit")],
+            [col("unit")],
+            JoinArgs::new(JoinType::Inner),
+        )
         .join(
             owners,
             unit_key.clone(),
             unit_key,
             JoinArgs::new(JoinType::Inner),
         )
-        .collect()?;
-    // InvisibleTargetDummy, Larva, Broodlings, etc are not losses.
-    let balance = latest_balance_units()?;
-    let xs = u8_values(&deaths, "x")?;
-    let ys = u8_values(&deaths, "y")?;
-    Ok(u64_values(&deaths, "ext_fs_id")?
-        .into_iter()
-        .zip(str_values(&deaths, "player_name")?)
-        .zip(str_values(&deaths, "unit_died_name")?)
-        .zip(xs.into_iter().zip(ys))
-        .zip(u32_values(&deaths, "game_seconds")?)
-        .filter(|((((_, _), name), _), _)| has_cost(balance, base_unit_name(name)))
-        .map(|((((ext_fs_id, player), _), (x, y)), seconds)| {
-            let position = (x.unwrap_or_default() as f32, y.unwrap_or_default() as f32);
-            (ext_fs_id, player, position, seconds)
-        })
-        .collect())
+        .select([
+            col("ext_fs_id"),
+            col("player_name"),
+            col("x"),
+            col("y"),
+            col("game_seconds"),
+        ]))
 }
 
-/// The average start location after orienting every player to the bottom left.
+/// The average start location of the players, after orienting every player to the bottom left.
 fn average_start(
-    ipc_path: &str,
-    game_ids: &[u64],
-    orientations: &HashMap<(u64, String), Orientation>,
+    starts: LazyFrame,
+    center: (f32, f32),
     player_name: &str,
 ) -> Result<Option<(f32, f32)>, SwarmyError> {
-    let starts = scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
-        .filter(
-            is_in_replays(game_ids)
-                .and(col("ext_replay_loop").eq(lit(0)))
-                .and(col("unit_type_name").is_in(
-                    lit(Series::new("townhalls".into(), EXPANSION_TOWNHALLS)).implode(false),
-                    false,
-                ))
-                .and(contains_lowercase("player_name", player_name)),
-        )
-        .select([col("ext_fs_id"), col("player_name"), col("x"), col("y")])
+    let average = starts
+        .filter(contains_lowercase("player_name", player_name))
+        .with_columns([col("start_x").alias("x"), col("start_y").alias("y")])
+        .with_columns(oriented(center))
+        .select([col("x").mean(), col("y").mean()])
         .collect()?;
-    let mut sum = (0., 0.);
-    let mut count = 0;
-    for (((ext_fs_id, player), x), y) in u64_values(&starts, "ext_fs_id")?
-        .into_iter()
-        .zip(str_values(&starts, "player_name")?)
-        .zip(f32_values(&starts, "x")?)
-        .zip(f32_values(&starts, "y")?)
-    {
-        if let Some(orientation) = orientations.get(&(ext_fs_id, player)) {
-            let (x, y) = orientation.apply((x, y));
-            sum = (sum.0 + x, sum.1 + y);
-            count += 1;
-        }
-    }
-    Ok((count > 0).then(|| (sum.0 / count as f32, sum.1 / count as f32)))
+    let x = f32_values(&average, "x")?.first().copied();
+    let y = f32_values(&average, "y")?.first().copied();
+    Ok(x.zip(y).filter(|(x, y)| x.is_finite() && y.is_finite()))
 }
 
 #[cfg(test)]
@@ -324,10 +301,18 @@ mod tests {
 
     #[test]
     fn it_orients_the_start_to_the_bottom_left() {
-        let center = (100., 100.);
-        let top_right = Orientation::new(center, (150., 140.));
-        assert_eq!(top_right.apply((150., 140.)), (50., 60.));
-        let bottom_left = Orientation::new(center, (50., 60.));
-        assert_eq!(bottom_left.apply((50., 60.)), (50., 60.));
+        let positions = df!(
+            "x" => [150f32, 50.],
+            "y" => [140f32, 60.],
+            "start_x" => [150f32, 50.],
+            "start_y" => [140f32, 60.],
+        )
+        .unwrap()
+        .lazy()
+        .with_columns(oriented((100., 100.)))
+        .collect()
+        .unwrap();
+        assert_eq!(f32_values(&positions, "x").unwrap(), vec![50., 50.]);
+        assert_eq!(f32_values(&positions, "y").unwrap(), vec![60., 60.]);
     }
 }

@@ -10,6 +10,8 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
+#[cfg(test)]
+mod bench_queries;
 pub mod data;
 pub mod duplicates;
 pub mod logging;

@@ -55,8 +55,57 @@ fn snapshot_benchmarks(ipc_path: &str) -> Result<Arc<BenchmarkTable>, SwarmyErro
     {
         return Ok(table);
     }
+    let table = compute_benchmarks(ipc_path)?;
+    let table = Arc::new(table);
+    if let Ok(mut cache) = cache.lock() {
+        cache.insert(ipc_path.to_string(), table.clone());
+    }
+    Ok(table)
+}
+
+/// T, Z or P from the localized race names, `?` for the others.
+fn race_letter_expr(column: &str) -> Expr {
+    let is_race = |races: &[&str]| {
+        col(column).is_in(
+            lit(Series::new("races".into(), races)).implode(false),
+            false,
+        )
+    };
+    when(is_race(&TERRAN))
+        .then(lit("T"))
+        .when(is_race(&ZERG))
+        .then(lit("Z"))
+        .when(is_race(&PROTOSS))
+        .then(lit("P"))
+        .otherwise(lit("?"))
+}
+
+/// The average economy per matchup and minute of the 1v1 games of the snapshot: the first stats
+/// sample after each minute of each player, averaged per matchup of the player.
+fn compute_benchmarks(ipc_path: &str) -> Result<BenchmarkTable, SwarmyError> {
+    let game = [col("ext_fs_id")];
+    // The matchup of each player of the 1v1 games, its race against the race of the other one.
+    let matchups = scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
+        .select([
+            col("ext_fs_id"),
+            col("player_name"),
+            race_letter_expr("player_race").alias("race"),
+        ])
+        .filter(len().over(game.clone())?.eq(lit(2)))
+        .with_column(
+            concat_str(
+                [
+                    col("race"),
+                    lit("v"),
+                    col("race").reverse().over(game.clone())?,
+                ],
+                "",
+                false,
+            )
+            .alias("matchup"),
+        );
     // The stats are by tracker player id, the starting townhalls tell the name of each id.
-    let starts = scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
+    let player_matchups = scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
         .filter(
             col("ext_replay_loop")
                 .eq(lit(0))
@@ -67,44 +116,20 @@ fn snapshot_benchmarks(ipc_path: &str) -> Result<Arc<BenchmarkTable>, SwarmyErro
         )
         .select([
             col("ext_fs_id"),
-            col("control_player_id"),
+            col("control_player_id").alias("player_id"),
             col("player_name"),
         ])
-        .collect()?;
-    let details = scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
-        .select([col("ext_fs_id"), col("player_name"), col("player_race")])
-        .collect()?;
-    let mut races: HashMap<(u64, String), String> = HashMap::new();
-    let mut game_races: HashMap<u64, Vec<String>> = HashMap::new();
-    for ((ext_fs_id, player), race) in u64_values(&details, "ext_fs_id")?
-        .into_iter()
-        .zip(str_values(&details, "player_name")?)
-        .zip(str_values(&details, "player_race")?)
-    {
-        let race = normalize_race(&race);
-        game_races.entry(ext_fs_id).or_default().push(race.clone());
-        races.insert((ext_fs_id, player), race);
-    }
-    let mut matchups: HashMap<(u64, u8), String> = HashMap::new();
-    for ((ext_fs_id, player_id), player) in u64_values(&starts, "ext_fs_id")?
-        .into_iter()
-        .zip(u8_values(&starts, "control_player_id")?)
-        .zip(str_values(&starts, "player_name")?)
-    {
-        let (Some(player_id), Some(race)) = (player_id, races.get(&(ext_fs_id, player.clone())))
-        else {
-            continue;
-        };
-        // Only 1v1 games have a matchup.
-        let Some(game) = game_races.get(&ext_fs_id).filter(|game| game.len() == 2) else {
-            continue;
-        };
-        let opponent_race = if game[0] == *race { &game[1] } else { &game[0] };
-        matchups.insert((ext_fs_id, player_id), matchup(race, opponent_race));
-    }
-
+        .join(
+            matchups,
+            [col("ext_fs_id"), col("player_name")],
+            [col("ext_fs_id"), col("player_name")],
+            JoinArgs::new(JoinType::Inner),
+        )
+        .select([col("ext_fs_id"), col("player_id"), col("matchup")])
+        .unique(None, UniqueKeepStrategy::First);
     let minutes = Series::new("minutes".into(), BENCHMARK_MINUTES.as_slice());
-    let stats = scan_snapshot_ipc(ipc_path, STATS_IPC)?
+    let measures = ["workers", "supply", "income", "army_value"];
+    let averages = scan_snapshot_ipc(ipc_path, STATS_IPC)?
         .with_column(game_seconds())
         .filter(
             (col("game_seconds") % lit(60u32))
@@ -115,49 +140,52 @@ fn snapshot_benchmarks(ipc_path: &str) -> Result<Arc<BenchmarkTable>, SwarmyErro
             col("ext_fs_id"),
             col("player_id"),
             col("game_seconds"),
-            col("workers_active_count"),
-            col("food_used"),
+            (col("game_seconds") / lit(60u32)).alias("minute"),
+            col("workers_active_count").alias("workers"),
+            col("food_used").alias("supply"),
             (col("minerals_collection_rate") + col("vespene_collection_rate")).alias("income"),
             (col("minerals_used_current_army") + col("vespene_used_current_army"))
                 .alias("army_value"),
         ])
-        .sort(["game_seconds"], Default::default())
-        .collect()?;
-    let ext_fs_ids = u64_values(&stats, "ext_fs_id")?;
-    let player_ids = u8_values(&stats, "player_id")?;
-    let seconds = u32_values(&stats, "game_seconds")?;
-    let workers = stats.column("workers_active_count")?.i32()?.clone();
-    let supply = stats.column("food_used")?.i32()?.clone();
-    let income = stats.column("income")?.i32()?.clone();
-    let army_value = stats.column("army_value")?.i32()?.clone();
-    let mut table = BenchmarkTable::new();
-    let mut seen: std::collections::HashSet<(u64, u8, u32)> = Default::default();
-    for idx in 0..stats.height() {
-        let Some(player_id) = player_ids[idx] else {
-            continue;
-        };
-        let minute = seconds[idx] / 60;
         // The first sample after the minute.
-        if !seen.insert((ext_fs_ids[idx], player_id, minute)) {
-            continue;
-        }
-        let Some(matchup) = matchups.get(&(ext_fs_ids[idx], player_id)) else {
-            continue;
-        };
-        table.entry((matchup.clone(), minute)).or_default().add(
-            workers.get(idx).unwrap_or_default(),
-            supply.get(idx).unwrap_or_default(),
-            income.get(idx).unwrap_or_default(),
-            army_value.get(idx).unwrap_or_default(),
-        );
-    }
-    let table = Arc::new(table);
-    if let Ok(mut cache) = cache.lock() {
-        cache.insert(ipc_path.to_string(), table.clone());
-    }
-    Ok(table)
+        .sort(["game_seconds"], Default::default())
+        .group_by([col("ext_fs_id"), col("player_id"), col("minute")])
+        .agg(measures.map(|measure| col(measure).first().fill_null(lit(0))))
+        .join(
+            player_matchups,
+            [col("ext_fs_id"), col("player_id")],
+            [col("ext_fs_id"), col("player_id")],
+            JoinArgs::new(JoinType::Inner),
+        )
+        .group_by([col("matchup"), col("minute")])
+        .agg(
+            std::iter::once(len().alias("games"))
+                .chain(measures.map(|measure| col(measure).cast(DataType::Float32).mean()))
+                .collect::<Vec<_>>(),
+        )
+        .collect()?;
+    let matchups = str_values(&averages, "matchup")?;
+    let minutes = u32_values(&averages, "minute")?;
+    let games = averages.column("games")?.cast(&DataType::UInt64)?;
+    let games = games.u64()?;
+    let [workers, supply, income, army_value] =
+        measures.map(|measure| f32_values(&averages, measure).unwrap_or_default());
+    Ok(matchups
+        .into_iter()
+        .zip(minutes)
+        .enumerate()
+        .map(|(idx, key)| {
+            let average = BenchmarkAverage {
+                games: games.get(idx).unwrap_or_default() as usize,
+                workers: workers[idx],
+                supply: supply[idx],
+                income: income[idx],
+                army_value: army_value[idx],
+            };
+            (key, average)
+        })
+        .collect())
 }
-
 /// The share of each choice in each context, most chosen first.
 fn choice_shares(choices: Vec<(String, String, bool)>) -> Vec<ChoiceShare> {
     let mut context_games: HashMap<String, usize> = HashMap::new();
