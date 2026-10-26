@@ -14,7 +14,7 @@ Microsoft, the system may ask to confirm that they can run.
 Then, in swarmy:
 
 1. **Config**: the directory of the replays, the directory where the map caches are downloaded and,
-   optionally, the duplicate limbo directory and the new replays watcher.
+   optionally, the duplicate replays folder and the new replays watcher.
 2. **Scan**, then **Optimize** to generate the snapshot.
 3. Explore the views, the **Help** view explains each of them.
 

@@ -1,5 +1,5 @@
 //! The replays that are copies of another replay, by the sha256 of their contents. They are moved
-//! to the duplicate limbo directory of the settings, outside of the replay path, keeping the
+//! to the duplicate replays folder of the settings, outside of the replay path, keeping the
 //! directories they were found in. Nothing is deleted.
 
 use crate::data::*;
@@ -69,16 +69,16 @@ pub fn find_duplicates(replay_path: &str) -> Result<Vec<DuplicateReplay>, Swarmy
     Ok(duplicates)
 }
 
-/// Where a duplicate goes in the limbo, the same directories as in the replay path.
-fn limbo_destination(replay_path: &Path, limbo: &Path, file: &Path) -> Option<PathBuf> {
+/// Where a duplicate goes in the duplicates folder, the same directories as in the replay path.
+fn duplicate_destination(replay_path: &Path, folder: &Path, file: &Path) -> Option<PathBuf> {
     let relative = file.strip_prefix(replay_path).ok()?;
-    let mut destination = limbo.join(relative);
-    // A file already in the limbo is not replaced, the new one gets a number.
+    let mut destination = folder.join(relative);
+    // A file already in the duplicates folder is not replaced, the new one gets a number.
     let mut copy = 1;
     while destination.exists() {
         let stem = file.file_stem()?.to_string_lossy();
         let extension = file.extension()?.to_string_lossy();
-        destination = limbo
+        destination = folder
             .join(relative.parent()?)
             .join(format!("{stem} ({copy}).{extension}"));
         copy += 1;
@@ -86,7 +86,7 @@ fn limbo_destination(replay_path: &Path, limbo: &Path, file: &Path) -> Option<Pa
     Some(destination)
 }
 
-/// Moves a file, copying it when the limbo is on another file system.
+/// Moves a file, copying it when the duplicates folder is on another file system.
 fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
     if let Some(dir) = to.parent() {
         std::fs::create_dir_all(dir)?;
@@ -98,27 +98,29 @@ fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Moves the duplicates of the replay path to the limbo, returns the files moved.
-pub fn move_duplicates(replay_path: &str, limbo: &str) -> Result<usize, SwarmyError> {
-    if limbo.trim().is_empty() {
+/// Moves the duplicates of the replay path to the duplicates folder, returns the files moved.
+pub fn move_duplicates(replay_path: &str, folder: &str) -> Result<usize, SwarmyError> {
+    if folder.trim().is_empty() {
         return Err(SwarmyError::Other(
-            "Set the Duplicate Limbo Path in Config first".to_string(),
+            "Set the Duplicate Replays Folder in Config first".to_string(),
         ));
     }
     let replay_dir = std::fs::canonicalize(replay_path)?;
-    std::fs::create_dir_all(limbo)?;
-    let limbo_dir = std::fs::canonicalize(limbo)?;
-    if limbo_dir.starts_with(&replay_dir) {
+    std::fs::create_dir_all(folder)?;
+    let duplicates_dir = std::fs::canonicalize(folder)?;
+    if duplicates_dir.starts_with(&replay_dir) {
         return Err(SwarmyError::Other(format!(
-            "The duplicate limbo {} must be outside of the replay path {}",
-            limbo_dir.display(),
+            "The duplicate replays folder {} must be outside of the replay path {}",
+            duplicates_dir.display(),
             replay_dir.display()
         )));
     }
     let mut moved = 0;
     for duplicate in find_duplicates(replay_path)? {
         let file = PathBuf::from(&duplicate.file);
-        let Some(destination) = limbo_destination(Path::new(replay_path), &limbo_dir, &file) else {
+        let Some(destination) =
+            duplicate_destination(Path::new(replay_path), &duplicates_dir, &file)
+        else {
             tracing::warn!("{} is not in the replay path", file.display());
             continue;
         };
@@ -149,7 +151,7 @@ pub async fn move_duplicate_replays(
     let response = crate::run_query(move || {
         ApiResponseBuilder::new().process_result(move_duplicates(
             &settings.replay_path,
-            &settings.duplicate_limbo_path,
+            &settings.duplicates_path,
         ))
     })
     .await;
@@ -164,11 +166,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_moves_the_duplicates_to_the_limbo_with_their_directories() {
+    fn it_moves_the_duplicates_to_their_folder_with_their_directories() {
         let root = std::env::temp_dir().join(format!("swarmy-duplicates-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let replays = root.join("replays");
-        let limbo = root.join("limbo");
+        let folder = root.join("duplicates");
         std::fs::create_dir_all(replays.join("a")).unwrap();
         std::fs::create_dir_all(replays.join("b/c")).unwrap();
         std::fs::write(replays.join("a/game.SC2Replay"), b"game one").unwrap();
@@ -179,12 +181,12 @@ mod tests {
         assert_eq!(duplicates.len(), 1);
         assert!(duplicates[0].file.ends_with("b/c/game.SC2Replay"));
         assert!(duplicates[0].original.ends_with("a/game.SC2Replay"));
-        // The limbo can not be in the replay path.
-        let inside = replays.join("limbo").to_string_lossy().to_string();
+        // The duplicates folder can not be in the replay path.
+        let inside = replays.join("duplicates").to_string_lossy().to_string();
         assert!(move_duplicates(&replay_path, &inside).is_err());
-        let moved = move_duplicates(&replay_path, &limbo.to_string_lossy()).unwrap();
+        let moved = move_duplicates(&replay_path, &folder.to_string_lossy()).unwrap();
         assert_eq!(moved, 1);
-        assert!(limbo.join("b/c/game.SC2Replay").is_file());
+        assert!(folder.join("b/c/game.SC2Replay").is_file());
         assert!(!replays.join("b/c/game.SC2Replay").exists());
         assert!(replays.join("a/game.SC2Replay").is_file());
         assert!(find_duplicates(&replay_path).unwrap().is_empty());

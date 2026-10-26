@@ -11,7 +11,7 @@ pub fn Config() -> impl IntoView {
     let (_app_settings, set_app_settings) = signal(AppSettings::default());
     let replay_path = RwSignal::new("".to_string());
     let cache_path = RwSignal::new("".to_string());
-    let duplicate_limbo_path = RwSignal::new("".to_string());
+    let duplicates_path = RwSignal::new("".to_string());
     let disable_parallelism = RwSignal::new(DEFAULT_DISABLE_PARALLELISM);
     let traverse_max_depth = RwSignal::new(DEFAULT_TRAVERSE_MAX_DEPTH);
     let scan_max_files = RwSignal::new(DEFAULT_SCAN_MAX_FILES);
@@ -28,7 +28,7 @@ pub fn Config() -> impl IntoView {
         move |settings: AppSettings| {
             *replay_path.write() = settings.replay_path.clone();
             *cache_path.write() = settings.cache_path.clone();
-            *duplicate_limbo_path.write() = settings.duplicate_limbo_path.clone();
+            *duplicates_path.write() = settings.duplicates_path.clone();
             *disable_parallelism.write() = settings.disable_parallelism;
             *traverse_max_depth.write() = settings.traverse_max_depth;
             *scan_max_files.write() = settings.scan_max_files;
@@ -167,12 +167,24 @@ pub fn Config() -> impl IntoView {
                     value=replay_path
                 />
                 <ConfigStringInput
-                    name="duplicate_limbo_path"
-                    label="Duplicate Limbo Path"
+                    name="duplicates_path"
+                    label="Duplicate Replays Folder"
                     description="Scan moves the duplicate replays here, with the directories they were found in, outside of the replay path. Nothing is deleted."
-                    value=duplicate_limbo_path
+                    value=duplicates_path
                     optional=true
                 />
+                <div class="col-span-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+                    <p class="font-semibold text-amber-300">"What is the Duplicate Replays Folder?"</p>
+                    <p>
+                        "The same game is often saved more than once, i.e. copied from another computer or downloaded again from a tournament pack. "
+                        "Find duplicates in Scan compares the contents of the replays (their sha256) and Move to the duplicates folder moves the extra copies here, "
+                        "so that a game is counted once in the statistics. The subdirectories they were in are kept. The copy already in the snapshot, or else the first one by path, stays in the Replay Path."
+                    </p>
+                    <p class="mt-1">
+                        "Nothing is deleted: check the folder and delete it yourself, or move the files back. It must be outside of the Replay Path, "
+                        "i.e. ~/SC2Replays-duplicates. Leave it empty to only list the duplicates."
+                    </p>
+                </div>
                 <ConfigNumberInput
                     name="scan_max_files"
                     label="Max number of files to Scan"
@@ -181,7 +193,7 @@ pub fn Config() -> impl IntoView {
                 />
                 <ConfigNumberInput
                     name="process_max_files"
-                    label="Maxnumber of files to optimize"
+                    label="Max number of files to optimize"
                     description="Decreases the size of the optimized snapshot."
                     value=process_max_files
                 />
@@ -213,7 +225,7 @@ pub fn Config() -> impl IntoView {
                                 AppSettings {
                                     cache_path: cache_path.get(),
                                     replay_path: replay_path.get(),
-                                    duplicate_limbo_path: duplicate_limbo_path.get(),
+                                    duplicates_path: duplicates_path.get(),
                                     disable_parallelism: disable_parallelism.get(),
                                     traverse_max_depth: traverse_max_depth.get(),
                                     scan_max_files: scan_max_files.get(),

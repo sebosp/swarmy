@@ -40,7 +40,7 @@ pub struct AppSettings {
     /// Scan moves the duplicate replays to this directory, outside of the replay path, keeping the
     /// directories they were found in. Nothing is deleted.
     #[serde(default)]
-    pub duplicate_limbo_path: String,
+    pub duplicates_path: String,
 }
 
 /// The button icons of the units as PNG data URLs, by unit name.

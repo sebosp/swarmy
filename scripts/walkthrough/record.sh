@@ -10,14 +10,14 @@ OUT="$ROOT/target/walkthrough"
 PROFILE="$OUT/profile"
 : "${WALKTHROUGH_REPLAYS:?the directory of the replays to show}"
 : "${WALKTHROUGH_MAP_CACHES:?the directory of the map caches}"
-: "${WALKTHROUGH_LIMBO:?the duplicate limbo directory, outside of the replays}"
+: "${WALKTHROUGH_DUPLICATES:?the duplicate replays folder, outside of the replays}"
 export DISPLAY=:7
 
 # The snapshot is generated from scratch with the new profile, the duplicates are moved again.
 rm -rf "$OUT" "$WALKTHROUGH_REPLAYS/ipcs"
-if [[ -d "$WALKTHROUGH_LIMBO" ]]; then
-  cp -a "$WALKTHROUGH_LIMBO/." "$WALKTHROUGH_REPLAYS/"
-  rm -rf "${WALKTHROUGH_LIMBO:?}"/*
+if [[ -d "$WALKTHROUGH_DUPLICATES" ]]; then
+  cp -a "$WALKTHROUGH_DUPLICATES/." "$WALKTHROUGH_REPLAYS/"
+  rm -rf "${WALKTHROUGH_DUPLICATES:?}"/*
 fi
 mkdir -p "$PROFILE"/{data,config,cache}
 
@@ -43,7 +43,7 @@ sleep 6
 snap home
 sleep 2
 
-chapter "Config: the map caches, the replays, the duplicate limbo and the new replays watcher"
+chapter "Config: the map caches, the replays, the duplicate replays folder and the new replays watcher"
 click 22 536 2
 click 308 202 1
 click 530 281 0.5
@@ -51,7 +51,7 @@ type_text "$WALKTHROUGH_MAP_CACHES"
 xdotool key Tab; sleep 0.3
 type_text "$WALKTHROUGH_REPLAYS"
 xdotool key Tab; sleep 0.3
-type_text "$WALKTHROUGH_LIMBO"
+type_text "$WALKTHROUGH_DUPLICATES"
 sleep 1
 snap config
 scroll 5 5
@@ -80,7 +80,7 @@ sleep 2
 scroll 4 6
 
 # Without new replays the banner is gone, the views are 32 pixels higher from here.
-chapter "Duplicates moved to the limbo"
+chapter "Duplicates moved to the duplicates folder"
 # The Scan view is opened again to show the snapshot statistics and the duplicates.
 click 22 21 2
 click 22 60 3

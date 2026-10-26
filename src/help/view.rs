@@ -10,14 +10,14 @@ const GETTING_STARTED: [Entry; 4] = [
     (
         "1. Config",
         "Set the directory with the replays (it is searched recursively) and the directory where \
-         the map caches (.s2ma files) are downloaded. The Duplicate Limbo Path, outside of the \
+         the map caches (.s2ma files) are downloaded. The Duplicate Replays Folder, outside of the \
          replay path, is where Scan moves the duplicate replays.",
     ),
     (
         "2. Scan",
         "Counts the replays found and shows the statistics of the current snapshot. Find \
          duplicates lists the replays with the same contents as another one, by their sha256, \
-         and moves them to the Duplicate Limbo Path keeping the directories they were found in. \
+         and moves them to the Duplicate Replays Folder keeping the directories they were found in. \
          Nothing is deleted.",
     ),
     (

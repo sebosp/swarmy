@@ -1,5 +1,5 @@
-//! The replays that are copies of another replay, they can be moved to the duplicate limbo
-//! directory of the settings, outside of the replay path. Nothing is deleted.
+//! The replays that are copies of another replay, they can be moved to the duplicate replays folder
+//! of the settings, outside of the replay path. Nothing is deleted.
 
 use crate::*;
 use leptos::prelude::*;
@@ -29,14 +29,14 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
             busy.set(false);
         });
     };
-    let move_to_limbo = move |_| {
+    let move_to_duplicates = move |_| {
         busy.set(true);
         spawn_local(async move {
             match invoke_json::<usize>("move_duplicate_replays", &()).await {
                 Ok(moved) => {
                     status.set(format!(
                         "Moved {moved} duplicate replays to {}",
-                        app_settings.get_untracked().duplicate_limbo_path
+                        app_settings.get_untracked().duplicates_path
                     ));
                     duplicates.set(Some(vec![]));
                 }
@@ -61,25 +61,25 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
                 <Show when=move || duplicates.get().is_some_and(|found| !found.is_empty())>
                     <button
                         class="btn btn-sm btn-accent"
-                        disabled=move || busy.get() || app_settings.get().duplicate_limbo_path.is_empty()
+                        disabled=move || busy.get() || app_settings.get().duplicates_path.is_empty()
                         title=move || {
-                            let limbo = app_settings.get().duplicate_limbo_path;
-                            if limbo.is_empty() {
-                                "Set the Duplicate Limbo Path in Config first".to_string()
+                            let folder = app_settings.get().duplicates_path;
+                            if folder.is_empty() {
+                                "Set the Duplicate Replays Folder in Config first".to_string()
                             } else {
-                                format!("Moves the duplicates to {limbo}, with the directories they were found in, nothing is deleted")
+                                format!("Moves the duplicates to {folder}, with the directories they were found in, nothing is deleted")
                             }
                         }
-                        on:click=move_to_limbo
+                        on:click=move_to_duplicates
                     >
-                        "Move to the duplicate limbo"
+                        "Move to the duplicates folder"
                     </button>
                 </Show>
                 <span class="text-sm text-gray-400">{move || status.get()}</span>
             </div>
-            <Show when=move || app_settings.get().duplicate_limbo_path.is_empty()>
+            <Show when=move || app_settings.get().duplicates_path.is_empty()>
                 <p class="text-xs text-gray-500">
-                    "Set the Duplicate Limbo Path in Config to move the duplicates out of the replay path."
+                    "Set the Duplicate Replays Folder in Config to move the duplicates out of the replay path."
                 </p>
             </Show>
             {move || duplicates.get().filter(|found| !found.is_empty()).map(|found| {

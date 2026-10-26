@@ -25,10 +25,10 @@ replays of the RSL season:
 | Time | Step |
 |------|------|
 | 0:00 | Home |
-| 0:09 | Config: the map caches, the replays, the duplicate limbo and the new replays watcher |
+| 0:09 | Config: the map caches, the replays, the duplicate replays folder and the new replays watcher |
 | 0:25 | Scan |
 | 0:35 | Optimize |
-| 0:51 | Duplicates moved to the limbo |
+| 0:51 | Duplicates moved to the duplicates folder |
 | 1:10 | Map List, sorted by games |
 | 1:17 | Map Details |
 | 1:26 | Replay List of the PvT games of the map |

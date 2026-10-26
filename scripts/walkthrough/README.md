@@ -8,11 +8,11 @@ ImageMagick (`import`, `magick`) and `ffmpeg`.
 # A swarmy release build with its sidecars next to it.
 NO_STRIP=true cargo tauri build --no-bundle
 # The replays to show, a directory with replays and nothing else (the snapshot is written in it),
-# the map caches, and the duplicate limbo outside of the replays: the duplicates moved there are
+# the map caches, and the duplicate replays folder outside of the replays: the duplicates moved there are
 # moved back to the replays at the start of the next recording.
 export WALKTHROUGH_REPLAYS=~/SC2Replays/Demo
 export WALKTHROUGH_MAP_CACHES=~/SC2Replays/swarmy
-export WALKTHROUGH_LIMBO=~/SC2Replays/Demo-limbo
+export WALKTHROUGH_DUPLICATES=~/SC2Replays/Demo-duplicates
 scripts/walkthrough/headless.sh start
 scripts/walkthrough/record.sh
 scripts/walkthrough/headless.sh stop
