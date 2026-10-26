@@ -97,18 +97,28 @@ pub async fn try_optimize_replay_path(
             }
         }
     });
-    let result = ArrowIpcTypes::handle_arrow_ipc_cmd_with_progress(
-        path,
-        destination.clone(),
-        &props,
-        &versioned_abilities,
-        disable_parallelism,
-        cache_path.clone(),
-        Some(progress_tx),
-    )
+    // The snapshot reads the replays without yielding until the map caches, on a worker of the
+    // runtime it would block the progress forwarding spawned from it, so nothing would be shown
+    // until every new replay header was read. It runs on a blocking thread instead.
+    let runtime = tokio::runtime::Handle::current();
+    let snapshot_destination = destination.clone();
+    let snapshot_cache_path = cache_path.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        runtime
+            .block_on(ArrowIpcTypes::handle_arrow_ipc_cmd_with_progress(
+                path,
+                snapshot_destination,
+                &props,
+                &versioned_abilities,
+                disable_parallelism,
+                snapshot_cache_path,
+                Some(progress_tx),
+            ))
+            .map(|_| ())
+            .map_err(|err| format!("Error optimizing the replays: {err}"))
+    })
     .await
-    .map(|_| ())
-    .map_err(|err| format!("Error optimizing the replays: {err}"));
+    .unwrap_or_else(|err| Err(format!("The optimize task failed: {err}")));
     // The sender is dropped with the snapshot, so the forwarding ends after the last update.
     let _ = forward_progress.await;
     result.map_err(SwarmyError::Other)?;

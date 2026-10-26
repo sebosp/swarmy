@@ -39,6 +39,10 @@ swarmy -vvv   # trace, everything
 SWARMY_LOG=info,swarmy_tauri_lib=trace swarmy
 ```
 
+s2protocol, the library that reads the replays, stays at `warn` with `-v`, `-vv` and `-vvv`: its
+`debug` logs are every field of every replay read, gigabytes for a single Optimize. Only enable them with
+`SWARMY_LOG` for a few replays, i.e. `SWARMY_LOG=info,s2protocol=debug`.
+
 The time spans show up as `close time.busy=... time.idle=...` lines, a slow start or view can be
 found by looking for the largest ones, or for a gap between the timestamps. On Windows the app
 does not print to the console, run it from PowerShell and read the log file:

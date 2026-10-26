@@ -8,6 +8,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
         "2026-10-26",
         &[
             "Faster start: the frontend is built in release mode, it was a 160 MB debug build that took seconds to load.",
+            "Optimize shows its progress right away, it was only shown after the headers of all the new replays were read, a long wait the first time a directory is optimized.",
             "Logs: a log file per day in the logs directory of the app, -v, -vv and -vvv for more logs and the time each step takes, or a filter in SWARMY_LOG. See Troubleshooting in Help.",
             "Replay Detail: without a replay chosen the newest one is shown. Previous and Next go through the replays by date, the map and players can be locked so that they are of the same map and players.",
             "Replay Detail: notes, a 5 stars rating and tags for each replay, kept in a personal DuckDB database by the sha256 of the replay. The Replay List filters by tag and rating and shows them.",

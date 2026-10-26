@@ -44,7 +44,7 @@ impl<'writer> FormatFields<'writer> for FileFields {
     log_dir().map(|dir| dir.display().to_string()).unwrap_or_default()
 ))]
 pub struct Args {
-    /// More logs: -v info, -vv debug and the time each step takes, -vvv trace.
+    /// More logs: -v info, -vv debug and the time each step takes, -vvv trace (s2protocol stays at warn).
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
 }
@@ -59,12 +59,15 @@ pub fn log_dir() -> Option<PathBuf> {
 }
 
 /// The filter for the verbosity: swarmy itself logs info by default, the libraries warnings.
+/// s2protocol stays at warn, its debug logs are every field of every replay read and its map
+/// cache span repeats every replay in each event (until s2protocol 3.6.1), gigabytes for an
+/// Optimize, they can still be enabled with SWARMY_LOG.
 fn verbosity_filter(verbose: u8) -> &'static str {
     match verbose {
         0 => "warn,swarmy_tauri_lib=info",
-        1 => "info",
-        2 => "debug",
-        _ => "trace",
+        1 => "info,s2protocol=warn",
+        2 => "debug,s2protocol=warn",
+        _ => "trace,s2protocol=warn",
     }
 }
 
