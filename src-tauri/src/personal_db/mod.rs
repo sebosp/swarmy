@@ -292,6 +292,8 @@ mod tests {
         let summaries = notes_summaries(&conn, &["abc".to_string()]).unwrap();
         assert_eq!(summaries["abc"].0, Some(4));
         assert!(!summaries.contains_key("def"));
+        // The database checkpoints when it is closed, its directory must still exist then.
+        conn.close().map_err(|(_, err)| err).unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
