@@ -18,6 +18,33 @@ Then, in swarmy:
 2. **Scan**, then **Optimize** to generate the snapshot.
 3. Explore the views, the **Help** view explains each of them.
 
+## Logs
+
+swarmy writes a log file per day, `swarmy.<date>.log`, and keeps the last 7:
+
+| Platform | Directory |
+|----------|-----------|
+| Linux    | `~/.local/share/com.swarmy/logs` (`$XDG_DATA_HOME/com.swarmy/logs`) |
+| Windows  | `%LOCALAPPDATA%\com.swarmy\logs` |
+| macOS    | `~/Library/Logs/com.swarmy` |
+
+The logs are also printed when swarmy is started from a terminal. By default swarmy logs what it
+does and the libraries only their warnings, the verbosity flags give more:
+
+```bash
+swarmy -v     # info of every library
+swarmy -vv    # debug, and the time each step takes: the setup, the plugins, each request of the views
+swarmy -vvv   # trace, everything
+# A filter of tracing-subscriber's EnvFilter instead of -v, i.e. only swarmy in detail:
+SWARMY_LOG=info,swarmy_tauri_lib=trace swarmy
+```
+
+The time spans show up as `close time.busy=... time.idle=...` lines, a slow start or view can be
+found by looking for the largest ones, or for a gap between the timestamps. On Windows the app
+does not print to the console, run it from PowerShell and read the log file:
+`& "$env:LOCALAPPDATA\swarmy\swarmy.exe" -vv` for the `-setup.exe` installer, or
+`& "C:\Program Files\swarmy\swarmy.exe" -vv` for the `.msi`.
+
 ## Building from the sources
 
 See [Development](Development.md).

@@ -46,7 +46,7 @@ More in [Screenshots](docs/Screenshots.md).
 
 ## Documentation
 
-- [Installation](docs/Installation.md): the releases, the first steps and the sidecars.
+- [Installation](docs/Installation.md): the releases, the first steps, the sidecars and the logs.
 - [Screenshots](docs/Screenshots.md) of every view.
 - [Statistics](docs/Statistics.md): what the snapshot has and what swarmy shows from it.
 - [Roadmap](docs/Roadmap.md): the ideas for casters and what is left to do.

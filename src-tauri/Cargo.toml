@@ -20,10 +20,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 nom-mpq = "2.0.7"
 swarmy-common = { path = "../swarmy-common" }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tracing"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
-tauri-plugin-log = "2"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-persisted-scope = "2"
 tauri-plugin-store = "2"
@@ -39,6 +38,10 @@ uuid = { version = "1", features = ["v4"] }
 rayon = "1"
 png = "0.18"
 base64 = "0.22"
+clap = { version = "4.6.7", features = ["derive"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-appender = "0.2.5"
+dirs = "7.0.0"
 
 [dev-dependencies]
 test-log = { version = "0.2", default-features = false, features = ["trace"] }

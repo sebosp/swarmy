@@ -39,6 +39,22 @@ const GETTING_STARTED: [Entry; 4] = [
     ),
 ];
 
+const TROUBLESHOOTING: [Entry; 2] = [
+    (
+        "Logs",
+        "swarmy writes a log file per day, the last 7 are kept: in ~/.local/share/com.swarmy/logs \
+         on Linux, %LOCALAPPDATA%\\com.swarmy\\logs on Windows and ~/Library/Logs/com.swarmy on \
+         macOS. They are also printed when swarmy is started from a terminal.",
+    ),
+    (
+        "Verbosity",
+        "Start swarmy with -v for more logs, -vv to also log the time each step takes (the \
+         setup, the plugins and each request of the views), -vvv for everything. The SWARMY_LOG \
+         environment variable takes a filter instead, i.e. \
+         SWARMY_LOG=info,swarmy_tauri_lib=trace. swarmy --help shows the options.",
+    ),
+];
+
 const VIEWS: [Entry; 15] = [
     (
         "Map List",
@@ -276,6 +292,7 @@ pub fn Help() -> impl IntoView {
             <Panel title="Getting started">{entries(&GETTING_STARTED)}</Panel>
             <Panel title="Views">{entries(&VIEWS)}</Panel>
             <Panel title="How the statistics are calculated">{entries(&LOGIC)}</Panel>
+            <Panel title="Troubleshooting">{entries(&TROUBLESHOOTING)}</Panel>
         </div>
     }
 }

@@ -12,6 +12,7 @@ pub mod map_stats;
 pub use map_stats::*;
 pub mod data;
 pub mod duplicates;
+pub mod logging;
 pub mod majordomo;
 pub mod map_details;
 pub mod map_scout;
@@ -44,17 +45,12 @@ pub struct SetupState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    logging::init(&<logging::Args as clap::Parser>::parse());
     let (majordomo_tx, majordomo_rx) = mpsc::channel(4_096); // TODO: Magic number removal
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Error)
-                .build(),
-        )
         .manage(SetupState { majordomo_tx })
         .manage(RerunViewerState::default())
         .manage(replay_watcher::ReplayWatcherState::default())
