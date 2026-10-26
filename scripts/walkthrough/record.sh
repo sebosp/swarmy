@@ -10,17 +10,21 @@ OUT="$ROOT/target/walkthrough"
 PROFILE="$OUT/profile"
 : "${WALKTHROUGH_REPLAYS:?the directory of the replays to show}"
 : "${WALKTHROUGH_MAP_CACHES:?the directory of the map caches}"
-: "${WALKTHROUGH_BALANCE_DATA:?the directory of the balance data}"
+: "${WALKTHROUGH_LIMBO:?the duplicate limbo directory, outside of the replays}"
 export DISPLAY=:7
 
-# The snapshot is generated from scratch with the new profile.
+# The snapshot is generated from scratch with the new profile, the duplicates are moved again.
 rm -rf "$OUT" "$WALKTHROUGH_REPLAYS/ipcs"
+if [[ -d "$WALKTHROUGH_LIMBO" ]]; then
+  cp -a "$WALKTHROUGH_LIMBO/." "$WALKTHROUGH_REPLAYS/"
+  rm -rf "${WALKTHROUGH_LIMBO:?}"/*
+fi
 mkdir -p "$PROFILE"/{data,config,cache}
 
 # The coordinates are the ones of the 1000x800 window, drawn at 2x.
 click() { xdotool mousemove $(($1 * 2)) $(($2 * 2)); sleep 0.4; xdotool click 1; sleep "${3:-1}"; }
 move() { xdotool mousemove $(($1 * 2)) $(($2 * 2)); sleep "${3:-0.5}"; }
-type_text() { xdotool type --delay 20 "$1"; }
+type_text() { xdotool type --delay "${2:-20}" "$1"; }
 scroll() { move 500 "${3:-500}" 0.2; for _ in $(seq "$2"); do xdotool click "$1"; sleep 0.15; done; sleep 1; }
 snap() { import -window root "$OUT/$1.png"; }
 START=$(date +%s)
@@ -39,15 +43,15 @@ sleep 6
 snap home
 sleep 2
 
-chapter "Config: the map caches, the replays and the balance data"
-click 22 498 2
+chapter "Config: the map caches, the replays, the duplicate limbo and the new replays watcher"
+click 22 536 2
 click 308 202 1
 click 530 281 0.5
 type_text "$WALKTHROUGH_MAP_CACHES"
 xdotool key Tab; sleep 0.3
 type_text "$WALKTHROUGH_REPLAYS"
 xdotool key Tab; sleep 0.3
-type_text "$WALKTHROUGH_BALANCE_DATA"
+type_text "$WALKTHROUGH_LIMBO"
 sleep 1
 snap config
 scroll 5 5
@@ -73,10 +77,17 @@ sleep 4
 snap optimize
 scroll 5 6
 sleep 2
-snap snapshot_statistics
 scroll 4 6
 
 # Without new replays the banner is gone, the views are 32 pixels higher from here.
+chapter "Duplicates moved to the limbo"
+# The Scan view is opened again to show the snapshot statistics and the duplicates.
+click 22 21 2
+click 22 60 3
+click 228 531 6
+snap duplicates
+click 404 531 5
+
 chapter "Map List, sorted by games"
 click 22 104 3
 click 450 119 1
@@ -90,18 +101,52 @@ sleep 2
 
 chapter "Replay List of the PvT games of the map"
 click 600 221 5
-click 645 121 3
 snap replay_list
 sleep 1
 
-chapter "Replay Detail"
-click 64 172 9
+chapter "Replay Detail: notes, rating, tags, locks, previous and next"
+click 64 235 9
+click 239 200 0.5
+click 272 200 1
+click 520 260 0.5
+type_text "Great PvT to show between the games of the series" 25
+click 480 326 0.5
+type_text "finals, comeback" 25
+click 946 326 2
 snap replay_detail
+click 352 41 1
+click 119 41 8
+click 215 41 8
+snap replay_detail_locked
 scroll 5 8
 snap replay_detail_charts
 scroll 5 8
 sleep 1
 scroll 4 16
+
+chapter "Replay List: tags and chat messages"
+click 22 180 4
+click 522 116 1
+type_text "finals"
+xdotool key Return
+sleep 3
+snap replay_list_tag
+click 522 116 1
+type_text "Any"
+xdotool key Return
+sleep 2
+click 144 50 0.5
+xdotool key ctrl+a BackSpace
+sleep 2
+click 475 52 1
+type_text "Any"
+xdotool key Return
+sleep 3
+click 240 114 0.5
+type_text "glhf" 60
+xdotool key Return
+sleep 6
+snap replay_list_messages
 
 chapter "Player"
 click 22 256 3
@@ -126,27 +171,57 @@ click 22 377 5
 snap unit_overview
 sleep 1
 
+chapter "Patch Evolution"
+click 22 415 5
+click 220 168 1
+type_text "Hatchery"
+xdotool key Return
+sleep 3
+click 113 212 3
+click 220 204 1
+type_text "CommandCenter"
+xdotool key Return
+sleep 2
+click 800 204 1
+type_text "Minerals"
+xdotool key Return
+sleep 2
+click 113 248 3
+click 220 240 1
+type_text "Adept"
+xdotool key Return
+sleep 2
+click 800 240 1
+type_text "Time"
+xdotool key Return
+sleep 3
+click 550 124 0.5
+type_text "Patch 98310"
+click 745 124 2
+snap patch_evolution
+sleep 2
+
 # The Rerun preview and swarmy-bevy of the last replay opened.
 chapter "Rerun preview"
 click 22 218 6
 scroll 4 16
-click 713 41 1
+click 713 103 1
 for _ in $(seq 60); do
   R=$(xdotool search --name '^Rerun$' | head -1)
   [ -n "$R" ] && break
   sleep 1
 done
 if [ -n "$R" ]; then
-  xdotool windowsize $R 2000 1600
+  xdotool windowsize "$R" 2000 1600
   sleep 14
   snap rerun
 fi
 # The viewer covers swarmy, it is closed before opening swarmy-bevy.
-kill $(pgrep -x rerun-cli) 2>/dev/null
+pkill -x rerun-cli
 sleep 2
 
-chapter "swarmy-bevy"
-click 888 41 1
+chapter "swarmy-bevy: the units died, born, of one unit type"
+click 888 103 1
 for _ in $(seq 30); do
   B=$(xdotool search --name '^swarmy-bevy$' | head -1)
   [ -n "$B" ] && break
@@ -154,13 +229,18 @@ for _ in $(seq 30); do
 done
 sleep 8
 if [ -n "$B" ]; then
-  xdotool windowsize $B 2000 1600
-  xdotool windowfocus $B
+  xdotool windowsize "$B" 2000 1600
+  xdotool windowfocus "$B"
   sleep 2
   for _ in $(seq 16); do xdotool key Right; sleep 0.5; done
   xdotool key End
   sleep 3
   snap swarmy_bevy
+  # The units born, of the most frequent unit type.
+  click 900 45 1.5
+  click 831 72 2
+  click 840 95 3
+  snap swarmy_bevy_unit
 fi
 chapter "End"
 sleep 1
