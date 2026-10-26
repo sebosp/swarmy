@@ -13,6 +13,7 @@
 // - data-chart-stack-type: "normal" or "100%" to stack the bars of the series.
 // - data-chart-y-max: the maximum of the y axis, so that several charts share the scale.
 // - data-chart-value-suffix: appended to the values, i.e. "%".
+// - data-chart-curve: the curve of the lines, "smooth" by default, "straight" or "stepline".
 (() => {
   if (window.__chartInitDone) return;
   window.__chartInitDone = true;
@@ -115,8 +116,10 @@
     },
     line: (container) => {
       const options = commonOptions(container, "line");
-      options.stroke = { curve: "smooth", width: 2 };
-      options.markers = { size: 0, hover: { size: 4 } };
+      const curve = container.dataset.chartCurve || "smooth";
+      options.stroke = { curve, width: 2 };
+      // The steps mark each value, i.e. each patch.
+      options.markers = { size: curve === "stepline" ? 3 : 0, hover: { size: 5 } };
       options.yaxis.min = undefined;
       return options;
     },
@@ -149,6 +152,8 @@
       container.dataset.chartSeriesNames,
       container.dataset.chartTooltips,
       container.dataset.chartYMax,
+      container.dataset.chartColors,
+      container.dataset.chartCurve,
     ].join("|");
 
   function checkAndInitCharts() {

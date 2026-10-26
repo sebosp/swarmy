@@ -44,6 +44,25 @@ fn SeriesEditor(
 ) -> impl IntoView {
     let items = RwSignal::new(Vec::<String>::new());
     let current = move || series.read().get(idx).cloned().unwrap_or_default();
+    // The values are set once the options exist, the selected attribute of the options is not
+    // enough when the editors are created again.
+    let unit_select = NodeRef::<leptos::html::Select>::new();
+    let item_select = NodeRef::<leptos::html::Select>::new();
+    let metric_select = NodeRef::<leptos::html::Select>::new();
+    Effect::new(move |_| {
+        let current = current();
+        units.track();
+        items.track();
+        if let Some(select) = unit_select.get() {
+            select.set_value(&current.unit);
+        }
+        if let Some(select) = item_select.get() {
+            select.set_value(&current.item);
+        }
+        if let Some(select) = metric_select.get() {
+            select.set_value(current.metric.label());
+        }
+    });
     // The items of the unit, loaded when the unit changes.
     Effect::new(move |_| {
         let unit_name = current().unit;
@@ -70,6 +89,7 @@ fn SeriesEditor(
             <span class="inline-block w-3 h-3 rounded-full" style=format!("background: {}", series_color(idx))></span>
             <select
                 class=SELECT_CLASS
+                node_ref=unit_select
                 on:change=move |ev| {
                     let unit = event_target_value(&ev);
                     update(&|entry| {
@@ -79,24 +99,34 @@ fn SeriesEditor(
                 }
             >
                 {move || units.get().into_iter().map(|unit| {
-                    let selected = unit.name == current().unit;
-                    view! { <option value=unit.name.clone() selected=selected>{format!("{} ({})", unit.name, unit.race)}</option> }
+                    let name = unit.name.clone();
+                    view! {
+                        <option value=unit.name.clone() prop:selected=move || current().unit == name>
+                            {format!("{} ({})", unit.name, unit.race)}
+                        </option>
+                    }
                 }).collect_view()}
             </select>
             <select
                 class=SELECT_CLASS
+                node_ref=item_select
                 on:change=move |ev| {
                     let item = event_target_value(&ev);
                     update(&|entry| entry.item = item.clone())
                 }
             >
                 {move || items.get().into_iter().map(|item| {
-                    let selected = item == current().item;
-                    view! { <option value=item.clone() selected=selected>{item.clone()}</option> }
+                    let value = item.clone();
+                    view! {
+                        <option value=item.clone() prop:selected=move || current().item == value>
+                            {item.clone()}
+                        </option>
+                    }
                 }).collect_view()}
             </select>
             <select
                 class=SELECT_CLASS
+                node_ref=metric_select
                 on:change=move |ev| {
                     let metric = event_target_value(&ev);
                     let metric = EvolutionMetric::ALL
@@ -106,9 +136,12 @@ fn SeriesEditor(
                     update(&|entry| entry.metric = metric)
                 }
             >
-                {move || EvolutionMetric::ALL.into_iter().map(|metric| {
-                    let selected = metric == current().metric;
-                    view! { <option value=metric.label() selected=selected>{metric.label()}</option> }
+                {EvolutionMetric::ALL.into_iter().map(|metric| {
+                    view! {
+                        <option value=metric.label() prop:selected=move || current().metric == metric>
+                            {metric.label()}
+                        </option>
+                    }
                 }).collect_view()}
             </select>
             <button
@@ -201,7 +234,9 @@ pub fn PatchEvolutionView() -> impl IntoView {
                 (0..query.len())
                     .map(|idx| series_color(idx).to_string())
                     .collect(),
-            );
+            )
+            // The costs change from one patch to the next, they are not interpolated.
+            .with_curve("stepline");
         for (entry, values) in query.iter().zip(evolution.values) {
             chart = chart.with_optional_series(&entry.label(), values);
         }

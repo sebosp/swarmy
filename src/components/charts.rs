@@ -35,6 +35,8 @@ pub struct ChartData {
     pub value_suffix: String,
     /// `normal` or `100%` to stack the series, empty for side by side.
     pub stack_type: String,
+    /// The line curve, `smooth` by default, `straight` or `stepline`.
+    pub curve: String,
 }
 
 impl ChartData {
@@ -82,6 +84,11 @@ impl ChartData {
         self
     }
 
+    pub fn with_curve(mut self, curve: &str) -> Self {
+        self.curve = curve.to_string();
+        self
+    }
+
     pub fn stacked(mut self, stack_type: &str) -> Self {
         self.stack_type = stack_type.to_string();
         self
@@ -117,6 +124,7 @@ fn ApexChart(
             data-chart-y-max=data.y_max.map(|y_max| y_max.to_string())
             data-chart-value-suffix=data.value_suffix
             data-chart-stack-type=(!data.stack_type.is_empty()).then_some(data.stack_type)
+            data-chart-curve=(!data.curve.is_empty()).then_some(data.curve)
         ></div>
     }
 }
