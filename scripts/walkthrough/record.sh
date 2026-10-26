@@ -68,7 +68,7 @@ sleep 2
 chapter "Optimize"
 click 668 81 4
 snap optimize_progress
-# Optimize writes metadata.json at the end, 12 to 40 seconds for 834 replays.
+# Optimize writes metadata.json at the end, 12 to 40 seconds for 833 replays.
 for _ in $(seq 120); do
   [ -f "$WALKTHROUGH_REPLAYS/ipcs/metadata.json" ] && break
   sleep 1

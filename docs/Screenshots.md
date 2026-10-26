@@ -1,6 +1,6 @@
 # Screenshots
 
-Recorded with `scripts/walkthrough/`, with 834 replays of the RSL season.
+Recorded with `scripts/walkthrough/`, with 833 replays of the RSL season.
 
 | | |
 |---|---|
