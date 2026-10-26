@@ -2,6 +2,7 @@
 
 pub mod actions;
 pub mod arrow_ipc_stats;
+pub mod duplicates;
 pub mod mpq_file_scan;
 pub mod optimize_progress;
 pub mod view;

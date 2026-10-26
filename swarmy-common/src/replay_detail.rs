@@ -64,6 +64,38 @@ pub struct ReplayDetailQuery {
     pub ext_fs_id: u64,
 }
 
+/// The notes of the user about a replay, kept in the personal database by the sha256 of the replay.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ReplayNotes {
+    pub sha256: String,
+    /// From 1 to 5 stars, none when not rated.
+    pub rating: Option<u8>,
+    pub note: String,
+    pub tags: Vec<String>,
+}
+
+/// Which replay to go to from the current one, by the date the games were played.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayStep {
+    /// The newest replay.
+    #[default]
+    Latest,
+    Previous,
+    Next,
+}
+
+/// The replay before or after the current one, of the locked map and players.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct AdjacentReplayQuery {
+    /// The current replay, none for the newest one.
+    pub ext_fs_id: Option<u64>,
+    pub step: ReplayStep,
+    /// The replays of this map only.
+    pub map_title: Option<String>,
+    /// The replays of all these players only, as stored in the replay.
+    pub player_names: Vec<String>,
+}
+
 /// A player of the replay.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ReplayPlayer {
@@ -276,6 +308,8 @@ pub struct Engagement {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ReplayDetail {
     pub ext_fs_id: u64,
+    /// The sha256 of the replay file, the same in every snapshot, the notes are kept by it.
+    pub sha256: String,
     pub map_title: String,
     pub replay_date: String,
     pub replay_location: String,

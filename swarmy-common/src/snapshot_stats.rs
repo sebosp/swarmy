@@ -77,3 +77,11 @@ impl NewReplaysStatus {
         self.new_replays > 0 || self.outdated_days > 0
     }
 }
+
+/// A replay with the same contents as another one, found by Scan.
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct DuplicateReplay {
+    pub file: String,
+    /// The replay of the snapshot, or found first, with the same contents.
+    pub original: String,
+}

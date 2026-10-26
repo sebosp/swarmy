@@ -29,8 +29,8 @@ pub async fn set_current_app_config(
     store.set("process_max_files", app_settings.process_max_files);
     store.set("min_version", app_settings.min_version);
     store.set("max_version", app_settings.max_version);
-    store.set("balance_data_path", app_settings.balance_data_path);
     store.set("watch_new_replays", app_settings.watch_new_replays);
+    store.set("duplicate_limbo_path", app_settings.duplicate_limbo_path);
     // The watcher follows the replay path and the watch setting.
     crate::replay_watcher::configure(&app_handle);
     Ok(())
@@ -109,17 +109,15 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
         .and_then(|v| v.as_i64())
         .unwrap_or(DEFAULT_MAX_VERSION);
 
-    let balance_data_path = store
-        .get("balance_data_path")
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .unwrap_or_default()
-        .trim_end_matches('/')
-        .to_string();
-
     let watch_new_replays = store
         .get("watch_new_replays")
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
+
+    let duplicate_limbo_path = store
+        .get("duplicate_limbo_path")
+        .and_then(|v| v.as_str().map(|s| s.trim_end_matches('/').to_string()))
+        .unwrap_or_default();
 
     Ok(AppSettings {
         replay_path,
@@ -131,8 +129,8 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
         traverse_max_depth,
         min_version,
         max_version,
-        balance_data_path,
         watch_new_replays,
+        duplicate_limbo_path,
     })
 }
 

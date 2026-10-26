@@ -23,8 +23,8 @@ fn to_json<T: serde::Serialize>(value: &T) -> String {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ChartData {
     pub labels: Vec<String>,
-    /// The name and the values of each series, the values align with the labels.
-    pub series: Vec<(String, Vec<f64>)>,
+    /// The name and the values of each series, the values align with the labels, none is a gap.
+    pub series: Vec<(String, Vec<Option<f64>>)>,
     /// The CSS colors of the series, [`CHART_COLORS`] when empty.
     pub colors: Vec<String>,
     /// The tooltip of each label, the values of the series when empty.
@@ -46,7 +46,19 @@ impl ChartData {
     }
 
     pub fn with_series(mut self, name: &str, values: Vec<f64>) -> Self {
+        self.series
+            .push((name.to_string(), values.into_iter().map(Some).collect()));
+        self
+    }
+
+    /// A series with gaps, i.e. the patches without the unit.
+    pub fn with_optional_series(mut self, name: &str, values: Vec<Option<f64>>) -> Self {
         self.series.push((name.to_string(), values));
+        self
+    }
+
+    pub fn with_owned_colors(mut self, colors: Vec<String>) -> Self {
+        self.colors = colors;
         self
     }
 
@@ -84,7 +96,7 @@ fn ApexChart(
     /// The tailwind classes of the container, its height is the height of the chart.
     class: &'static str,
 ) -> impl IntoView {
-    let values: Vec<&Vec<f64>> = data.series.iter().map(|(_, values)| values).collect();
+    let values: Vec<&Vec<Option<f64>>> = data.series.iter().map(|(_, values)| values).collect();
     let names: Vec<&String> = data.series.iter().map(|(name, _)| name).collect();
     // A single series is written as a flat array.
     let values_json = match values.as_slice() {

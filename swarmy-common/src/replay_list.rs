@@ -23,6 +23,12 @@ pub struct ReplayListEntry {
     pub player_results: Vec<String>,
     /// The race of each player in `player_list`.
     pub player_races: Vec<String>,
+    /// The sha256 of the replay file, the notes are kept by it.
+    pub replay_sha256: String,
+    /// The rating of the user, from 1 to 5 stars.
+    pub rating: Option<u8>,
+    /// The tags of the user.
+    pub tags: Vec<String>,
 }
 
 /// The replay list returns at most this many replays, the newest ones.
@@ -44,6 +50,8 @@ pub struct ReplayListFilters {
     pub protocol_versions: Vec<crate::GamesWins>,
     /// The years of the games in the snapshot, the newest first.
     pub years: Vec<i32>,
+    /// The tags of the user, the most used first.
+    pub tags: Vec<crate::GamesWins>,
 }
 
 /// The column the replay list is sorted by.
@@ -122,6 +130,12 @@ pub struct ReplayListQuery {
     pub protocol_version: Option<u32>,
     /// The players per team, i.e. 1 for 1v1 and 2 for 2v2.
     pub team_size: Option<u8>,
+    /// Part of a chat message of the game, ignoring the case.
+    pub message: String,
+    /// A tag of the user.
+    pub tag: String,
+    /// The minimum rating of the user, from 1 to 5 stars.
+    pub min_rating: Option<u8>,
     pub sort_by: ReplayListSort,
     pub descending: bool,
 }

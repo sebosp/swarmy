@@ -5,6 +5,18 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-10-26",
+        &[
+            "Replay Detail: without a replay chosen the newest one is shown. Previous and Next go through the replays by date, the map and players can be locked so that they are of the same map and players.",
+            "Replay Detail: notes, a 5 stars rating and tags for each replay, kept in a personal DuckDB database by the sha256 of the replay. The Replay List filters by tag and rating and shows them.",
+            "Replay List: search the chat messages of the games.",
+            "Scan: find the duplicate replays and move them to the Duplicate Limbo Path of Config, keeping their directories. Nothing is deleted.",
+            "Patch Evolution: lines of the costs of units and of what they train, build, research and upgrade over the patches, the queries can be saved.",
+            "The unit icons are embedded, the Balance Data Path is no longer needed.",
+            "swarmy-bevy: the bars of the units died or born, chosen in a dropdown, in the color of each player, a units panel to show the bars of one unit type, the map title at the top, clearer options and their help when started without a map.",
+        ],
+    ),
+    (
         "2026-10-25",
         &[
             "Optimize no longer shows the snapshot statistics as an error, the new replays banner ignores the copies of another replay that Optimize skips.",

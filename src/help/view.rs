@@ -10,11 +10,15 @@ const GETTING_STARTED: [Entry; 4] = [
     (
         "1. Config",
         "Set the directory with the replays (it is searched recursively) and the directory where \
-         the map caches (.s2ma files) are downloaded.",
+         the map caches (.s2ma files) are downloaded. The Duplicate Limbo Path, outside of the \
+         replay path, is where Scan moves the duplicate replays.",
     ),
     (
         "2. Scan",
-        "Counts the replays found and shows the statistics of the current snapshot.",
+        "Counts the replays found and shows the statistics of the current snapshot. Find \
+         duplicates lists the replays with the same contents as another one, by their sha256, \
+         and moves them to the Duplicate Limbo Path keeping the directories they were found in. \
+         Nothing is deleted.",
     ),
     (
         "3. Optimize",
@@ -35,7 +39,7 @@ const GETTING_STARTED: [Entry; 4] = [
     ),
 ];
 
-const VIEWS: [Entry; 13] = [
+const VIEWS: [Entry; 15] = [
     (
         "Map List",
         "The maps of the snapshot with their number of games and dates. The cube opens the map \
@@ -54,9 +58,12 @@ const VIEWS: [Entry; 13] = [
     (
         "Replay List",
         "The games of the snapshot, ▲ marks the winners and ▼ the losers. The dropdowns filter \
-         by 1v1 matchup (TvP and PvT are the same), game type, time frame and patch, the headers \
-         sort the replays (the newest first by default). The strategy button streams the replay \
-         to the Rerun viewer, the cube opens it in swarmy-bevy.",
+         by 1v1 matchup (TvP and PvT are the same), game type, time frame, patch, tag and \
+         rating, the headers sort the replays (the newest first by default). Message searches \
+         the chat of the games, press Enter: the messages of the replays are read the first \
+         time, then kept in the personal database. The Notes column has the rating and tags. \
+         The strategy button streams the replay to the Rerun viewer, the cube opens it in \
+         swarmy-bevy.",
     ),
     (
         "Replay Detail",
@@ -68,7 +75,16 @@ const VIEWS: [Entry; 13] = [
          townhall number, i.e. the second Nexus, is compared to the second Nexus of the other \
          games). Averages of fewer than 3 games are not shown. The army and bases of games \
          shorter than 10:00 are the ones at the end of the game. Load in swarmy-bevy shows the \
-         replay on its map.",
+         replay on its map. Without a replay chosen the newest one of the snapshot is shown, \
+         Previous and Next go through the replays by date, locking the map or players keeps \
+         them: the previous and next replays are of the locked map and players.",
+    ),
+    (
+        "Notes",
+        "A rating from 1 to 5 stars, notes and tags for each replay, saved in the personal \
+         database (swarmy.duckdb in the app data directory) by the sha256 of the replay, so they \
+         are kept when the snapshot is generated again. The Replay List filters by tag and \
+         rating. The database can be opened with DuckDB, i.e. from a notebook.",
     ),
     (
         "Player",
@@ -89,6 +105,13 @@ const VIEWS: [Entry; 13] = [
         "The unit properties that changed in a patch compared to the previous one.",
     ),
     (
+        "Patch Evolution",
+        "Lines of the costs of units, and of what they train, build, research and upgrade, over \
+         the patches: minerals, vespene, supply, time, whether it exists and its number of \
+         requirements. Add as many lines as needed, each one has its color. The queries can be \
+         saved by name in the settings and loaded later.",
+    ),
+    (
         "Unit Overview",
         "A unit in every patch. ▲ red: the unit costs more, or anything was added (i.e. a \
          requirement or a unit it is weak against). ▼ green: it costs less. For properties that \
@@ -102,13 +125,14 @@ const VIEWS: [Entry; 13] = [
     ),
     (
         "swarmy-bevy replay",
-        "The map is flattened, keeping the colors of its levels, and every 4x4 cells have a green \
-         bar for the units born and a red bar for the units died up to the current time, units \
-         that cost resources only. Move in time with < > or the Left/Right arrows (30 seconds), \
-         Home/End for the start/end. The players panel has their color, race and result, their \
-         upgrades with the time they finished, and their most effective unit and ability: the \
-         ability most of their killer units were last commanded. Hover an icon for its name, \
-         click a bar for its counts.",
+        "The map is flattened and drawn in grays, every 4x4 cells have a bar per player, in the \
+         color of the player, for the units died or born up to the current time (the dropdown, \
+         the units died by default), units that cost resources only. The units panel lists the \
+         unit types with their count, click one to see only its bars. Move in time with < > or \
+         the Left/Right arrows (30 seconds), Home/End for the start/end. The players panel has \
+         their color, race and result, their upgrades with the time they finished, and their \
+         most effective unit and ability: the ability most of their killer units were last \
+         commanded. Hover an icon for its name, click a bar for its unit types.",
     ),
     (
         "Rerun preview",
@@ -124,8 +148,8 @@ const VIEWS: [Entry; 13] = [
     ),
     (
         "Unit icons",
-        "The button textures of the balance data exported from the SC2 editor, \
-         BalanceData/<patch>/Assets/Textures, set in Config or found next to the replay path.",
+        "The button textures of the balance data exported from the SC2 editor, embedded in \
+         s2protocol, nothing to configure.",
     ),
     (
         "Times",

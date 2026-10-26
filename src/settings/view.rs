@@ -11,8 +11,7 @@ pub fn Config() -> impl IntoView {
     let (_app_settings, set_app_settings) = signal(AppSettings::default());
     let replay_path = RwSignal::new("".to_string());
     let cache_path = RwSignal::new("".to_string());
-    let balance_data_path = RwSignal::new("".to_string());
-    let unit_icons = use_context::<crate::components::unit_icon::UnitIconsContext>();
+    let duplicate_limbo_path = RwSignal::new("".to_string());
     let disable_parallelism = RwSignal::new(DEFAULT_DISABLE_PARALLELISM);
     let traverse_max_depth = RwSignal::new(DEFAULT_TRAVERSE_MAX_DEPTH);
     let scan_max_files = RwSignal::new(DEFAULT_SCAN_MAX_FILES);
@@ -29,7 +28,7 @@ pub fn Config() -> impl IntoView {
         move |settings: AppSettings| {
             *replay_path.write() = settings.replay_path.clone();
             *cache_path.write() = settings.cache_path.clone();
-            *balance_data_path.write() = settings.balance_data_path.clone();
+            *duplicate_limbo_path.write() = settings.duplicate_limbo_path.clone();
             *disable_parallelism.write() = settings.disable_parallelism;
             *traverse_max_depth.write() = settings.traverse_max_depth;
             *scan_max_files.write() = settings.scan_max_files;
@@ -168,10 +167,10 @@ pub fn Config() -> impl IntoView {
                     value=replay_path
                 />
                 <ConfigStringInput
-                    name="balance_data_path"
-                    label="Balance Data Path"
-                    description="The balance data exported from the SC2 editor, a directory per patch version with Assets/Textures, i.e. ~/SC2Replays/BalanceData. The unit button icons are read from it. When empty, BalanceData inside or next to the replay path is used."
-                    value=balance_data_path
+                    name="duplicate_limbo_path"
+                    label="Duplicate Limbo Path"
+                    description="Scan moves the duplicate replays here, with the directories they were found in, outside of the replay path. Nothing is deleted."
+                    value=duplicate_limbo_path
                     optional=true
                 />
                 <ConfigNumberInput
@@ -211,18 +210,20 @@ pub fn Config() -> impl IntoView {
                         on:click=move |ev: MouseEvent| {
                             ev.prevent_default();
                             trigger_set_current_app_config(
-                                cache_path.get(),
-                                replay_path.get(),
-                                balance_data_path.get(),
-                                disable_parallelism.get(),
-                                traverse_max_depth.get(),
-                                scan_max_files.get(),
-                                process_max_files.get(),
-                                min_version.get(),
-                                max_version.get(),
-                                watch_new_replays.get(),
+                                AppSettings {
+                                    cache_path: cache_path.get(),
+                                    replay_path: replay_path.get(),
+                                    duplicate_limbo_path: duplicate_limbo_path.get(),
+                                    disable_parallelism: disable_parallelism.get(),
+                                    traverse_max_depth: traverse_max_depth.get(),
+                                    scan_max_files: scan_max_files.get(),
+                                    process_max_files: process_max_files.get(),
+                                    min_version: min_version.get(),
+                                    max_version: max_version.get(),
+                                    watch_new_replays: watch_new_replays.get(),
+                                    ..Default::default()
+                                },
                                 set_backend_response,
-                                unit_icons,
                             )
                         }
                     >

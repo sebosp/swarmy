@@ -2,6 +2,7 @@
 
 use super::actions::*;
 use super::arrow_ipc_stats::ArrowIpcStats;
+use super::duplicates::DuplicatesPanel;
 use super::mpq_file_scan::ReplayScanTable;
 use super::optimize_progress::OptimizeProgress;
 use super::*;
@@ -166,6 +167,7 @@ pub fn ScanDirectory() -> impl IntoView {
                 <Show when=move || { activity_stage.get() >= ActivityStage::OptimizeDone }>
                     <ArrowIpcStats snapshot_stats=snapshot_stats />
                 </Show>
+                <DuplicatesPanel app_settings />
             </div>
         </div>
     }

@@ -1,4 +1,5 @@
 pub mod data;
+use crate::personal_db::{db_error, filter_replays, list_tags, messages, notes_summaries, with_db};
 use crate::replay_rerun::viewer::{ensure_viewer_running, stream_replay_to_viewer};
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
@@ -15,9 +16,52 @@ pub async fn query_replay_list(
     let app_config = load_stored_app_settings(&app_handle)?;
     run_query(move || {
         let res = ApiResponseBuilder::new();
-        res.process_result(try_query_replay_list(app_config.replay_path, query))
+        res.process_result(query_replays_with_notes(
+            &app_handle,
+            app_config.replay_path,
+            query,
+        ))
     })
     .await
+}
+
+/// The replays of the query, filtered and annotated with the notes, tags and messages of the
+/// personal database.
+fn query_replays_with_notes(
+    app_handle: &tauri::AppHandle,
+    replay_path: String,
+    query: ReplayListQuery,
+) -> Result<ReplayList, SwarmyError> {
+    let replays = with_db(app_handle, |conn| {
+        let mut replays = filter_replays(conn, &query.tag, query.min_rating).map_err(db_error)?;
+        let message = query.message.trim();
+        if !message.is_empty() {
+            // The messages of the new replays are read the first time they are searched.
+            messages::index_messages(conn, &replay_path)?;
+            let found = messages::search_messages(conn, message).map_err(db_error)?;
+            replays = Some(match replays {
+                Some(replays) => replays.intersection(&found).cloned().collect(),
+                None => found,
+            });
+        }
+        Ok(replays)
+    })?;
+    let mut list = try_query_replay_list(replay_path, query, replays)?;
+    let sha256s: Vec<String> = list
+        .replays
+        .iter()
+        .map(|replay| replay.replay_sha256.clone())
+        .collect();
+    let summaries = with_db(app_handle, |conn| {
+        notes_summaries(conn, &sha256s).map_err(db_error)
+    })?;
+    for replay in &mut list.replays {
+        if let Some((rating, tags)) = summaries.get(&replay.replay_sha256) {
+            replay.rating = *rating;
+            replay.tags = tags.clone();
+        }
+    }
+    Ok(list)
 }
 
 /// The patches and years of the snapshot, for the dropdowns of the replay list.
@@ -30,6 +74,7 @@ pub async fn list_replay_filters(app_handle: tauri::AppHandle) -> Result<ApiResp
                 Ok(ReplayListFilters {
                     protocol_versions,
                     years: try_list_years(app_config.replay_path)?,
+                    tags: with_db(&app_handle, |conn| list_tags(conn).map_err(db_error))?,
                 })
             },
         );
