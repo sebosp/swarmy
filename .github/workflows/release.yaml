@@ -57,15 +57,16 @@ jobs:
 
       # .cargo/config.toml links with clang and mold on Linux. The mold 1.0 of Ubuntu 22.04
       # mislinks the bundled DuckDB, which aborts when a database is opened, so a release of
-      # mold is installed instead.
+      # mold is installed instead, in /opt so that /usr/local stays writable for npm.
       - name: Install the Tauri dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf clang
+          sudo mkdir -p /opt/mold
           curl -sSfL "https://github.com/rui314/mold/releases/download/v2.40.4/mold-2.40.4-$(uname -m)-linux.tar.gz" \
-            | sudo tar -xz --strip-components=1 -C /usr/local
-          sudo ln -sf /usr/local/bin/mold /usr/bin/mold
+            | sudo tar -xz --strip-components=1 -C /opt/mold
+          sudo ln -sf /opt/mold/bin/mold /usr/bin/mold
           mold --version
 
       - name: Install trunk
