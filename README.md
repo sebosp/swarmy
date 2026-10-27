@@ -19,28 +19,28 @@ through the replays of a series while casting.
 
 [![The swarmy walkthrough video](docs/screenshots/replay_detail.png)](docs/walkthrough.mp4)
 
-[The walkthrough video](docs/walkthrough.mp4) (5:23) goes from a fresh install through every view, with 833
+[The walkthrough video](docs/walkthrough.mp4) (5:19) goes from a fresh install through every view, with 833
 replays of the RSL season:
 
 | Time | Step |
 |------|------|
 | 0:00 | Home |
 | 0:09 | Config: the map caches, the replays, the duplicate replays folder and the new replays watcher |
-| 0:26 | Scan |
-| 0:36 | Optimize |
+| 0:31 | Scan |
+| 0:41 | Optimize |
 | 0:57 | Duplicates moved to the duplicates folder |
-| 1:15 | Map List, sorted by games |
+| 1:16 | Map List, sorted by games |
 | 1:23 | Map Details |
-| 1:31 | Replay List of the PvT games of the map |
+| 1:32 | Replay List of the PvT games of the map |
 | 1:38 | Replay Detail: notes, rating, tags, locks, previous and next |
-| 2:29 | Replay List: tags and chat messages |
-| 2:57 | Player |
-| 3:17 | Map Scout |
-| 3:24 | Patch Overview |
-| 3:29 | Unit Overview |
-| 3:35 | Patch Evolution |
-| 4:14 | Rerun preview |
-| 4:47 | swarmy-bevy: the units died, born, of one unit type |
+| 2:28 | Replay List: tags and chat messages |
+| 2:56 | Player |
+| 3:16 | Map Scout |
+| 3:23 | Patch Overview |
+| 3:28 | Unit Overview |
+| 3:34 | Patch Evolution |
+| 4:13 | Rerun preview |
+| 4:43 | swarmy-bevy: the units died, born, of one unit type |
 
 More in [Screenshots](docs/Screenshots.md).
 

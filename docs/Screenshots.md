@@ -4,7 +4,7 @@ Recorded with `scripts/walkthrough/`, with 833 replays of the RSL season.
 
 | | |
 |---|---|
-| ![Config](screenshots/config.png) Config: the paths, the duplicate replays folder and the new replays watcher | ![New replays](screenshots/new_replays_banner.png) The watcher tells that there are replays to Optimize |
+| ![Config](screenshots/config.png) Config: the paths, the duplicate replays folder with its amber tooltip and the new replays watcher | ![New replays](screenshots/new_replays_banner.png) The watcher tells that there are replays to Optimize |
 | ![Scan](screenshots/scan.png) Scan | ![Optimize](screenshots/optimize.png) Optimize and the snapshot statistics |
 | ![Duplicates](screenshots/duplicates.png) The duplicates, moved to the duplicates folder | ![Map List](screenshots/map_list.png) Map List |
 | ![Map Details](screenshots/map_details.png) Map Details | ![Replay List](screenshots/replay_list.png) Replay List, filtered by map and matchup |

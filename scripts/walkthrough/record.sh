@@ -53,7 +53,10 @@ type_text "$WALKTHROUGH_REPLAYS"
 xdotool key Tab; sleep 0.3
 type_text "$WALKTHROUGH_DUPLICATES"
 sleep 1
+# The amber tooltip of the Duplicate Replays Folder explains it.
+move 785 392 5
 snap config
+move 900 300
 scroll 5 5
 click 530 756 3
 snap new_replays_banner
