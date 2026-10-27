@@ -1,5 +1,6 @@
 //! Build orders, expansions, resources, engagements, macro, unit choices and chat of a replay.
 
+use super::notes::ReplayNotesPanel;
 use crate::components::charts::{BarChart, ChartData};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
@@ -12,7 +13,9 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, CUBE, STRATEGY};
+use phosphor_leptos::{
+    Icon, IconWeight, CARET_LEFT, CARET_RIGHT, CUBE, LOCK_SIMPLE, LOCK_SIMPLE_OPEN, STRATEGY,
+};
 use swarmy_common::*;
 
 /// Build order entries after this game second are hidden unless the whole game is shown.
@@ -34,6 +37,10 @@ pub fn ReplayDetailView() -> impl IntoView {
     let loading = RwSignal::new(false);
     let hide_workers = RwSignal::new(false);
     let whole_game = RwSignal::new(false);
+    // Without a replay chosen, the newest one of the snapshot is shown.
+    if navigation.replay_id.get_untracked().is_none() {
+        go_to_replay(None, ReplayStep::Latest, error);
+    }
     Effect::new(move |_| {
         let Some(ext_fs_id) = navigation.replay_id.get() else {
             return;
@@ -58,15 +65,17 @@ pub fn ReplayDetailView() -> impl IntoView {
     });
     view! {
         <div class="p-2 space-y-3">
-            <Show when=move || navigation.replay_id.get().is_none()>
-                <p class="text-sm">"Choose a replay by its ID in the Replay List."</p>
+            <Show when=move || navigation.replay_id.get().is_none() && error.get().is_none()>
+                <p class="text-sm">"Looking for the newest replay of the snapshot..."</p>
             </Show>
             <Show when=move || loading.get()>
                 <Loading message="Analysing the replay..." />
             </Show>
             <ErrorMessage error />
             {move || detail.get().map(|detail| view! {
+                <ReplayNavigation detail=detail.clone() error />
                 <ReplayHeader detail=detail.clone() />
+                <ReplayNotesPanel sha256=detail.sha256.clone() />
                 <div class="flex gap-4 text-xs text-gray-400">
                     <label class="flex items-center gap-1">
                         <input type="checkbox" class="checkbox checkbox-xs" bind:checked=hide_workers />
@@ -84,6 +93,153 @@ pub fn ReplayDetailView() -> impl IntoView {
                 <Engagements engagements=detail.engagements />
                 <Messages messages=detail.messages />
             })}
+        </div>
+    }
+}
+
+/// Opens the replay before or after the current one, of the locked map and players, or the newest
+/// one.
+fn go_to_replay(ext_fs_id: Option<u64>, step: ReplayStep, error: RwSignal<Option<String>>) {
+    let navigation = use_navigation();
+    let locks = navigation.replay_locks.get_untracked();
+    let query = AdjacentReplayQuery {
+        ext_fs_id,
+        step,
+        map_title: locks.map_title,
+        player_names: locks.player_names,
+    };
+    spawn_local(async move {
+        #[derive(serde::Serialize)]
+        struct Args {
+            query: AdjacentReplayQuery,
+        }
+        match invoke_json::<Option<u64>>("query_adjacent_replay", &Args { query }).await {
+            Ok(Some(ext_fs_id)) => navigation.open_replay(ext_fs_id),
+            Ok(None) if step == ReplayStep::Latest => error.set(Some(
+                "There are no replays in the snapshot, Optimize them in Scan.".to_string(),
+            )),
+            Ok(None) => error.set(Some(
+                match step {
+                    ReplayStep::Previous => {
+                        "This is the first replay of the locked map and players."
+                    }
+                    _ => "This is the last replay of the locked map and players.",
+                }
+                .to_string(),
+            )),
+            Err(err) => error.set(Some(err)),
+        }
+    });
+}
+
+/// A lock toggle, a locked map or player is kept when going to the previous or next replay.
+#[component]
+fn LockToggle(locked: Signal<bool>, on_toggle: Callback<()>, title: &'static str) -> impl IntoView {
+    view! {
+        <button
+            class=move || if locked.get() { "btn btn-xs btn-accent" } else { "btn btn-xs btn-ghost" }
+            title=title
+            on:click=move |_| on_toggle.run(())
+        >
+            {move || if locked.get() {
+                view! { <Icon icon=LOCK_SIMPLE weight=IconWeight::Fill /> }.into_any()
+            } else {
+                view! { <Icon icon=LOCK_SIMPLE_OPEN weight=IconWeight::Light /> }.into_any()
+            }}
+        </button>
+    }
+}
+
+/// The previous and next replays, of the map and players that are locked.
+#[component]
+fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> impl IntoView {
+    let navigation = use_navigation();
+    let locks = navigation.replay_locks;
+    let ext_fs_id = detail.ext_fs_id;
+    let map_title = detail.map_title.clone();
+    let map_locked = {
+        let map_title = map_title.clone();
+        Signal::derive(move || locks.read().map_title.as_deref() == Some(map_title.as_str()))
+    };
+    let players = detail
+        .players
+        .iter()
+        .map(|summary| {
+            let player_name = summary.player.name.clone();
+            let locked = {
+                let player_name = player_name.clone();
+                Signal::derive(move || locks.read().player_names.contains(&player_name))
+            };
+            let toggle = {
+                let player_name = player_name.clone();
+                Callback::new(move |_| {
+                    locks.update(|locks| {
+                        if let Some(idx) = locks.player_names.iter().position(|name| *name == player_name) {
+                            locks.player_names.remove(idx);
+                        } else {
+                            locks.player_names.push(player_name.clone());
+                        }
+                    })
+                })
+            };
+            view! {
+                <span class="flex items-center gap-1">
+                    <LockToggle locked on_toggle=toggle title="Lock the player: the previous and next replays are of this player" />
+                    <ResultMarker result=summary.player.result.clone() />
+                    <PlayerLink player_name />
+                </span>
+            }
+        })
+        .collect_view();
+    let toggle_map = Callback::new(move |_| {
+        let map_title = map_title.clone();
+        locks.update(|locks| {
+            locks.map_title = if locks.map_title.as_deref() == Some(map_title.as_str()) {
+                None
+            } else {
+                Some(map_title)
+            };
+        })
+    });
+    view! {
+        <div class="flex flex-wrap items-center gap-3 rounded-md border border-white/15 bg-gray-800/40 p-2 text-sm">
+            <button
+                class="btn btn-sm btn-primary"
+                title="The previous replay by date, of the locked map and players"
+                on:click=move |_| {
+                    error.set(None);
+                    go_to_replay(Some(ext_fs_id), ReplayStep::Previous, error)
+                }
+            >
+                <Icon icon=CARET_LEFT weight=IconWeight::Bold />
+                "Previous"
+            </button>
+            <button
+                class="btn btn-sm btn-primary"
+                title="The next replay by date, of the locked map and players"
+                on:click=move |_| {
+                    error.set(None);
+                    go_to_replay(Some(ext_fs_id), ReplayStep::Next, error)
+                }
+            >
+                "Next"
+                <Icon icon=CARET_RIGHT weight=IconWeight::Bold />
+            </button>
+            <button
+                class="btn btn-sm btn-ghost"
+                title="The newest replay of the snapshot, of the locked map and players"
+                on:click=move |_| {
+                    error.set(None);
+                    go_to_replay(None, ReplayStep::Latest, error)
+                }
+            >
+                "Latest"
+            </button>
+            <span class="flex items-center gap-1">
+                <LockToggle locked=map_locked on_toggle=toggle_map title="Lock the map: the previous and next replays are on this map" />
+                <MapLink map_title=detail.map_title.clone() />
+            </span>
+            {players}
         </div>
     }
 }
@@ -204,7 +360,7 @@ fn section_band<V: IntoView + 'static>(
     let cells = players
         .iter()
         .map(|summary| {
-            view! { <div class=format!("scroll-section px-2 py-1 {height}")>{content(summary)}</div> }
+            view! { <div class=format!("scroll-section min-w-0 px-2 py-1 {height}")>{content(summary)}</div> }
         })
         .collect_view();
     view! {

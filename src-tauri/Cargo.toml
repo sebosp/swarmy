@@ -1,6 +1,6 @@
 [package]
 name = "swarmy"
-version = "0.1.0"
+version = "0.2.0"
 description = "Swarmy Tauri App"
 authors = ["Seb Ospina <kraige@gmail.com>"]
 edition = "2021"
@@ -20,10 +20,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 nom-mpq = "2.0.7"
 swarmy-common = { path = "../swarmy-common" }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tracing"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
-tauri-plugin-log = "2"
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-persisted-scope = "2"
 tauri-plugin-store = "2"
@@ -39,6 +38,10 @@ uuid = { version = "1", features = ["v4"] }
 rayon = "1"
 png = "0.18"
 base64 = "0.22"
+clap = { version = "4.6.7", features = ["derive"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-appender = "0.2.5"
+dirs = "7.0.0"
 
 [dev-dependencies]
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
@@ -46,11 +49,15 @@ test-log = { version = "0.2", default-features = false, features = ["trace"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 polars = { workspace = true }
 tokio = { version = "1", features = ["full"] }
-s2protocol = { workspace = true, features = ["dep_arrow"] }
+s2protocol = { workspace = true, features = ["dep_arrow", "textures"] }
 rerun = { version = "0.40", default-features = false, features = ["sdk"] }
 tracing = { workspace = true, features = [] }
 # Watches the replay directory for new replays, inotify on Linux.
 notify = "8"
+# The personal database of the replay notes, ratings, tags and chat messages.
+duckdb = { version = "1.20000", features = ["bundled"] }
+# The sha256 of the replays, the same as s2protocol's ext_fs_sha256.
+sha256 = "1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

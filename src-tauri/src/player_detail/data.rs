@@ -2,7 +2,9 @@
 
 use crate::data::*;
 use crate::replay_detail::data::unit_effectiveness;
-use crate::replay_rerun::decisions::{base_unit_name, has_cost, latest_balance_units, unit_cost};
+use crate::replay_rerun::decisions::{
+    base_unit_name_expr, latest_balance_units, unit_values_frame,
+};
 use polars::prelude::*;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
@@ -196,61 +198,73 @@ fn query_unit_effectiveness(
             col("control_player_id"),
             col("unit_tag_index"),
             col("unit_tag_recycle"),
-            col("unit_type_name"),
+            base_unit_name_expr("unit_type_name").alias("unit"),
         ])
-        .collect()?;
-    let born_ids = u64_values(&born, "ext_fs_id")?;
-    let control_player_ids = u8_values(&born, "control_player_id")?;
-    let tag_indexes = u32_values(&born, "unit_tag_index")?;
-    let tag_recycles = u32_values(&born, "unit_tag_recycle")?;
-    let unit_names = str_values(&born, "unit_type_name")?;
-    // The tracker player id of the player in each game, kills are attributed by it.
-    let mut player_ids: HashSet<(u64, u8)> = HashSet::new();
+        .cache();
     // Morphs, burrowing, etc register the same unit again, each unit is counted once.
-    let mut produced_units: HashSet<(u64, u32, u32, &str)> = HashSet::new();
-    let mut produced: BTreeMap<String, usize> = BTreeMap::new();
-    for idx in 0..born.height() {
-        if let Some(player_id) = control_player_ids[idx] {
-            player_ids.insert((born_ids[idx], player_id));
-        }
-        let name = base_unit_name(&unit_names[idx]);
-        if produced_units.insert((born_ids[idx], tag_indexes[idx], tag_recycles[idx], name)) {
-            *produced.entry(name.to_string()).or_default() += 1;
-        }
-    }
-
-    let died = scan_snapshot_ipc(ipc_path, UNIT_DIED_IPC)?
+    let produced = born
+        .clone()
+        .unique(
+            Some(cols([
+                "ext_fs_id",
+                "unit_tag_index",
+                "unit_tag_recycle",
+                "unit",
+            ])),
+            UniqueKeepStrategy::Any,
+        )
+        .group_by([col("unit")])
+        .agg([len().cast(DataType::UInt64).alias("produced")])
+        .collect()?;
+    // The tracker player id of the player in each game, kills are attributed by it.
+    let player_ids = born
+        .select([
+            col("ext_fs_id"),
+            col("control_player_id").alias("killer_player_id"),
+        ])
+        .drop_nulls(None)
+        .unique(None, UniqueKeepStrategy::Any);
+    let balance = latest_balance_units()?;
+    // Larva, eggs, broodlings, etc are not worth counting, they have no value.
+    let kills = scan_snapshot_ipc(ipc_path, UNIT_DIED_IPC)?
         .filter(is_in_replays(game_ids).and(col("killer_player_id").is_not_null()))
         .select([
             col("ext_fs_id"),
             col("killer_player_id"),
-            col("unit_killer_name"),
-            col("unit_died_name"),
+            base_unit_name_expr("unit_killer_name").alias("unit"),
+            base_unit_name_expr("unit_died_name").alias("died"),
+        ])
+        .join(
+            player_ids,
+            [col("ext_fs_id"), col("killer_player_id")],
+            [col("ext_fs_id"), col("killer_player_id")],
+            JoinArgs::new(JoinType::Inner),
+        )
+        .join(
+            unit_values_frame(balance)?.lazy(),
+            [col("died")],
+            [col("unit")],
+            JoinArgs::new(JoinType::Inner),
+        )
+        .group_by([col("unit")])
+        .agg([
+            len().cast(DataType::UInt64).alias("kills"),
+            col("value")
+                .sum()
+                .cast(DataType::UInt64)
+                .alias("value_killed"),
         ])
         .collect()?;
-    let died_ids = u64_values(&died, "ext_fs_id")?;
-    let killer_player_ids = u8_values(&died, "killer_player_id")?;
-    let killer_names = str_values(&died, "unit_killer_name")?;
-    let died_names = str_values(&died, "unit_died_name")?;
-    let balance = latest_balance_units()?;
-    let mut kills: BTreeMap<String, (usize, u32)> = BTreeMap::new();
-    for idx in 0..died.height() {
-        let Some(killer_player_id) = killer_player_ids[idx] else {
-            continue;
-        };
-        // Larva, eggs, broodlings, etc are not worth counting.
-        if !player_ids.contains(&(died_ids[idx], killer_player_id))
-            || !has_cost(balance, base_unit_name(&died_names[idx]))
-        {
-            continue;
-        }
-        let cost = unit_cost(balance, base_unit_name(&died_names[idx]));
-        let unit_kills = kills
-            .entry(base_unit_name(&killer_names[idx]).to_string())
-            .or_default();
-        unit_kills.0 += 1;
-        unit_kills.1 += cost.minerals + cost.vespene;
-    }
-    let units = unit_effectiveness(produced, &kills, balance);
-    Ok(units)
+    let produced: BTreeMap<String, usize> = str_values(&produced, "unit")?
+        .into_iter()
+        .zip(u64_values(&produced, "produced")?)
+        .map(|(unit, count)| (unit, count as usize))
+        .collect();
+    let kills: BTreeMap<String, (usize, u32)> = str_values(&kills, "unit")?
+        .into_iter()
+        .zip(u64_values(&kills, "kills")?)
+        .zip(u64_values(&kills, "value_killed")?)
+        .map(|((unit, kills), value)| (unit, (kills as usize, value as u32)))
+        .collect();
+    Ok(unit_effectiveness(produced, &kills, balance))
 }

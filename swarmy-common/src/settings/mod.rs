@@ -33,21 +33,18 @@ pub struct AppSettings {
     pub min_version: i64,
     /// The maximum SC2 patch version ot consider when creating the snapshot.
     pub max_version: i64,
-    /// The balance data exported from the SC2 editor, with a directory per patch version that
-    /// contains Assets/Textures with the button icons. When empty, BalanceData next to or inside
-    /// the replay path is used.
-    #[serde(default)]
-    pub balance_data_path: String,
     /// Watches the replay directory in the background for new replays, so that the user is told
     /// to Optimize the snapshot.
     #[serde(default)]
     pub watch_new_replays: bool,
+    /// Scan moves the duplicate replays to this directory, outside of the replay path, keeping the
+    /// directories they were found in. Nothing is deleted.
+    #[serde(default)]
+    pub duplicates_path: String,
 }
 
 /// The button icons of the units as PNG data URLs, by unit name.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct UnitIcons {
-    /// Where the textures were read from, empty when none were found.
-    pub textures_dir: String,
     pub icons: std::collections::BTreeMap<String, String>,
 }

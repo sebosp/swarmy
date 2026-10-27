@@ -11,6 +11,7 @@ pub const MAP_LIST_PAGE: &str = "Map List";
 pub const MAP_DETAILS_PAGE: &str = "Map Details";
 pub const PATCH_OVERVIEW_PAGE: &str = "Patch Overview";
 pub const UNIT_OVERVIEW_PAGE: &str = "Unit Overview";
+pub const PATCH_EVOLUTION_PAGE: &str = "Patch Evolution";
 pub const SCAN_PAGE: &str = "Scan";
 pub const REPLAY_LIST_PAGE: &str = "Replay List";
 pub const HELP_PAGE: &str = "Help";
@@ -37,6 +38,16 @@ pub struct Navigation {
     pub replay_time_frame: RwSignal<TimeFrame>,
     /// Set to run Optimize when the Scan view opens, from the new replays banner.
     pub optimize_requested: RwSignal<bool>,
+    /// The map and players locked in Replay Detail, the previous and next replays are of them.
+    pub replay_locks: RwSignal<ReplayLocks>,
+}
+
+/// The map and players locked in Replay Detail.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct ReplayLocks {
+    pub map_title: Option<String>,
+    /// The player names as stored in the replay.
+    pub player_names: Vec<String>,
 }
 
 impl Navigation {
@@ -52,6 +63,7 @@ impl Navigation {
             replay_query: RwSignal::new(ReplayListQuery::newest_first()),
             replay_time_frame: RwSignal::new(TimeFrame::AllTime),
             optimize_requested: RwSignal::new(false),
+            replay_locks: RwSignal::new(ReplayLocks::default()),
         }
     }
 

@@ -103,11 +103,12 @@ pub fn try_query_map_details(
         map_title: map_title.clone(),
         ..ReplayListQuery::newest_first()
     };
-    let mut recent_games: Vec<ReplayListEntry> = try_query_replay_list(replay_path, replay_query)?
-        .replays
-        .into_iter()
-        .filter(|game| game.map_title == map_title)
-        .collect();
+    let mut recent_games: Vec<ReplayListEntry> =
+        try_query_replay_list(replay_path, replay_query, None)?
+            .replays
+            .into_iter()
+            .filter(|game| game.map_title == map_title)
+            .collect();
     recent_games.truncate(RECENT_GAMES);
 
     let handles: Vec<String> = cache_handles.split(',').map(str::to_string).collect();

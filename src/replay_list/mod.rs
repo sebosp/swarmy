@@ -10,7 +10,8 @@ use swarmy_common::*;
 #[derive(Store, Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ReplayListDataTable {
     pub total: usize,
-    #[store(key: String = |row| row.sha256_sum.clone())]
+    // The replays are unique by id, the sha256_sum is the one of the map.
+    #[store(key: u64 = |row| row.ext_fs_id)]
     pub data: Vec<ReplayListEntry>,
     pub start: usize,
     pub end: usize,

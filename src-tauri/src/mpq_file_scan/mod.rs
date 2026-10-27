@@ -37,7 +37,6 @@ pub async fn optimize_replay_path(
     disable_parallelism: bool,
     recreate: bool,
 ) -> Result<ApiResponse, SwarmyError> {
-    let res = ApiResponseBuilder::new();
     let mdp_tx = state.majordomo_tx.clone();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
     // create a thread to scan the directory in the background:
@@ -54,8 +53,8 @@ pub async fn optimize_replay_path(
             ))
             .build());
     }
-    let snapshot_stats = res_rx.await?;
-    Ok(res.with_message(snapshot_stats.message).build())
+    // The response is a success or a failure of the snapshot already, with the stats as message.
+    Ok(res_rx.await?)
 }
 
 #[tracing::instrument(level = "debug")]
@@ -98,22 +97,33 @@ pub async fn try_optimize_replay_path(
             }
         }
     });
-    let result = ArrowIpcTypes::handle_arrow_ipc_cmd_with_progress(
-        path,
-        destination.clone(),
-        &props,
-        &versioned_abilities,
-        disable_parallelism,
-        cache_path.clone(),
-        Some(progress_tx),
-    )
+    // The snapshot reads the replays without yielding until the map caches, on a worker of the
+    // runtime it would block the progress forwarding spawned from it, so nothing would be shown
+    // until every new replay header was read. It runs on a blocking thread instead.
+    let runtime = tokio::runtime::Handle::current();
+    let snapshot_destination = destination.clone();
+    let snapshot_cache_path = cache_path.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        runtime
+            .block_on(ArrowIpcTypes::handle_arrow_ipc_cmd_with_progress(
+                path,
+                snapshot_destination,
+                &props,
+                &versioned_abilities,
+                disable_parallelism,
+                snapshot_cache_path,
+                Some(progress_tx),
+            ))
+            .map(|_| ())
+            .map_err(|err| format!("Error optimizing the replays: {err}"))
+    })
     .await
-    .map(|_| ())
-    .map_err(|err| format!("Error optimizing the replays: {err}"));
+    .unwrap_or_else(|err| Err(format!("The optimize task failed: {err}")));
     // The sender is dropped with the snapshot, so the forwarding ends after the last update.
     let _ = forward_progress.await;
     result.map_err(SwarmyError::Other)?;
-    // The replays added are no longer new.
+    // The replays added are no longer new, the copies and unreadable ones are not either.
+    crate::replay_watcher::record_skipped_replays(&replay_path);
     crate::replay_watcher::refresh(&app_handle_clone);
     // if the ipc directory exists do basic scan.
     let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));

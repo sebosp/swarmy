@@ -229,6 +229,7 @@ pub fn try_query_replay_detail(
         .filter(col("ext_fs_id").eq(lit(ext_fs_id)))
         .select([
             col("ext_fs_file_name"),
+            col("ext_fs_sha256"),
             col("ext_datetime")
                 .dt()
                 .to_string("%Y-%m-%d %H:%M")
@@ -243,8 +244,10 @@ pub fn try_query_replay_detail(
         .ok_or_else(|| SwarmyError::Other(format!("Replay {ext_fs_id} not in the snapshot")))?
         .to_string();
     let replay_date = str_values(&details, "replay_date")?.remove(0);
+    let sha256 = str_values(&details, "ext_fs_sha256")?.remove(0);
     let mut detail = (*analyze_replay_cached(&replay_location)?).clone();
     detail.ext_fs_id = ext_fs_id;
+    detail.sha256 = sha256;
     detail.replay_date = replay_date;
     // Without the averages the replay is still shown.
     match super::patch_timings::patch_timings_cached(&ipc_path, detail.protocol_version) {

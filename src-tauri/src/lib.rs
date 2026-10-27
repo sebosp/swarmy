@@ -10,11 +10,16 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
+#[cfg(test)]
+mod bench_queries;
 pub mod data;
+pub mod duplicates;
+pub mod logging;
 pub mod majordomo;
 pub mod map_details;
 pub mod map_scout;
 pub mod patch_overview;
+pub mod personal_db;
 pub mod player_detail;
 pub mod replay_detail;
 pub mod replay_list;
@@ -42,17 +47,12 @@ pub struct SetupState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    logging::init(&<logging::Args as clap::Parser>::parse());
     let (majordomo_tx, majordomo_rx) = mpsc::channel(4_096); // TODO: Magic number removal
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Error)
-                .build(),
-        )
         .manage(SetupState { majordomo_tx })
         .manage(RerunViewerState::default())
         .manage(replay_watcher::ReplayWatcherState::default())
@@ -94,6 +94,12 @@ pub fn run() {
             open_folder,
             connect_swarmy_rerun,
             replay_detail::query_replay_detail,
+            replay_detail::query_adjacent_replay,
+            personal_db::get_replay_notes,
+            duplicates::find_duplicate_replays,
+            duplicates::move_duplicate_replays,
+            personal_db::set_replay_notes,
+            personal_db::list_replay_tags,
             player_detail::query_player_detail,
             player_detail::list_players,
             player_detail::query_head_to_head,
@@ -105,6 +111,10 @@ pub fn run() {
             patch_overview::query_unit_overview,
             patch_overview::query_unit_snapshot_stats,
             patch_overview::query_patch_changes,
+            patch_overview::list_evolution_items,
+            patch_overview::query_patch_evolution,
+            patch_overview::list_saved_evolutions,
+            patch_overview::save_evolution,
             get_app_versions,
             open_external_url,
         ])

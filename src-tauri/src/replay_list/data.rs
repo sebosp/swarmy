@@ -38,9 +38,12 @@ fn sort_columns(sort_by: ReplayListSort) -> Vec<&'static str> {
     }
 }
 
+/// The replays that match the query, `replays` are the sha256 of the replays to keep, from the
+/// notes, tags and messages of the personal database, none to keep all of them.
 pub fn try_query_replay_list(
     replay_path: String,
     query: ReplayListQuery,
+    replays: Option<std::collections::HashSet<String>>,
 ) -> Result<ReplayList, SwarmyError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
@@ -63,6 +66,13 @@ pub fn try_query_replay_list(
     }
     if let Some(max_date) = query.max_date {
         details_query = details_query.filter(col("ext_datetime").dt().date().lt_eq(lit(max_date)));
+    }
+    if let Some(replays) = replays {
+        let replays: Vec<String> = replays.into_iter().collect();
+        details_query = details_query.filter(col("ext_fs_sha256").is_in(
+            lit(Series::new("replays".into(), replays)).implode(false),
+            false,
+        ));
     }
     if let Some(protocol_version) = query.protocol_version {
         details_query = details_query.filter(col("ext_protocol_version").eq(lit(protocol_version)));
@@ -95,6 +105,7 @@ pub fn try_query_replay_list(
             col("player_result").alias("player_results"),
             col("ext_fs_file_name").first().alias("replay_location"),
             col("map_info_sha256").first().alias("map_info_sha256"),
+            col("ext_fs_sha256").first().alias("replay_sha256"),
             col("player_race").alias("player_races"),
             col("player_name")
                 .str()
@@ -239,6 +250,12 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
             ),
         };
     let player_races = list_str_values(row, "player_races")?;
+    let replay_sha256 = row
+        .column("replay_sha256")?
+        .str()?
+        .get(0)
+        .unwrap_or("")
+        .to_string();
     Ok(ReplayListEntry {
         ext_fs_id,
         map_title,
@@ -250,6 +267,8 @@ fn extract_replay_list_from_df_row(row: &DataFrame) -> Result<ReplayListEntry, S
         duration,
         player_results,
         player_races,
+        replay_sha256,
+        ..Default::default()
     })
 }
 

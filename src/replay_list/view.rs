@@ -3,6 +3,7 @@ use super::*;
 use crate::components::links::{MapLink, PlayerLink, RaceLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
 use crate::navigation::use_navigation;
+use crate::replay_detail::notes::rating_text;
 use crate::*;
 use chrono::Utc;
 use leptos::ev::MouseEvent;
@@ -138,6 +139,27 @@ pub fn ReplayList(/*active_page: RwSignal<String>*/) -> impl IntoView {
             }))
             .collect::<Vec<_>>()
     });
+    let tag_options = Signal::derive(move || {
+        std::iter::once((String::new(), "Any".to_string()))
+            .chain(
+                filters
+                    .read()
+                    .tags
+                    .iter()
+                    .map(|tag| (tag.label.clone(), format!("{} ({})", tag.label, tag.games))),
+            )
+            .collect::<Vec<_>>()
+    });
+    let rating_options = Signal::derive(|| {
+        std::iter::once((String::new(), "Any".to_string()))
+            .chain((1..=5u8).map(|stars| {
+                (
+                    stars.to_string(),
+                    format!("{} or more", "★".repeat(stars as usize)),
+                )
+            }))
+            .collect::<Vec<_>>()
+    });
     view! {
         <div class="grid grid-cols-10 gap-2 items-end">
             {text_filter("map_title", "Map", |query| query.map_title.clone(), |query, value| query.map_title = value)}
@@ -203,6 +225,42 @@ pub fn ReplayList(/*active_page: RwSignal<String>*/) -> impl IntoView {
                     })
                     on_select=Callback::new(move |version: String| {
                         replay_query.update(|query| query.protocol_version = version.parse().ok())
+                    })
+                />
+            </div>
+        </div>
+        <div class="grid grid-cols-10 gap-2 items-end mt-1">
+            <div class="col-span-4">
+                <label for="message" class=LABEL_CLASS>"Message"</label>
+                <input
+                    name="message"
+                    class=text_input_tailwind_classes().join(" ")
+                    placeholder="Part of a chat message, press Enter to search"
+                    title="The messages of the replays are read the first time they are searched, it can take a while"
+                    prop:value=move || replay_query.read().message.clone()
+                    on:change=move |ev| replay_query.update(|query| query.message = event_target_value(&ev))
+                    type="text"
+                />
+            </div>
+            <div class="col-span-2">
+                <FilterSelect
+                    label="Tag"
+                    options=tag_options
+                    selected=Signal::derive(move || replay_query.read().tag.clone())
+                    on_select=Callback::new(move |tag: String| {
+                        replay_query.update(|query| query.tag = tag)
+                    })
+                />
+            </div>
+            <div class="col-span-2">
+                <FilterSelect
+                    label="Rating"
+                    options=rating_options
+                    selected=Signal::derive(move || {
+                        replay_query.read().min_rating.map(|stars| stars.to_string()).unwrap_or_default()
+                    })
+                    on_select=Callback::new(move |stars: String| {
+                        replay_query.update(|query| query.min_rating = stars.parse().ok())
                     })
                 />
             </div>
@@ -300,6 +358,12 @@ pub fn ReplayListDataTable(
                             <SortHeader label="Duration" sort_by=ReplayListSort::Duration replay_query />
                             <SortHeader label="Races" sort_by=ReplayListSort::Races replay_query />
                             <SortHeader label="Date" sort_by=ReplayListSort::Date replay_query />
+                            <th
+                                scope="col"
+                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                            >
+                                "Notes"
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-white/10 bg-gray-900">
@@ -431,6 +495,19 @@ pub fn ReplayListDataTable(
                                         </td>
                                         <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
                                             {format!("{}", child.read().replay_date)}
+                                        </td>
+                                        <td class="px-2 py-2 text-xs text-gray-400">
+                                            <span class="text-yellow-400">
+                                                {rating_text(child.read().rating)}
+                                            </span>
+                                            {child
+                                                .read()
+                                                .tags
+                                                .iter()
+                                                .map(|tag| view! {
+                                                    <span class="badge badge-xs badge-ghost ml-1">{tag.clone()}</span>
+                                                })
+                                                .collect_view()}
                                         </td>
                                     </tr>
                                 }

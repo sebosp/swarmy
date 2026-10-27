@@ -11,8 +11,7 @@ pub fn Config() -> impl IntoView {
     let (_app_settings, set_app_settings) = signal(AppSettings::default());
     let replay_path = RwSignal::new("".to_string());
     let cache_path = RwSignal::new("".to_string());
-    let balance_data_path = RwSignal::new("".to_string());
-    let unit_icons = use_context::<crate::components::unit_icon::UnitIconsContext>();
+    let duplicates_path = RwSignal::new("".to_string());
     let disable_parallelism = RwSignal::new(DEFAULT_DISABLE_PARALLELISM);
     let traverse_max_depth = RwSignal::new(DEFAULT_TRAVERSE_MAX_DEPTH);
     let scan_max_files = RwSignal::new(DEFAULT_SCAN_MAX_FILES);
@@ -29,7 +28,7 @@ pub fn Config() -> impl IntoView {
         move |settings: AppSettings| {
             *replay_path.write() = settings.replay_path.clone();
             *cache_path.write() = settings.cache_path.clone();
-            *balance_data_path.write() = settings.balance_data_path.clone();
+            *duplicates_path.write() = settings.duplicates_path.clone();
             *disable_parallelism.write() = settings.disable_parallelism;
             *traverse_max_depth.write() = settings.traverse_max_depth;
             *scan_max_files.write() = settings.scan_max_files;
@@ -168,11 +167,16 @@ pub fn Config() -> impl IntoView {
                     value=replay_path
                 />
                 <ConfigStringInput
-                    name="balance_data_path"
-                    label="Balance Data Path"
-                    description="The balance data exported from the SC2 editor, a directory per patch version with Assets/Textures, i.e. ~/SC2Replays/BalanceData. The unit button icons are read from it. When empty, BalanceData inside or next to the replay path is used."
-                    value=balance_data_path
+                    name="duplicates_path"
+                    label="Duplicate Replays Folder"
+                    description="The same game is often saved more than once, i.e. copied from another computer or downloaded again from a tournament pack. \
+                        Find duplicates in Scan compares the contents of the replays (their sha256) and Move to the duplicates folder moves the extra copies here, \
+                        so that a game is counted once in the statistics. The subdirectories they were in are kept. The copy already in the snapshot, or else the first one by path, stays in the Replay Path.\n\n\
+                        Nothing is deleted: check the folder and delete it yourself, or move the files back. It must be outside of the Replay Path, \
+                        i.e. ~/SC2Replays-duplicates. Leave it empty to only list the duplicates."
+                    value=duplicates_path
                     optional=true
+                    warning=true
                 />
                 <ConfigNumberInput
                     name="scan_max_files"
@@ -182,7 +186,7 @@ pub fn Config() -> impl IntoView {
                 />
                 <ConfigNumberInput
                     name="process_max_files"
-                    label="Maxnumber of files to optimize"
+                    label="Max number of files to optimize"
                     description="Decreases the size of the optimized snapshot."
                     value=process_max_files
                 />
@@ -211,18 +215,20 @@ pub fn Config() -> impl IntoView {
                         on:click=move |ev: MouseEvent| {
                             ev.prevent_default();
                             trigger_set_current_app_config(
-                                cache_path.get(),
-                                replay_path.get(),
-                                balance_data_path.get(),
-                                disable_parallelism.get(),
-                                traverse_max_depth.get(),
-                                scan_max_files.get(),
-                                process_max_files.get(),
-                                min_version.get(),
-                                max_version.get(),
-                                watch_new_replays.get(),
+                                AppSettings {
+                                    cache_path: cache_path.get(),
+                                    replay_path: replay_path.get(),
+                                    duplicates_path: duplicates_path.get(),
+                                    disable_parallelism: disable_parallelism.get(),
+                                    traverse_max_depth: traverse_max_depth.get(),
+                                    scan_max_files: scan_max_files.get(),
+                                    process_max_files: process_max_files.get(),
+                                    min_version: min_version.get(),
+                                    max_version: max_version.get(),
+                                    watch_new_replays: watch_new_replays.get(),
+                                    ..Default::default()
+                                },
                                 set_backend_response,
-                                unit_icons,
                             )
                         }
                     >
@@ -307,6 +313,9 @@ pub fn ConfigStringInput(
     /// An empty optional value is not marked as invalid.
     #[prop(optional)]
     optional: bool,
+    /// The description is a warning, shown in an amber tooltip instead of the browser's one.
+    #[prop(optional)]
+    warning: bool,
 ) -> impl IntoView {
     let is_missing = move || !optional && value.get().is_empty();
     view! {
@@ -351,10 +360,34 @@ pub fn ConfigStringInput(
             </p>
 
         </div>
-        <div class="col-span-1 text-primary">
-            <span title=move || { description.to_string() }>
-                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
-            </span>
-        </div>
+        {if warning {
+            view! {
+                <div class="col-span-1 text-amber-400">
+                    <span
+                        class="group relative inline-block"
+                        tabindex="0"
+                        aria-label=description
+                    >
+                        <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+                        <span
+                            role="tooltip"
+                            class="invisible absolute right-0 top-7 z-20 w-96 max-w-[80vw] whitespace-pre-line rounded-md border border-amber-500/60 bg-amber-950 px-3 py-2 text-sm text-amber-100 shadow-lg group-hover:visible group-focus:visible"
+                        >
+                            {description}
+                        </span>
+                    </span>
+                </div>
+            }
+                .into_any()
+        } else {
+            view! {
+                <div class="col-span-1 text-primary">
+                    <span title=move || { description.to_string() }>
+                        <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+                    </span>
+                </div>
+            }
+                .into_any()
+        }}
     }
 }

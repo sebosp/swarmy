@@ -23,8 +23,8 @@ fn to_json<T: serde::Serialize>(value: &T) -> String {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ChartData {
     pub labels: Vec<String>,
-    /// The name and the values of each series, the values align with the labels.
-    pub series: Vec<(String, Vec<f64>)>,
+    /// The name and the values of each series, the values align with the labels, none is a gap.
+    pub series: Vec<(String, Vec<Option<f64>>)>,
     /// The CSS colors of the series, [`CHART_COLORS`] when empty.
     pub colors: Vec<String>,
     /// The tooltip of each label, the values of the series when empty.
@@ -35,6 +35,8 @@ pub struct ChartData {
     pub value_suffix: String,
     /// `normal` or `100%` to stack the series, empty for side by side.
     pub stack_type: String,
+    /// The line curve, `smooth` by default, `straight` or `stepline`.
+    pub curve: String,
 }
 
 impl ChartData {
@@ -46,7 +48,19 @@ impl ChartData {
     }
 
     pub fn with_series(mut self, name: &str, values: Vec<f64>) -> Self {
+        self.series
+            .push((name.to_string(), values.into_iter().map(Some).collect()));
+        self
+    }
+
+    /// A series with gaps, i.e. the patches without the unit.
+    pub fn with_optional_series(mut self, name: &str, values: Vec<Option<f64>>) -> Self {
         self.series.push((name.to_string(), values));
+        self
+    }
+
+    pub fn with_owned_colors(mut self, colors: Vec<String>) -> Self {
+        self.colors = colors;
         self
     }
 
@@ -70,6 +84,11 @@ impl ChartData {
         self
     }
 
+    pub fn with_curve(mut self, curve: &str) -> Self {
+        self.curve = curve.to_string();
+        self
+    }
+
     pub fn stacked(mut self, stack_type: &str) -> Self {
         self.stack_type = stack_type.to_string();
         self
@@ -84,7 +103,7 @@ fn ApexChart(
     /// The tailwind classes of the container, its height is the height of the chart.
     class: &'static str,
 ) -> impl IntoView {
-    let values: Vec<&Vec<f64>> = data.series.iter().map(|(_, values)| values).collect();
+    let values: Vec<&Vec<Option<f64>>> = data.series.iter().map(|(_, values)| values).collect();
     let names: Vec<&String> = data.series.iter().map(|(name, _)| name).collect();
     // A single series is written as a flat array.
     let values_json = match values.as_slice() {
@@ -94,7 +113,8 @@ fn ApexChart(
     view! {
         <div
             id=next_chart_id(name)
-            class=format!("w-full {class}")
+            // The chart is drawn at the width of the container, it must not widen its parent.
+            class=format!("w-full min-w-0 overflow-hidden {class}")
             data-name=name
             data-chart-values=values_json
             data-chart-labels=to_json(&data.labels)
@@ -104,6 +124,7 @@ fn ApexChart(
             data-chart-y-max=data.y_max.map(|y_max| y_max.to_string())
             data-chart-value-suffix=data.value_suffix
             data-chart-stack-type=(!data.stack_type.is_empty()).then_some(data.stack_type)
+            data-chart-curve=(!data.curve.is_empty()).then_some(data.curve)
         ></div>
     }
 }

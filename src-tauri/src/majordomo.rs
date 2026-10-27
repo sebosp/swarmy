@@ -107,14 +107,17 @@ impl MajordomoCoordinator {
             let disable_parallelism = app_settings.disable_parallelism;
 
             tracing::info!("Scanning replays directory: {}", replay_path);
-
-            res_tx
-                .send(res.process_result(
-                    SC2ReplaysDirStats::from_directory(&replay_path, disable_parallelism).map_err(
-                        |e| SwarmyError::Other(format!("Error scanning replays directory: {}", e)),
-                    ),
-                ))
-                .expect("Failed to send response");
+            // The scan reads every replay, it would block a worker of the runtime.
+            let stats = tokio::task::spawn_blocking(move || {
+                SC2ReplaysDirStats::from_directory(&replay_path, disable_parallelism)
+                    .map_err(|e| format!("Error scanning replays directory: {e}"))
+            })
+            .await
+            .unwrap_or_else(|err| Err(format!("The scan task failed: {err}")))
+            .map_err(SwarmyError::Other);
+            if res_tx.send(res.process_result(stats)).is_err() {
+                tracing::warn!("The scan finished after its request was dropped");
+            }
         });
     }
 
@@ -161,7 +164,8 @@ impl MajordomoCoordinator {
                 return;
             }
         };
-        current_tokio_handle.spawn(async move {
+        // The polars queries block, they run on a blocking thread.
+        current_tokio_handle.spawn_blocking(move || {
             let res = ApiResponseBuilder::new();
             res_tx.send(res.process_result(try_query_map_stats(app_config.replay_path, query)))
         });
@@ -187,7 +191,7 @@ impl MajordomoCoordinator {
             }
         };
         let current_tokio_handle = Handle::current();
-        current_tokio_handle.spawn(async move {
+        current_tokio_handle.spawn_blocking(move || {
             res_tx
                 .send(res.process_result(try_get_snapshot_metadata(
                     app_config.replay_path,

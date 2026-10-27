@@ -204,3 +204,78 @@ impl UnitSnapshotStats {
         self.value_killed as f64 / (self.born as f64 * self.unit_cost as f64).max(1.)
     }
 }
+
+/// What is measured of a unit or of what it trains, builds, researches or upgrades.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum EvolutionMetric {
+    #[default]
+    Minerals,
+    Vespene,
+    Supply,
+    /// The build or research time, in game seconds at Faster speed.
+    Time,
+    /// 1 when it exists in the patch, 0 otherwise.
+    Exists,
+    /// The number of units and upgrades it requires.
+    Requirements,
+}
+
+impl EvolutionMetric {
+    pub const ALL: [EvolutionMetric; 6] = [
+        EvolutionMetric::Minerals,
+        EvolutionMetric::Vespene,
+        EvolutionMetric::Supply,
+        EvolutionMetric::Time,
+        EvolutionMetric::Exists,
+        EvolutionMetric::Requirements,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            EvolutionMetric::Minerals => "Minerals",
+            EvolutionMetric::Vespene => "Vespene",
+            EvolutionMetric::Supply => "Supply",
+            EvolutionMetric::Time => "Time (s)",
+            EvolutionMetric::Exists => "Exists",
+            EvolutionMetric::Requirements => "Requirements",
+        }
+    }
+}
+
+/// A line of the Patch Evolution chart: a measure of a unit, or of what it trains, builds,
+/// researches or upgrades, over the patches.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct EvolutionSeries {
+    pub unit: String,
+    /// `Unit` for the unit itself, i.e. `Researches Stimpack` for the others, see
+    /// `list_evolution_items`.
+    pub item: String,
+    pub metric: EvolutionMetric,
+}
+
+impl EvolutionSeries {
+    pub fn label(&self) -> String {
+        if self.item == EVOLUTION_UNIT_ITEM {
+            format!("{} {}", self.unit, self.metric.label())
+        } else {
+            format!("{} {} {}", self.unit, self.item, self.metric.label())
+        }
+    }
+}
+
+/// The item of a series for the unit itself.
+pub const EVOLUTION_UNIT_ITEM: &str = "Unit";
+
+/// The values of the series in every patch, none when the item is not in the patch.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct PatchEvolution {
+    pub versions: Vec<u32>,
+    pub values: Vec<Vec<Option<f64>>>,
+}
+
+/// A Patch Evolution query saved in the settings.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct SavedEvolution {
+    pub name: String,
+    pub series: Vec<EvolutionSeries>,
+}

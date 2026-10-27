@@ -1,6 +1,6 @@
 [package]
 name = "swarmy-ui"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 description = "Starcraft II - Replay collection analyser and visualizer"
@@ -29,7 +29,7 @@ chrono = { version = "0.4.41", features = ["serde"] }
 members = ["src-tauri", "swarmy-common"]
 
 [workspace.dependencies]
-s2protocol = { version = "3.6.0", default-features = false }
+s2protocol = { version = "4.0.0", default-features = false }
 tracing = "0.1.44"
 polars = { version = "0.55", default-features = false, features = [
   "full",

@@ -1,6 +1,7 @@
 //! The units of each patch, from the s2protocol multi versioned balance data.
 
 pub mod data;
+pub mod evolution;
 pub mod unit_stats;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
@@ -37,4 +38,34 @@ pub async fn query_unit_snapshot_stats(
         ))
     })
     .await
+}
+
+/// The items of a unit for the Patch Evolution view: the unit and what it trains, builds,
+/// researches and upgrades.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn list_evolution_items(unit_name: String) -> Result<ApiResponse, SwarmyError> {
+    Ok(ApiResponseBuilder::new().process_result(evolution::try_list_evolution_items(&unit_name)))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn query_patch_evolution(
+    series: Vec<EvolutionSeries>,
+) -> Result<ApiResponse, SwarmyError> {
+    Ok(ApiResponseBuilder::new().process_result(evolution::try_query_patch_evolution(&series)))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn list_saved_evolutions(
+    app_handle: tauri::AppHandle,
+) -> Result<ApiResponse, SwarmyError> {
+    Ok(ApiResponseBuilder::new().process_result(evolution::load_saved_evolutions(&app_handle)))
+}
+
+/// Saves a Patch Evolution query in the settings, an empty one removes it.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn save_evolution(
+    app_handle: tauri::AppHandle,
+    saved: SavedEvolution,
+) -> Result<ApiResponse, SwarmyError> {
+    Ok(ApiResponseBuilder::new().process_result(evolution::save_evolution(&app_handle, saved)))
 }
