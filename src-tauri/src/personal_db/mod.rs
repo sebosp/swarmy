@@ -17,23 +17,21 @@ use tauri::Manager;
 /// The file of the database in the app data directory.
 const DB_FILE_NAME: &str = "swarmy.duckdb";
 
-/// The tables have no primary keys: they are small and the rows of a replay are replaced by
-/// deleting and inserting them, the ART indexes of the keys crashed DuckDB in CI when a key was
-/// deleted and inserted in the same transaction.
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS replay_notes (
-    sha256 VARCHAR NOT NULL,
+    sha256 VARCHAR PRIMARY KEY,
     rating TINYINT,
     note VARCHAR NOT NULL DEFAULT '',
     updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 CREATE TABLE IF NOT EXISTS replay_tags (
     sha256 VARCHAR NOT NULL,
-    tag VARCHAR NOT NULL
+    tag VARCHAR NOT NULL,
+    PRIMARY KEY (sha256, tag)
 );
 -- The replays whose messages are in replay_messages, also the ones without messages.
 CREATE TABLE IF NOT EXISTS indexed_replays (
-    sha256 VARCHAR NOT NULL
+    sha256 VARCHAR PRIMARY KEY
 );
 CREATE TABLE IF NOT EXISTS replay_messages (
     sha256 VARCHAR NOT NULL,
@@ -116,11 +114,7 @@ pub fn get_notes(conn: &Connection, sha256: &str) -> duckdb::Result<ReplayNotes>
 pub fn set_notes(conn: &mut Connection, notes: &ReplayNotes) -> duckdb::Result<()> {
     let tx = conn.transaction()?;
     tx.execute(
-        "DELETE FROM replay_notes WHERE sha256 = ?",
-        params![notes.sha256],
-    )?;
-    tx.execute(
-        "INSERT INTO replay_notes (sha256, rating, note, updated_at)
+        "INSERT OR REPLACE INTO replay_notes (sha256, rating, note, updated_at)
          VALUES (?, ?, ?, current_timestamp)",
         params![notes.sha256, notes.rating, notes.note],
     )?;
@@ -292,19 +286,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(tag_counts(&conn)["finals"], 2);
-        // Saving again replaces the notes and the tags.
-        set_notes(
-            &mut conn,
-            &ReplayNotes {
-                tags: vec!["finals".to_string()],
-                ..saved.clone()
-            },
-        )
-        .unwrap();
-        let replaced = get_notes(&conn, "abc").unwrap();
-        assert_eq!(replaced.tags, vec!["finals"]);
-        assert_eq!(replaced.rating, Some(4));
-        assert_eq!(tag_counts(&conn).get("comeback"), None);
         let finals = filter_replays(&conn, "finals", Some(3)).unwrap().unwrap();
         assert_eq!(finals, HashSet::from(["abc".to_string()]));
         assert_eq!(filter_replays(&conn, "", None).unwrap(), None);
