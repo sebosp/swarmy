@@ -5,6 +5,13 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-10-27",
+        &[
+            "s2protocol 4.0.0: the units selected and in control groups are tracked when they die or are removed from a selection, the commands of a selection go to the right units. Optimize parses the replays again, the snapshot of another s2protocol version is rebuilt.",
+            "Config: the explanation of the Duplicate Replays Folder is in the amber tooltip of its question mark.",
+        ],
+    ),
+    (
         "2026-10-26",
         &[
             "Faster start: the frontend is built in release mode, it was a 160 MB debug build that took seconds to load.",

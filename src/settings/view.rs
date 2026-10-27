@@ -169,22 +169,15 @@ pub fn Config() -> impl IntoView {
                 <ConfigStringInput
                     name="duplicates_path"
                     label="Duplicate Replays Folder"
-                    description="Scan moves the duplicate replays here, with the directories they were found in, outside of the replay path. Nothing is deleted."
+                    description="The same game is often saved more than once, i.e. copied from another computer or downloaded again from a tournament pack. \
+                        Find duplicates in Scan compares the contents of the replays (their sha256) and Move to the duplicates folder moves the extra copies here, \
+                        so that a game is counted once in the statistics. The subdirectories they were in are kept. The copy already in the snapshot, or else the first one by path, stays in the Replay Path.\n\n\
+                        Nothing is deleted: check the folder and delete it yourself, or move the files back. It must be outside of the Replay Path, \
+                        i.e. ~/SC2Replays-duplicates. Leave it empty to only list the duplicates."
                     value=duplicates_path
                     optional=true
+                    warning=true
                 />
-                <div class="col-span-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
-                    <p class="font-semibold text-amber-300">"What is the Duplicate Replays Folder?"</p>
-                    <p>
-                        "The same game is often saved more than once, i.e. copied from another computer or downloaded again from a tournament pack. "
-                        "Find duplicates in Scan compares the contents of the replays (their sha256) and Move to the duplicates folder moves the extra copies here, "
-                        "so that a game is counted once in the statistics. The subdirectories they were in are kept. The copy already in the snapshot, or else the first one by path, stays in the Replay Path."
-                    </p>
-                    <p class="mt-1">
-                        "Nothing is deleted: check the folder and delete it yourself, or move the files back. It must be outside of the Replay Path, "
-                        "i.e. ~/SC2Replays-duplicates. Leave it empty to only list the duplicates."
-                    </p>
-                </div>
                 <ConfigNumberInput
                     name="scan_max_files"
                     label="Max number of files to Scan"
@@ -320,6 +313,9 @@ pub fn ConfigStringInput(
     /// An empty optional value is not marked as invalid.
     #[prop(optional)]
     optional: bool,
+    /// The description is a warning, shown in an amber tooltip instead of the browser's one.
+    #[prop(optional)]
+    warning: bool,
 ) -> impl IntoView {
     let is_missing = move || !optional && value.get().is_empty();
     view! {
@@ -364,10 +360,34 @@ pub fn ConfigStringInput(
             </p>
 
         </div>
-        <div class="col-span-1 text-primary">
-            <span title=move || { description.to_string() }>
-                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
-            </span>
-        </div>
+        {if warning {
+            view! {
+                <div class="col-span-1 text-amber-400">
+                    <span
+                        class="group relative inline-block"
+                        tabindex="0"
+                        aria-label=description
+                    >
+                        <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+                        <span
+                            role="tooltip"
+                            class="invisible absolute right-0 top-7 z-20 w-96 max-w-[80vw] whitespace-pre-line rounded-md border border-amber-500/60 bg-amber-950 px-3 py-2 text-sm text-amber-100 shadow-lg group-hover:visible group-focus:visible"
+                        >
+                            {description}
+                        </span>
+                    </span>
+                </div>
+            }
+                .into_any()
+        } else {
+            view! {
+                <div class="col-span-1 text-primary">
+                    <span title=move || { description.to_string() }>
+                        <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+                    </span>
+                </div>
+            }
+                .into_any()
+        }}
     }
 }
