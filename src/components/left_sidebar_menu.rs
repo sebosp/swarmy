@@ -4,12 +4,12 @@ use leptos::prelude::*;
 use phosphor_leptos::{
     Icon, IconWeight, ALIEN, BARCODE, BINOCULARS, CHART_LINE, CLOCK_COUNTER_CLOCKWISE, FADERS,
     FILM_STRIP, GIT_DIFF, HOUSE, INTERSECT_SQUARE, MAP_PIN, MAP_TRIFOLD, QUESTION, SHIELD_STAR,
-    USER,
+    SIGNPOST, USER,
 };
 
 /// The pages of the menu, in order, separated in groups.
 const MENU_GROUPS: [&[&str]; 4] = [
-    &[HOME_PAGE, "Scan"],
+    &[HOME_PAGE, TOUR_PAGE, "Scan"],
     &[
         MAP_LIST_PAGE,
         MAP_DETAILS_PAGE,
@@ -61,6 +61,7 @@ fn SidebarMenuItem(name: &'static str, active_page: RwSignal<String>) -> impl In
         "flex items-center justify-center w-9 h-9 rounded hover:bg-gray-700 hover:text-gray-300";
     let icon_data = match name {
         HOME_PAGE => HOUSE,
+        TOUR_PAGE => SIGNPOST,
         "Scan" => BARCODE,
         "Config" => FADERS,
         MAP_LIST_PAGE => MAP_TRIFOLD,

@@ -31,11 +31,38 @@ fn listen_to_new_replays(status: RwSignal<NewReplaysStatus>) {
     });
 }
 
+/// The message of a new replay is shown for this long.
+const NEW_REPLAY_TOAST_SECONDS: u64 = 8;
+
 #[component]
 pub fn NewReplaysBanner() -> impl IntoView {
     let navigation = use_navigation();
     let status = RwSignal::new(NewReplaysStatus::default());
     listen_to_new_replays(status);
+    // With the notify_new_replays setting, each replay the watcher finds is shown for a while.
+    let toast = RwSignal::new(None::<String>);
+    Effect::new(move |previous: Option<Option<String>>| {
+        let current = status.read().latest_replay.clone();
+        let notify = status.read().notify;
+        if notify && current.is_some() && previous.as_ref() != Some(&current) && previous.is_some()
+        {
+            let name = current
+                .as_deref()
+                .and_then(|path| path.rsplit(['/', '\\']).next())
+                .unwrap_or_default()
+                .to_string();
+            toast.set(Some(name.clone()));
+            set_timeout(
+                move || {
+                    if toast.get_untracked().as_deref() == Some(name.as_str()) {
+                        toast.set(None);
+                    }
+                },
+                std::time::Duration::from_secs(NEW_REPLAY_TOAST_SECONDS),
+            );
+        }
+        current
+    });
     let message = move || {
         let status = status.get();
         let mut parts = vec![];
@@ -57,6 +84,24 @@ pub fn NewReplaysBanner() -> impl IntoView {
         )
     };
     view! {
+        {move || toast.get().map(|name| view! {
+            <div class="toast toast-end toast-bottom z-50">
+                <div class="alert alert-info text-sm">
+                    <span>{format!("New replay found: {name}")}</span>
+                    <button
+                        class="btn btn-accent btn-xs"
+                        title="Opens Scan and runs Optimize, it only adds the replays that are not in the snapshot"
+                        on:click=move |_| {
+                            toast.set(None);
+                            navigation.optimize_snapshot();
+                        }
+                    >
+                        "Add to snapshot"
+                    </button>
+                    <button class="btn btn-ghost btn-xs" title="Close" on:click=move |_| toast.set(None)>"✕"</button>
+                </div>
+            </div>
+        })}
         <Show when=move || status.get().needs_optimize()>
             <div class="flex items-center justify-between gap-2 px-3 py-1 text-sm text-indigo-100 bg-indigo-900/60 border-b border-indigo-500/40">
                 <span>{message}</span>

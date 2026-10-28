@@ -4,6 +4,7 @@ use leptos::prelude::*;
 use swarmy_common::{ReplayListQuery, TimeFrame};
 
 pub const HOME_PAGE: &str = "Home";
+pub const TOUR_PAGE: &str = "Tour";
 pub const REPLAY_DETAIL_PAGE: &str = "Replay Detail";
 pub const PLAYER_PAGE: &str = "Player";
 pub const MAP_SCOUT_PAGE: &str = "Map Scout";

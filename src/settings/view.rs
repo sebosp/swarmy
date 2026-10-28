@@ -19,6 +19,7 @@ pub fn Config() -> impl IntoView {
     let min_version = RwSignal::new(DEFAULT_MIN_VERSION);
     let max_version = RwSignal::new(DEFAULT_MAX_VERSION);
     let watch_new_replays = RwSignal::new(false);
+    let notify_new_replays = RwSignal::new(false);
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
@@ -36,6 +37,7 @@ pub fn Config() -> impl IntoView {
             *min_version.write() = settings.min_version;
             *max_version.write() = settings.max_version;
             *watch_new_replays.write() = settings.watch_new_replays;
+            *notify_new_replays.write() = settings.notify_new_replays;
             set_backend_response.update(|val| {
                 val.meta.success = true;
                 val.meta.is_complete = true;
@@ -150,6 +152,19 @@ pub fn Config() -> impl IntoView {
                                 />
                             </span>
                         </div>
+                        <div></div>
+                        <label class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white" title="Shows a message with the name of each new replay the watcher finds, i.e. when a game ends">
+                            <input
+                                id="notify_new_replays"
+                                type="checkbox"
+                                class="size-4 accent-indigo-500"
+                                prop:disabled=move || !watch_new_replays.get()
+                                prop:checked=move || notify_new_replays.get()
+                                on:change=move |ev| notify_new_replays.set(event_target_checked(&ev))
+                            />
+                            "Show a message for each new replay found"
+                        </label>
+                        <div class="col-span-1"></div>
                     </div>
                 </fieldset>
             </div>
@@ -157,7 +172,7 @@ pub fn Config() -> impl IntoView {
                 <ConfigStringInput
                     name="cache_path"
                     label="Map Caches Path"
-                    description="The location to store the replay caches, containing map data, tournament logos, etc"
+                    description="The replays only refer to their maps, to analyse the maps the Map Info caches (terrain, start locations, resources) and the maps are downloaded from Blizzard's depot servers into this directory, like StarCraft II does. swarmy-caches in your home directory by default."
                     value=cache_path
                 />
                 <ConfigStringInput
@@ -226,6 +241,7 @@ pub fn Config() -> impl IntoView {
                                     min_version: min_version.get(),
                                     max_version: max_version.get(),
                                     watch_new_replays: watch_new_replays.get(),
+                                    notify_new_replays: notify_new_replays.get(),
                                     ..Default::default()
                                 },
                                 set_backend_response,

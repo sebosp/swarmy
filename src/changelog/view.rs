@@ -5,6 +5,19 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-10-28",
+        &[
+            "Replay Detail: an Abilities section with the uses of the abilities with energy or a cooldown, i.e. Abduct, Fungal Growth, Neural Parasite, Transfuse, Inject Larva or Yamato Cannon, compared to the average of the patch, with the rank of the game and of the player and a top 10 badge.",
+            "Replay Detail: the injects, chrono boosts and MULEs of Macro were always 0.",
+            "Patch Overview: the abilities commanded in the games of the patch, per game, in how many games and the top players. Patch Evolution: the ability use per game of a race over the patches.",
+            "Race Detail: the matchups and patches of a race, the maps it wins the most on, the units it makes, its abilities and its players with the most games. The race links open it.",
+            "Map Details: the Siege Tank spots, where the tanks sieged and the enemy units they killed there, Show in swarmy-bevy draws them as bars on the terrain.",
+            "Tour: a guided tour of the configuration and of every view. Home shows the replay and map caches directories, or that the replay directory is not set yet.",
+            "Scan shows the Replay Path of Config, it is no longer an input that was not saved.",
+            "Config: the map caches go to swarmy-caches in the home directory by default, the replays are in Documents\\StarCraft II\\Accounts by default on Windows. With the watcher on, a message can announce each new replay.",
+        ],
+    ),
+    (
         "2026-10-27",
         &[
             "s2protocol 4.0.0: the units selected and in control groups are tracked when they die or are removed from a selection, the commands of a selection go to the right units. Optimize parses the replays again, the snapshot of another s2protocol version is rebuilt.",

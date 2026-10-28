@@ -6,12 +6,24 @@ use leptos::prelude::*;
 /// A term and its explanation.
 type Entry = (&'static str, &'static str);
 
-const GETTING_STARTED: [Entry; 4] = [
+const GETTING_STARTED: [Entry; 5] = [
     (
         "1. Config",
         "Set the directory with the replays (it is searched recursively) and the directory where \
-         the map caches (.s2ma files) are downloaded. The Duplicate Replays Folder, outside of the \
-         replay path, is where Scan moves the duplicate replays.",
+         the map caches (.s2ma files) are downloaded. On Windows the replays are by default in \
+         Documents\\StarCraft II\\Accounts and the map caches in swarmy-caches in your home \
+         directory. The Duplicate Replays Folder, outside of the replay path, is where Scan moves \
+         the duplicate replays.",
+    ),
+    (
+        "Map caches",
+        "A replay does not contain its map, only the cache handles of the files the game needs: \
+         the map itself, its Map Info (the terrain heights, the playable area, the start \
+         locations, the minerals and geysers) and other files such as tournament logos. To \
+         analyse the maps, Optimize downloads these cache files from Blizzard's depot servers \
+         (i.e. eu-s2-depot.classic.blizzard.com) into the Map Caches Path, once per map, the way \
+         StarCraft II does before a game. Map Details, Map Scout and swarmy-bevy read them from \
+         there, without them a map has no terrain, minimap or resources.",
     ),
     (
         "2. Scan",

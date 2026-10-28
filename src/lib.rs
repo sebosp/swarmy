@@ -13,6 +13,7 @@ pub mod replay_detail;
 pub mod replay_list;
 /// Swarmy Tauri Library
 pub mod scan;
+pub mod tour;
 pub mod unit_overview;
 pub use common::*;
 pub mod components;

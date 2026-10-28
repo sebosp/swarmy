@@ -47,29 +47,30 @@ pub fn ScanDirectory() -> impl IntoView {
             }
         },
     );
-    let tx_update_replay_dir = move |ev| {
-        let v = event_target_value(&ev);
-        set_app_settings.update(|settings| {
-            settings.replay_path = v;
-        });
-        *set_activity_stage.write() = ActivityStage::DirectoryEntered;
-    };
     let dir_stats_data = Store::new(SC2ReplaysDirStatsTable::from(SC2ReplaysDirStats::default()));
 
     view! {
         <div class="grid grid-cols-10">
             <div class="col-span-5 pl-1">
-                <label for="scan_path" class="block text-sm/6 font-medium text-white">
-                    Path
-                </label>
-                <input
-                    name="scan_path"
-                    class=text_input_tailwind_classes().join(" ")
-                    id="scan-directory-input"
-                    value=move || app_settings.get().replay_path
-                    on:input=tx_update_replay_dir
-                    type="text"
-                />
+                // The replay path is changed in Config only, an input here would not be saved.
+                <p class="block text-sm/6 font-medium text-white">"Replay Path"</p>
+                <p id="scan-directory-path" class="text-sm font-mono text-gray-200 break-all">
+                    {move || {
+                        let replay_path = app_settings.get().replay_path;
+                        if replay_path.is_empty() { "Not set".to_string() } else { replay_path }
+                    }}
+                </p>
+                <a
+                    href="#"
+                    class="nav-link text-xs"
+                    title="The replay path, the map caches path and the other settings are in Config"
+                    on:click=move |ev: MouseEvent| {
+                        ev.prevent_default();
+                        navigation.active_page.set("Config".to_string());
+                    }
+                >
+                    "Change it in Config"
+                </a>
             </div>
             <div class="col-span-5 justify-start ml-6 mt-6">
                 <button
