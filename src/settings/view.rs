@@ -12,6 +12,7 @@ pub fn Config() -> impl IntoView {
     let replay_path = RwSignal::new("".to_string());
     let cache_path = RwSignal::new("".to_string());
     let duplicates_path = RwSignal::new("".to_string());
+    let main_player_name = RwSignal::new("".to_string());
     let disable_parallelism = RwSignal::new(DEFAULT_DISABLE_PARALLELISM);
     let traverse_max_depth = RwSignal::new(DEFAULT_TRAVERSE_MAX_DEPTH);
     let scan_max_files = RwSignal::new(DEFAULT_SCAN_MAX_FILES);
@@ -30,6 +31,7 @@ pub fn Config() -> impl IntoView {
             *replay_path.write() = settings.replay_path.clone();
             *cache_path.write() = settings.cache_path.clone();
             *duplicates_path.write() = settings.duplicates_path.clone();
+            *main_player_name.write() = settings.main_player_name.clone();
             *disable_parallelism.write() = settings.disable_parallelism;
             *traverse_max_depth.write() = settings.traverse_max_depth;
             *scan_max_files.write() = settings.scan_max_files;
@@ -176,6 +178,13 @@ pub fn Config() -> impl IntoView {
                     value=cache_path
                 />
                 <ConfigStringInput
+                    name="main_player_name"
+                    label="Main Player Name"
+                    description="Your name in your games, without the clan tag, i.e. Sazed: the player the analyses of your own games are about, such as the s2-polars-data-analysis notebook of the games against the Cheater computers."
+                    value=main_player_name
+                    optional=true
+                />
+                <ConfigStringInput
                     name="replay_path"
                     label="Replay Path"
                     description="The parent path for the replay collection to analyse."
@@ -234,6 +243,7 @@ pub fn Config() -> impl IntoView {
                                     cache_path: cache_path.get(),
                                     replay_path: replay_path.get(),
                                     duplicates_path: duplicates_path.get(),
+                                    main_player_name: main_player_name.get(),
                                     disable_parallelism: disable_parallelism.get(),
                                     traverse_max_depth: traverse_max_depth.get(),
                                     scan_max_files: scan_max_files.get(),

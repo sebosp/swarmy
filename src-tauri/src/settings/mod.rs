@@ -32,6 +32,7 @@ pub async fn set_current_app_config(
     store.set("watch_new_replays", app_settings.watch_new_replays);
     store.set("duplicates_path", app_settings.duplicates_path);
     store.set("notify_new_replays", app_settings.notify_new_replays);
+    store.set("main_player_name", app_settings.main_player_name.trim());
     // The watcher follows the replay path and the watch setting.
     crate::replay_watcher::configure(&app_handle);
     Ok(())
@@ -122,6 +123,11 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let main_player_name = store
+        .get("main_player_name")
+        .and_then(|v| v.as_str().map(|s| s.trim().to_string()))
+        .unwrap_or_default();
+
     let duplicates_path = store
         .get("duplicates_path")
         .and_then(|v| v.as_str().map(|s| s.trim_end_matches('/').to_string()))
@@ -140,6 +146,7 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
         watch_new_replays,
         duplicates_path,
         notify_new_replays,
+        main_player_name,
     })
 }
 
