@@ -30,15 +30,20 @@ pub fn balance_units() -> Result<&'static MultiVersionedBalanceUnits, SwarmyErro
 /// The unit strengths, weaknesses and costs rarely change between versions, the ability ids do,
 /// so this is only used for the unit choices and not for the event iterator.
 pub fn closest_balance_units(version: u32) -> Result<&'static VersionedBalanceUnits, SwarmyError> {
-    let all_units = balance_units()?;
-    let closest = all_units
-        .keys()
-        .min_by_key(|available| available.abs_diff(version))
-        .ok_or_else(|| SwarmyError::Other("No balance data available".to_string()))?;
-    if *closest != version {
+    let closest = closest_balance_version(version)?;
+    if closest != version {
         tracing::info!("No balance data for protocol {version}, using {closest} instead");
     }
-    Ok(&all_units[closest])
+    Ok(&balance_units()?[&closest])
+}
+
+/// The version of the balance data closest to the protocol version, the patch of a game.
+pub fn closest_balance_version(version: u32) -> Result<u32, SwarmyError> {
+    balance_units()?
+        .keys()
+        .copied()
+        .min_by_key(|available| available.abs_diff(version))
+        .ok_or_else(|| SwarmyError::Other("No balance data available".to_string()))
 }
 
 /// The balance data of the newest protocol version, the costs rarely change between versions.

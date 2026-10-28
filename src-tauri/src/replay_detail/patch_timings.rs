@@ -5,11 +5,11 @@
 //! compared by when they start: the snapshot only has the townhalls once they finish, the build
 //! time of the patch is subtracted from their average.
 
-use super::data::{is_cosmetic_upgrade, EXPANSION_TOWNHALLS};
+use super::data::{cosmetic_upgrade_expr, EXPANSION_TOWNHALLS};
 use crate::data::*;
 use crate::replay_rerun::decisions::{closest_balance_units, unit_cost};
 use polars::prelude::*;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use swarmy_common::*;
 
@@ -52,51 +52,47 @@ pub fn patch_timings_cached(
     Ok(timings)
 }
 
-fn average(values: &[u32]) -> Option<PatchAverage> {
-    if values.len() < MIN_SAMPLES {
-        return None;
-    }
-    Some(PatchAverage {
-        seconds: (values.iter().map(|value| *value as u64).sum::<u64>() / values.len() as u64)
-            as u32,
-        samples: values.len(),
-    })
+/// The average seconds and the samples of each group, the groups with fewer than [`MIN_SAMPLES`]
+/// are left out.
+fn averages(query: LazyFrame, by: &[&str]) -> LazyFrame {
+    query
+        .group_by(by.iter().map(|name| col(*name)).collect::<Vec<_>>())
+        .agg([
+            col("game_seconds").mean().cast(DataType::UInt32),
+            len().cast(DataType::UInt64).alias("samples"),
+        ])
+        .filter(col("samples").gt_eq(lit(MIN_SAMPLES as u64)))
 }
 
-/// The expansions of each player of each game, by townhall type and number, from the first
-/// time each townhall appears, so that a Command Center landing again is not counted.
-fn expansion_seconds(
-    townhalls: &DataFrame,
-) -> Result<BTreeMap<(String, usize), Vec<u32>>, SwarmyError> {
-    let ext_fs_ids = u64_values(townhalls, "ext_fs_id")?;
-    let players = u8_values(townhalls, "control_player_id")?;
-    let tag_indexes = u32_values(townhalls, "unit_tag_index")?;
-    let tag_recycles = u32_values(townhalls, "unit_tag_recycle")?;
-    let names = str_values(townhalls, "unit_type_name")?;
-    let seconds = u32_values(townhalls, "game_seconds")?;
-    // The townhalls are sorted by time, the first row of each one is when it finished.
-    let mut seen = std::collections::HashSet::new();
-    let mut per_player: BTreeMap<(u64, Option<u8>), usize> = BTreeMap::new();
-    let mut expansions: BTreeMap<(String, usize), Vec<u32>> = BTreeMap::new();
-    for idx in 0..townhalls.height() {
-        if !seen.insert((ext_fs_ids[idx], tag_indexes[idx], tag_recycles[idx])) {
-            continue;
-        }
-        let number = per_player
-            .entry((ext_fs_ids[idx], players[idx]))
-            .or_default();
-        *number += 1;
-        expansions
-            .entry((names[idx].clone(), *number))
-            .or_default()
-            .push(seconds[idx]);
+fn patch_average(seconds: u32, samples: u64) -> PatchAverage {
+    PatchAverage {
+        seconds,
+        samples: samples as usize,
     }
-    Ok(expansions)
+}
+
+/// The time the nth expansion of each townhall type finishes, from the townhalls of each player
+/// sorted by time. The first time each townhall appears is when it finished, a Command Center
+/// landing again is not counted.
+fn expansion_averages(townhalls: LazyFrame) -> Result<LazyFrame, SwarmyError> {
+    let finished = townhalls
+        .sort(["game_seconds"], Default::default())
+        .unique_stable(
+            Some(cols(["ext_fs_id", "unit_tag_index", "unit_tag_recycle"])),
+            UniqueKeepStrategy::First,
+        )
+        .with_column(
+            (int_range(lit(0), len(), 1, DataType::UInt32) + lit(1u32))
+                .over([col("ext_fs_id"), col("control_player_id")])?
+                .alias("number"),
+        );
+    Ok(averages(finished, &["unit_type_name", "number"]))
 }
 
 /// Computes the averages of the upgrades and expansions of the games played with the protocol
 /// version.
 pub fn patch_timings(ipc_path: &str, protocol_version: u32) -> Result<PatchTimings, SwarmyError> {
+    // The games of the patch are few, as a literal list their ids are pushed down to the scans.
     let games = scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
         .filter(col("ext_protocol_version").eq(lit(protocol_version)))
         .select([col("ext_fs_id")])
@@ -104,20 +100,13 @@ pub fn patch_timings(ipc_path: &str, protocol_version: u32) -> Result<PatchTimin
         .collect()?;
     let game_ids = u64_values(&games, "ext_fs_id")?;
 
-    let upgrades_df = scan_snapshot_ipc(ipc_path, UPGRADES_IPC)?
-        .filter(is_in_replays(&game_ids).and(col("ext_replay_loop").gt(lit(0))))
-        .select([col("name"), game_seconds()])
-        .collect()?;
-    let mut upgrade_seconds: BTreeMap<String, Vec<u32>> = BTreeMap::new();
-    for (name, seconds) in str_values(&upgrades_df, "name")?
-        .into_iter()
-        .zip(u32_values(&upgrades_df, "game_seconds")?)
-    {
-        if !is_cosmetic_upgrade(&name) {
-            upgrade_seconds.entry(name).or_default().push(seconds);
-        }
-    }
-
+    let upgrades = scan_snapshot_ipc(ipc_path, UPGRADES_IPC)?
+        .filter(
+            is_in_replays(&game_ids)
+                .and(col("ext_replay_loop").gt(lit(0)))
+                .and(cosmetic_upgrade_expr("name").not()),
+        )
+        .select([col("name"), game_seconds()]);
     let townhalls = scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
         .filter(
             is_in_replays(&game_ids)
@@ -134,26 +123,36 @@ pub fn patch_timings(ipc_path: &str, protocol_version: u32) -> Result<PatchTimin
             col("unit_tag_recycle"),
             col("unit_type_name"),
             game_seconds(),
-        ])
-        .sort(["game_seconds"], Default::default())
-        .collect()?;
-    let balance = closest_balance_units(protocol_version)?;
-    let expansions = expansion_seconds(&townhalls)?
+        ]);
+    let [upgrades_df, expansions_df]: [DataFrame; 2] = collect_all(vec![
+        averages(upgrades, &["name"]),
+        expansion_averages(townhalls)?,
+    ])?
+    .try_into()
+    .map_err(|_| SwarmyError::Other("The patch timings returned no results".to_string()))?;
+
+    let upgrades = str_values(&upgrades_df, "name")?
         .into_iter()
-        .filter_map(|((name, number), finished)| {
+        .zip(u32_values(&upgrades_df, "game_seconds")?)
+        .zip(u64_values(&upgrades_df, "samples")?)
+        .map(|((name, seconds), samples)| (name, patch_average(seconds, samples)))
+        .collect();
+    // The townhalls are in the snapshot once they finish, the build time of the patch is
+    // subtracted to compare when they start.
+    let balance = closest_balance_units(protocol_version)?;
+    let expansions = str_values(&expansions_df, "unit_type_name")?
+        .into_iter()
+        .zip(u32_values(&expansions_df, "number")?)
+        .zip(u32_values(&expansions_df, "game_seconds")?)
+        .zip(u64_values(&expansions_df, "samples")?)
+        .map(|(((name, number), finished), samples)| {
             let build_seconds = unit_cost(balance, &name).time as u32;
-            let started: Vec<u32> = finished
-                .iter()
-                .map(|seconds| seconds.saturating_sub(build_seconds))
-                .collect();
-            Some(((name, number), average(&started)?))
+            let average = patch_average(finished.saturating_sub(build_seconds), samples);
+            ((name, number as usize), average)
         })
         .collect();
     Ok(PatchTimings {
-        upgrades: upgrade_seconds
-            .into_iter()
-            .filter_map(|(name, seconds)| Some((name, average(&seconds)?)))
-            .collect(),
+        upgrades,
         expansions,
     })
 }
@@ -190,22 +189,28 @@ mod tests {
     #[test]
     fn it_numbers_the_expansions_once_per_townhall() {
         let townhalls = df!(
-            "ext_fs_id" => [1u64, 1, 1, 1, 2],
-            "control_player_id" => [Some(1u8), Some(1), Some(2), Some(1), Some(1)],
-            "unit_tag_index" => [10u32, 11, 12, 10, 10],
-            "unit_tag_recycle" => [1u32, 1, 1, 1, 1],
-            "unit_type_name" => ["CommandCenter", "CommandCenter", "Nexus", "CommandCenter", "CommandCenter"],
-            "game_seconds" => [100u32, 200, 110, 300, 120],
+            "ext_fs_id" => [1u64, 1, 1, 1, 2, 3, 4],
+            "control_player_id" => [Some(1u8), Some(1), Some(2), Some(1), Some(1), Some(1), Some(1)],
+            "unit_tag_index" => [10u32, 11, 12, 10, 10, 10, 10],
+            "unit_tag_recycle" => [1u32, 1, 1, 1, 1, 1, 1],
+            "unit_type_name" => ["CommandCenter", "CommandCenter", "Nexus", "CommandCenter", "CommandCenter", "CommandCenter", "CommandCenter"],
+            "game_seconds" => [100u32, 200, 110, 300, 120, 140, 150],
         )
         .unwrap();
-        let expansions = expansion_seconds(&townhalls).unwrap();
-        // The Command Center 10 landing again at 300 is not a new expansion.
+        let expansions = expansion_averages(townhalls.lazy())
+            .unwrap()
+            .sort(["unit_type_name", "number"], Default::default())
+            .collect()
+            .unwrap();
+        // The Command Center 10 landing again at 300 is not a new expansion, the second
+        // Command Center and the Nexus have too few samples.
         assert_eq!(
-            expansions[&("CommandCenter".to_string(), 1)],
-            vec![100, 120]
+            str_values(&expansions, "unit_type_name").unwrap(),
+            ["CommandCenter"]
         );
-        assert_eq!(expansions[&("CommandCenter".to_string(), 2)], vec![200]);
-        assert_eq!(expansions[&("Nexus".to_string(), 1)], vec![110]);
+        assert_eq!(u32_values(&expansions, "number").unwrap(), [1]);
+        assert_eq!(u32_values(&expansions, "game_seconds").unwrap(), [127]);
+        assert_eq!(u64_values(&expansions, "samples").unwrap(), [4]);
     }
 
     #[test]
@@ -217,5 +222,29 @@ mod tests {
         assert_eq!(average.compare(95), "5s faster than average");
         assert_eq!(average.compare(107), "7s slower than average");
         assert_eq!(average.compare(100), "same as average");
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    /// Runs against a real snapshot: `SWARMY_TEST_REPLAY_PATH=~/SC2Replays/PRO cargo test -- --ignored`
+    #[test]
+    #[ignore]
+    fn it_computes_the_patch_timings_of_a_snapshot() {
+        let replay_path = std::env::var("SWARMY_TEST_REPLAY_PATH").unwrap();
+        let version = std::env::var("SWARMY_TEST_PROTOCOL_VERSION")
+            .map(|version| version.parse().unwrap())
+            .unwrap_or(95841);
+        let ipc_path = format!("{}/{}", replay_path, swarmy_common::IPC_DIR);
+        let start = std::time::Instant::now();
+        let timings = super::patch_timings(&ipc_path, version).unwrap();
+        eprintln!("{:?}", start.elapsed());
+        let mut upgrades: Vec<_> = timings.upgrades.iter().collect();
+        upgrades.sort_by(|a, b| a.0.cmp(b.0));
+        let mut expansions: Vec<_> = timings.expansions.iter().collect();
+        expansions.sort_by(|a, b| a.0.cmp(b.0));
+        eprintln!("{upgrades:?}");
+        eprintln!("{expansions:?}");
+        assert!(!timings.upgrades.is_empty());
     }
 }

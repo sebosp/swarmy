@@ -12,6 +12,7 @@ pub const MAP_DETAILS_PAGE: &str = "Map Details";
 pub const PATCH_OVERVIEW_PAGE: &str = "Patch Overview";
 pub const UNIT_OVERVIEW_PAGE: &str = "Unit Overview";
 pub const PATCH_EVOLUTION_PAGE: &str = "Patch Evolution";
+pub const RACE_DETAIL_PAGE: &str = "Race Detail";
 pub const SCAN_PAGE: &str = "Scan";
 pub const REPLAY_LIST_PAGE: &str = "Replay List";
 pub const HELP_PAGE: &str = "Help";
@@ -32,6 +33,8 @@ pub struct Navigation {
     pub patch_version: RwSignal<Option<u32>>,
     /// The race the Patch Overview view is filtered by, empty for all races.
     pub race: RwSignal<String>,
+    /// The race shown in the Race Detail view.
+    pub race_detail: RwSignal<String>,
     /// The filters and the sort of the Replay List view, kept when going to other views.
     pub replay_query: RwSignal<ReplayListQuery>,
     /// The time frame of the Replay List view, its dates are in `replay_query`.
@@ -60,6 +63,7 @@ impl Navigation {
             unit_name: RwSignal::new("Marine".to_string()),
             patch_version: RwSignal::new(None),
             race: RwSignal::new(String::new()),
+            race_detail: RwSignal::new("Terran".to_string()),
             replay_query: RwSignal::new(ReplayListQuery::newest_first()),
             replay_time_frame: RwSignal::new(TimeFrame::AllTime),
             optimize_requested: RwSignal::new(false),
@@ -96,6 +100,12 @@ impl Navigation {
     pub fn open_race(&self, race: &str) {
         self.race.set(race.to_string());
         self.active_page.set(PATCH_OVERVIEW_PAGE.to_string());
+    }
+
+    /// Opens the Race Detail view of the race: its matchups, maps, units and abilities.
+    pub fn open_race_detail(&self, race: &str) {
+        self.race_detail.set(race.to_string());
+        self.active_page.set(RACE_DETAIL_PAGE.to_string());
     }
 
     /// Opens the Replay List view with the games of a map and matchup, i.e. `PvT`, the newest

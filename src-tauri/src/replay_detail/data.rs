@@ -93,11 +93,24 @@ fn loop_seconds(game_loop: i64) -> u32 {
     (game_loop.max(0) as f64 / GAME_LOOPS_PER_SECOND) as u32
 }
 
+/// The prefixes of the sprays, rewards, etc, they are registered as upgrades but are not part of
+/// the build order.
+const COSMETIC_UPGRADE_PREFIXES: [&str; 3] = ["Spray", "Reward", "GameHeart"];
+
 /// Sprays, rewards, etc are registered as upgrades but are not part of the build order.
 pub fn is_cosmetic_upgrade(name: &str) -> bool {
-    ["Spray", "Reward", "GameHeart"]
+    COSMETIC_UPGRADE_PREFIXES
         .iter()
         .any(|prefix| name.starts_with(prefix))
+}
+
+/// [`is_cosmetic_upgrade`] of the column.
+pub fn cosmetic_upgrade_expr(column: &str) -> Expr {
+    COSMETIC_UPGRADE_PREFIXES
+        .iter()
+        .map(|prefix| col(column).str().starts_with(lit(*prefix)))
+        .reduce(Expr::or)
+        .expect("there are cosmetic upgrade prefixes")
 }
 
 fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
@@ -193,6 +206,8 @@ struct PlayerAccumulator {
     good_decisions: usize,
     even_decisions: usize,
     bad_decisions: Vec<UnitDecision>,
+    /// The commands of the abilities with energy or a cooldown, by [`TrackedAbility::ability`].
+    abilities: BTreeMap<&'static str, u32>,
 }
 
 /// The analysis of a replay file does not change, it is kept for the Player view which analyses
@@ -254,6 +269,10 @@ pub fn try_query_replay_detail(
         Ok(timings) => super::patch_timings::annotate(&mut detail, &timings),
         Err(err) => tracing::warn!("No patch timings for {}: {err:?}", detail.protocol_version),
     }
+    match crate::ability_usage::ability_usage_cached(&ipc_path) {
+        Ok(usage) => crate::ability_usage::annotate(&mut detail, &usage),
+        Err(err) => tracing::warn!("No ability usage: {err:?}"),
+    }
     Ok(detail)
 }
 
@@ -299,7 +318,13 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                         per_minute.resize(minute + 1, 0);
                     }
                     per_minute[minute] += 1;
-                    let ability = cmd
+                    // s2protocol names the ability in the command of the change hint, the
+                    // command of the event only has its ids.
+                    let command = match &item.change_hint {
+                        UnitChangeHint::Abilities { event, .. } => event,
+                        _ => cmd,
+                    };
+                    let ability = command
                         .m_abil
                         .as_ref()
                         .map(|abil| abil.ability.as_str())
@@ -310,6 +335,9 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                         acc.macro_summary.chrono_boosts += 1;
                     } else if ability.starts_with("CalldownMULE") {
                         acc.macro_summary.mules += 1;
+                    }
+                    if let Some(tracked) = tracked_ability(ability) {
+                        *acc.abilities.entry(tracked.ability).or_default() += 1;
                     }
                 }
                 let focus = match &item.change_hint {
@@ -658,6 +686,16 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 good_decisions: acc.good_decisions,
                 even_decisions: acc.even_decisions,
                 bad_decisions: acc.bad_decisions,
+                // Compared to the games of the patch once the snapshot is known.
+                abilities: acc
+                    .abilities
+                    .into_iter()
+                    .map(|(ability, uses)| AbilityUse {
+                        ability: ability.to_string(),
+                        uses,
+                        ..Default::default()
+                    })
+                    .collect(),
             }
         })
         .collect();

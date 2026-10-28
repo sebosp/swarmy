@@ -1,5 +1,6 @@
 //! The changes of a patch compared to the previous one, from the s2protocol balance data.
 
+use crate::components::abilities::{fetch_ability_usage, AbilityUsageRows};
 use crate::components::links::{RaceLink, UnitLink};
 use crate::components::patch::ChangeMarker;
 use crate::navigation::use_navigation;
@@ -26,6 +27,11 @@ pub fn PatchOverviewView() -> impl IntoView {
     let selected = RwSignal::new(None::<u32>);
     let changes = RwSignal::new(None::<PatchChanges>);
     let error = RwSignal::new(None::<String>);
+    // The abilities need a snapshot, without it only the balance data changes are shown.
+    let usage = RwSignal::new(None::<Result<AbilityUsageTable, String>>);
+    spawn_local(async move {
+        usage.set(Some(fetch_ability_usage().await));
+    });
     spawn_local(async move {
         match invoke_json::<PatchUnitList>("list_patch_units", &()).await {
             Ok(list) => {
@@ -132,6 +138,34 @@ pub fn PatchOverviewView() -> impl IntoView {
                         changes.changes.retain(|change| change.race == race);
                     }
                     view! { <PatchChangesTable changes /> }
+                })
+            }}
+            {move || {
+                let race = navigation.race.get();
+                let version = selected.get()?;
+                let content = match usage.get()? {
+                    Ok(usage) => {
+                        let rows: Vec<AbilityPatchUsage> = usage
+                            .of_patch(version)
+                            .filter(|row| {
+                                race.is_empty()
+                                    || row.tracked().is_some_and(|tracked| tracked.race == race)
+                            })
+                            .cloned()
+                            .collect();
+                        view! { <AbilityUsageRows rows /> }.into_any()
+                    }
+                    Err(err) => view! {
+                        <p class="text-xs text-gray-400">{format!("No snapshot to count the abilities: {err}")}</p>
+                    }
+                    .into_any(),
+                };
+                Some(view! {
+                    <h2 class="pt-2 text-base font-semibold text-white">"Abilities in the games of the patch"</h2>
+                    <p class="text-xs text-gray-500">
+                        "The abilities with energy or a cooldown commanded by the players in the games of the snapshot of this patch, the games of a protocol version without balance data count for the closest patch."
+                    </p>
+                    {content}
                 })
             }}
         </div>

@@ -10,6 +10,7 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
+pub mod ability_usage;
 #[cfg(test)]
 mod bench_queries;
 pub mod data;
@@ -21,6 +22,7 @@ pub mod map_scout;
 pub mod patch_overview;
 pub mod personal_db;
 pub mod player_detail;
+pub mod race_detail;
 pub mod replay_detail;
 pub mod replay_list;
 pub mod replay_rerun;
@@ -115,6 +117,8 @@ pub fn run() {
             patch_overview::query_patch_evolution,
             patch_overview::list_saved_evolutions,
             patch_overview::save_evolution,
+            ability_usage::query_ability_usage,
+            race_detail::query_race_detail,
             get_app_versions,
             open_external_url,
         ])

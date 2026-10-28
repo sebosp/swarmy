@@ -8,6 +8,7 @@ pub mod map_stats;
 pub mod navigation;
 pub mod patch_overview;
 pub mod player_detail;
+pub mod race_detail;
 pub mod replay_detail;
 pub mod replay_list;
 /// Swarmy Tauri Library

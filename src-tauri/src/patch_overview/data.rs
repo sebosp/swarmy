@@ -16,7 +16,8 @@ fn is_melee_unit(name: &str) -> bool {
     !name.contains("Gluescreen") && !name.ends_with("Dummy")
 }
 
-fn race_name(unit: &VersionedBalanceUnit) -> String {
+/// Terran, Zerg, Protoss or Other.
+pub fn race_name(unit: &VersionedBalanceUnit) -> String {
     match unit.meta.race.as_deref() {
         Some("Terr") => "Terran",
         Some("Zerg") => "Zerg",

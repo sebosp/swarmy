@@ -4,23 +4,6 @@ use crate::data::*;
 use polars::prelude::*;
 use swarmy_common::*;
 
-/// The T, Z or P of the `player_race` column, `?` for the other races.
-fn race_letter_expr() -> Expr {
-    let is_race = |names: &[&str]| {
-        col("player_race").is_in(
-            lit(Series::new("races".into(), names)).implode(false),
-            false,
-        )
-    };
-    when(is_race(&TERRAN))
-        .then(lit("T"))
-        .when(is_race(&ZERG))
-        .then(lit("Z"))
-        .when(is_race(&PROTOSS))
-        .then(lit("P"))
-        .otherwise(lit("?"))
-}
-
 /// The sort columns of the games, the ext_fs_id breaks the ties so that the order is stable.
 fn sort_columns(sort_by: ReplayListSort) -> Vec<&'static str> {
     let column = match sort_by {
@@ -90,7 +73,7 @@ pub fn try_query_replay_list(
         );
     }
     let mut games = details_query
-        .with_column(race_letter_expr().alias("race_letter"))
+        .with_column(race_letter_expr("player_race").alias("race_letter"))
         .group_by([col("ext_fs_id")])
         .agg([
             col("title").first(),

@@ -1,6 +1,7 @@
 //! Build orders, expansions, resources, engagements, macro, unit choices and chat of a replay.
 
 use super::notes::ReplayNotesPanel;
+use crate::components::abilities::AbilityUses;
 use crate::components::charts::{BarChart, ChartData};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
@@ -456,6 +457,10 @@ fn PlayerSections(
 
             {section_band("Macro", "h-56", &players, move |summary| view! {
                 <MacroDetails macro_summary=summary.macro_summary.clone() chart_scale />
+            })}
+
+            {section_band("Abilities", "h-48", &players, move |summary| view! {
+                <AbilityUses abilities=summary.abilities.clone() />
             })}
 
             {section_band("Focus", "h-40", &players, move |summary| view! {

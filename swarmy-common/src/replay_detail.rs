@@ -283,6 +283,10 @@ pub struct ReplayPlayerSummary {
     pub good_decisions: usize,
     pub even_decisions: usize,
     pub bad_decisions: Vec<UnitDecision>,
+    /// The abilities with energy or a cooldown used, and the common ones of the race not used, in
+    /// the order of [`crate::TRACKED_ABILITIES`].
+    #[serde(default)]
+    pub abilities: Vec<crate::AbilityUse>,
 }
 
 /// What a player lost in an engagement.

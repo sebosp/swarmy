@@ -1,6 +1,7 @@
 //! Patch Evolution: how the costs of units, and of what they train, build, research and upgrade,
 //! change over the patches, as lines of a chart. The queries can be saved in the settings.
 
+use crate::components::abilities::fetch_ability_usage;
 use crate::components::charts::{ChartData, LineChart};
 use crate::*;
 use leptos::prelude::*;
@@ -306,6 +307,65 @@ pub fn PatchEvolutionView() -> impl IntoView {
                 <Icon icon=PLUS weight=IconWeight::Bold />
                 "Add a line"
             </button>
+            {chart}
+            <AbilityEvolution />
+        </div>
+    }
+}
+
+/// The uses per game of the abilities with energy or a cooldown of a race over the patches of the
+/// snapshot games, a line per ability.
+#[component]
+fn AbilityEvolution() -> impl IntoView {
+    let usage = RwSignal::new(None::<Result<AbilityUsageTable, String>>);
+    let race = RwSignal::new("Zerg".to_string());
+    spawn_local(async move {
+        usage.set(Some(fetch_ability_usage().await));
+    });
+    let chart = move || {
+        let usage = match usage.get()? {
+            Ok(usage) => usage,
+            Err(err) => {
+                return Some(
+                    view! {
+                        <p class="text-xs text-gray-400">{format!("No snapshot to count the abilities: {err}")}</p>
+                    }
+                    .into_any(),
+                )
+            }
+        };
+        let race = race.get();
+        let abilities: Vec<&TrackedAbility> = race_abilities(&race)
+            .filter(|tracked| usage.usage.iter().any(|row| row.ability == tracked.ability))
+            .collect();
+        let mut chart = ChartData::new(usage.patches.iter().map(u32::to_string).collect())
+            .with_owned_colors(
+                (0..abilities.len())
+                    .map(|idx| series_color(idx).to_string())
+                    .collect(),
+            );
+        for tracked in abilities {
+            let values = usage
+                .patches
+                .iter()
+                .map(|patch| usage.get(*patch, tracked.ability).map(|row| row.per_game()))
+                .collect();
+            chart = chart.with_optional_series(tracked.label, values);
+        }
+        Some(view! { <LineChart data=chart class="h-96" /> }.into_any())
+    };
+    view! {
+        <div class="space-y-1 pt-2">
+            <h2 class="text-base font-semibold text-white">"Ability use per game"</h2>
+            <p class="text-sm text-gray-400">
+                "The abilities with energy or a cooldown commanded per game by the players of the race, in the games of the snapshot by patch. A patch without a point has no game in which the ability was used."
+            </p>
+            <select class=SELECT_CLASS on:change=move |ev| race.set(event_target_value(&ev))>
+                {RACE_NAMES
+                    .iter()
+                    .map(|name| view! { <option value=*name selected=move || race.get() == *name>{*name}</option> })
+                    .collect_view()}
+            </select>
             {chart}
         </div>
     }
