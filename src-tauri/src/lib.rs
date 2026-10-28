@@ -89,6 +89,8 @@ pub fn run() {
             query_map_stats,
             swarmy_bevy::exec_swarmy_bevy_map_caches,
             swarmy_bevy::exec_swarmy_bevy_replay,
+            swarmy_bevy::exec_swarmy_bevy_siege_spots,
+            swarmy_bevy::query_siege_spots,
             query_replay_list,
             replay_list::list_replay_filters,
             replay_watcher::get_new_replays_status,

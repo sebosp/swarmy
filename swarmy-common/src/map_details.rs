@@ -100,3 +100,40 @@ pub struct MapResources {
     pub default_amounts: usize,
     pub start_locations: Vec<StartLocation>,
 }
+
+/// The map cells grouped in a siege spot, a square of this many cells per side.
+pub const SIEGE_SPOT_CELLS: u32 = 4;
+
+/// Where Siege Tanks sieged on a map and the enemy units they killed while sieged there, from
+/// the games of the snapshot. swarmy-bevy reads it as JSON with `--siege-spots`.
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct SiegeSpot {
+    /// The spot, the map cell divided by [`SIEGE_SPOT_CELLS`].
+    pub x: u32,
+    pub y: u32,
+    /// The times a tank sieged in the spot.
+    pub sieges: usize,
+    /// The enemy units that cost resources killed by the tanks sieged in the spot.
+    pub kills: usize,
+    /// The games with a siege in the spot.
+    pub games: usize,
+}
+
+impl SiegeSpot {
+    pub fn kills_per_siege(&self) -> f64 {
+        self.kills as f64 / self.sieges.max(1) as f64
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct SiegeSpots {
+    pub map_title: String,
+    /// [`SIEGE_SPOT_CELLS`]
+    pub spot_cells: u32,
+    /// The games of the map with at least one siege.
+    pub games: usize,
+    pub sieges: usize,
+    pub kills: usize,
+    /// The most kills first.
+    pub spots: Vec<SiegeSpot>,
+}

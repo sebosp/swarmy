@@ -178,6 +178,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                 </div>
             </div>
         </div>
+        <SiegeSpotsPanel map_title=details.title.clone() cache_handles=details.cache_handles.clone() />
         <div>
             <h2 class=HEADING_CLASS>"Recent games"</h2>
             <table class=TABLE_CLASS>
@@ -214,6 +215,114 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                         .collect_view()}
                 </tbody>
             </table>
+        </div>
+    }
+}
+
+/// The spots shown in the table, the most kills first.
+const SIEGE_SPOTS_SHOWN: usize = 8;
+
+/// Where the Siege Tanks sieged and killed the most in the games of the map, with a button to see
+/// all the spots as bars on the map in swarmy-bevy.
+#[component]
+fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
+    #[derive(serde::Serialize)]
+    struct Args {
+        map_title: String,
+    }
+    #[derive(serde::Serialize)]
+    struct BevyArgs {
+        map_title: String,
+        cache_ids: String,
+    }
+    let spots = RwSignal::new(None::<Result<SiegeSpots, String>>);
+    let status = RwSignal::new(String::new());
+    let query_title = map_title.clone();
+    spawn_local(async move {
+        spots.set(Some(
+            invoke_json::<SiegeSpots>(
+                "query_siege_spots",
+                &Args {
+                    map_title: query_title,
+                },
+            )
+            .await,
+        ));
+    });
+    let open = move |_ev: MouseEvent| {
+        let args = BevyArgs {
+            map_title: map_title.clone(),
+            cache_ids: cache_handles.clone(),
+        };
+        status.set("Starting swarmy-bevy...".to_string());
+        spawn_local(async move {
+            match invoke_response("exec_swarmy_bevy_siege_spots", &args).await {
+                Ok(response) => status.set(response.message),
+                Err(err) => status.set(err),
+            }
+        });
+    };
+    view! {
+        <div>
+            <div class="flex items-center gap-2">
+                <h2 class=HEADING_CLASS>"Siege Tank spots"</h2>
+                <button
+                    class="btn btn-primary btn-xs"
+                    title="All the spots as bars on the map: the height is the kills, red the most kills per siege"
+                    on:click=open
+                >
+                    <Icon icon=CUBE weight=IconWeight::Light />
+                    "Show in swarmy-bevy"
+                </button>
+                <span class="text-xs text-gray-400">{move || status.get()}</span>
+            </div>
+            <p class="text-xs text-gray-500">
+                {format!("Where the Siege Tanks sieged, in squares of {SIEGE_SPOT_CELLS}x{SIEGE_SPOT_CELLS} cells, and the enemy units that cost resources they killed until they unsieged.")}
+            </p>
+            {move || match spots.get() {
+                None => view! { <Loading message="Finding the sieges" /> }.into_any(),
+                Some(Err(err)) => view! { <p class="text-xs text-gray-400">{err}</p> }.into_any(),
+                Some(Ok(spots)) if spots.spots.is_empty() => view! {
+                    <p class="text-xs text-gray-400">"No Siege Tank sieged in the games of this map."</p>
+                }
+                .into_any(),
+                Some(Ok(spots)) => view! {
+                    <p class="text-xs text-gray-300">
+                        {format!("{} sieges in {} games, {} kills.", spots.sieges, spots.games, spots.kills)}
+                    </p>
+                    <table class=TABLE_CLASS>
+                        <thead>
+                            <tr class="text-left text-gray-300">
+                                <th class="pr-3">"Cells"</th>
+                                <th class="pr-3 text-right">"Kills"</th>
+                                <th class="pr-3 text-right">"Sieges"</th>
+                                <th class="pr-3 text-right">"Kills per siege"</th>
+                                <th class="text-right">"Games"</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {spots
+                                .spots
+                                .iter()
+                                .take(SIEGE_SPOTS_SHOWN)
+                                .map(|spot| {
+                                    let (x, y) = (spot.x * spots.spot_cells, spot.y * spots.spot_cells);
+                                    view! {
+                                        <tr>
+                                            <td class="pr-3 font-mono">{format!("({x}, {y})")}</td>
+                                            <td class="pr-3 text-right font-mono text-white">{spot.kills}</td>
+                                            <td class="pr-3 text-right font-mono">{spot.sieges}</td>
+                                            <td class="pr-3 text-right font-mono">{format!("{:.1}", spot.kills_per_siege())}</td>
+                                            <td class="text-right font-mono">{spot.games}</td>
+                                        </tr>
+                                    }
+                                })
+                                .collect_view()}
+                        </tbody>
+                    </table>
+                }
+                .into_any(),
+            }}
         </div>
     }
 }

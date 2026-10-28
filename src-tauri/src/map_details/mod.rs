@@ -2,6 +2,7 @@
 
 pub mod data;
 pub mod resources;
+pub mod siege_spots;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
 use data::{try_list_maps, try_query_map_details};
