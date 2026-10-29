@@ -1,6 +1,7 @@
 //! Map Details module.
 
 pub mod data;
+pub mod map_layers;
 pub mod resources;
 pub mod siege_spots;
 use crate::run_query;

@@ -122,6 +122,53 @@ pub async fn exec_swarmy_bevy_siege_spots(
     )
 }
 
+/// Shows what happens where on the map in the games of the snapshot: the fights, proxies, creep
+/// tumors and early buildings, written as JSON to the temporary directory for swarmy-bevy.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn exec_swarmy_bevy_map_layers(
+    app_handle: AppHandle,
+    map_title: String,
+    cache_ids: String,
+) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(&app_handle)?;
+    let replay_path = app_config.replay_path.clone();
+    let layers = tauri::async_runtime::spawn_blocking(move || {
+        crate::map_details::map_layers::try_query_map_layers(replay_path, map_title)
+            .map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| SwarmyError::Other(format!("The map layers query failed: {err}")))?
+    .map_err(SwarmyError::Other)?;
+    let file = std::env::temp_dir().join(format!("swarmy-map-layers-{}.json", std::process::id()));
+    std::fs::write(&file, serde_json::to_string(&layers)?)?;
+    spawn_swarmy_bevy(
+        &app_handle,
+        vec![
+            "--path".to_string(),
+            app_config.cache_path,
+            "--ids".to_string(),
+            cache_ids,
+            "--map-layers".to_string(),
+            file.display().to_string(),
+        ],
+    )
+}
+
+/// The layers of a map, for the Map Details view.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn query_map_layers(
+    app_handle: AppHandle,
+    map_title: String,
+) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(&app_handle)?;
+    crate::run_query(move || {
+        ApiResponseBuilder::new().process_result(
+            crate::map_details::map_layers::try_query_map_layers(app_config.replay_path, map_title),
+        )
+    })
+    .await
+}
+
 /// The siege spots of a map, for the Map Details view.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn query_siege_spots(

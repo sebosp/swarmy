@@ -58,7 +58,9 @@ pub fn MapDetailsView() -> impl IntoView {
                 on_select=Callback::new(move |title: String| navigation.open_map(&title))
             />
             <Show when=move || navigation.map_title.get().is_empty()>
-                <p class="text-sm">"Choose a map above or by clicking on its title in the Map List or Replay List."</p>
+                <p class="text-sm">
+                    "Choose a map above or by clicking on its title in the Map List or Replay List."
+                </p>
             </Show>
             <Show when=move || loading.get()>
                 <Loading message="Collecting the games of the map..." />
@@ -100,7 +102,9 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                 <button
                     class="btn btn-primary btn-sm"
                     title="Open in Swarmy-Bevy"
-                    on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_exec_on_caches(&cache_handles)
+                    on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_exec_on_caches(
+                        &cache_handles,
+                    )
                 >
                     <Icon icon=CUBE weight=IconWeight::Light />
                     "Open in Swarmy-Bevy"
@@ -109,9 +113,14 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
         </div>
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <p class="text-xs text-gray-400 whitespace-pre-line">{details.description.clone()}</p>
+                <p class="text-xs text-gray-400 whitespace-pre-line">
+                    {details.description.clone()}
+                </p>
                 <MapPicture details=details.clone() />
-                {details.resources.clone().map(|resources| view! { <MapResourcesPanel resources /> })}
+                {details
+                    .resources
+                    .clone()
+                    .map(|resources| view! { <MapResourcesPanel resources /> })}
             </div>
             <div class="space-y-4">
                 <div>
@@ -121,7 +130,9 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                             <tr class="text-left text-gray-300">
                                 <th class="pr-2">"Matchup"</th>
                                 <th class="pr-2">"Games"</th>
-                                <th title="The win rate of the first race of the matchup">"First race wins"</th>
+                                <th title="The win rate of the first race of the matchup">
+                                    "First race wins"
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -129,21 +140,29 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                 .matchups
                                 .iter()
                                 .map(|matchup| {
-                                    // Mirror matchups always have a winner and a loser.
                                     let mirror = is_mirror_matchup(&matchup.label);
                                     let map_title = details.title.clone();
                                     let label = matchup.label.clone();
+                                    // Mirror matchups always have a winner and a loser.
                                     view! {
                                         <tr
                                             class="cursor-pointer hover:bg-gray-800"
                                             title="Open the games of this matchup on this map in the Replay List"
-                                            on:click=move |_ev: MouseEvent| navigation.open_replays(&map_title, &label)
+                                            on:click=move |_ev: MouseEvent| {
+                                                navigation.open_replays(&map_title, &label)
+                                            }
                                         >
                                             <td class="pr-2 text-white">
                                                 <span class="nav-link">{matchup.label.clone()}</span>
                                             </td>
                                             <td class="pr-2">{matchup.games}</td>
-                                            <td>{if mirror { "-".to_string() } else { win_rate(matchup.wins, matchup.games) }}</td>
+                                            <td>
+                                                {if mirror {
+                                                    "-".to_string()
+                                                } else {
+                                                    win_rate(matchup.wins, matchup.games)
+                                                }}
+                                            </td>
                                         </tr>
                                     }
                                 })
@@ -165,12 +184,16 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                             {details
                                 .top_players
                                 .iter()
-                                .map(|player| view! {
-                                    <tr>
-                                        <td class="pr-2"><PlayerLink player_name=player.label.clone() /></td>
-                                        <td class="pr-2">{player.games}</td>
-                                        <td>{win_rate(player.wins, player.games)}</td>
-                                    </tr>
+                                .map(|player| {
+                                    view! {
+                                        <tr>
+                                            <td class="pr-2">
+                                                <PlayerLink player_name=player.label.clone() />
+                                            </td>
+                                            <td class="pr-2">{player.games}</td>
+                                            <td>{win_rate(player.wins, player.games)}</td>
+                                        </tr>
+                                    }
                                 })
                                 .collect_view()}
                         </tbody>
@@ -178,7 +201,14 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                 </div>
             </div>
         </div>
-        <SiegeSpotsPanel map_title=details.title.clone() cache_handles=details.cache_handles.clone() />
+        <MapLayersPanel
+            map_title=details.title.clone()
+            cache_handles=details.cache_handles.clone()
+        />
+        <SiegeSpotsPanel
+            map_title=details.title.clone()
+            cache_handles=details.cache_handles.clone()
+        />
         <div>
             <h2 class=HEADING_CLASS>"Recent games"</h2>
             <table class=TABLE_CLASS>
@@ -193,24 +223,30 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                     {details
                         .recent_games
                         .into_iter()
-                        .map(|game| view! {
-                            <tr>
-                                <td class="pr-2"><ReplayLink ext_fs_id=game.ext_fs_id /></td>
-                                <td class="pr-2">{game.replay_date.to_string()}</td>
-                                <td>
-                                    {game
-                                        .player_list
-                                        .into_iter()
-                                        .zip(game.player_results)
-                                        .map(|(player_name, result)| view! {
-                                            <span class="mr-3">
-                                                <ResultMarker result />
-                                                <PlayerLink player_name />
-                                            </span>
-                                        })
-                                        .collect_view()}
-                                </td>
-                            </tr>
+                        .map(|game| {
+                            view! {
+                                <tr>
+                                    <td class="pr-2">
+                                        <ReplayLink ext_fs_id=game.ext_fs_id />
+                                    </td>
+                                    <td class="pr-2">{game.replay_date.to_string()}</td>
+                                    <td>
+                                        {game
+                                            .player_list
+                                            .into_iter()
+                                            .zip(game.player_results)
+                                            .map(|(player_name, result)| {
+                                                view! {
+                                                    <span class="mr-3">
+                                                        <ResultMarker result />
+                                                        <PlayerLink player_name />
+                                                    </span>
+                                                }
+                                            })
+                                            .collect_view()}
+                                    </td>
+                                </tr>
+                            }
                         })
                         .collect_view()}
                 </tbody>
@@ -221,6 +257,110 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
 
 /// The spots shown in the table, the most kills first.
 const SIEGE_SPOTS_SHOWN: usize = 8;
+
+/// The fights, proxies, creep tumors and early buildings of the games of the map, with a button
+/// to see them as bars on the map in swarmy-bevy.
+#[component]
+fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
+    #[derive(serde::Serialize)]
+    struct Args {
+        map_title: String,
+    }
+    #[derive(serde::Serialize)]
+    struct BevyArgs {
+        map_title: String,
+        cache_ids: String,
+    }
+    let layers = RwSignal::new(None::<Result<MapLayers, String>>);
+    let status = RwSignal::new(String::new());
+    let query_title = map_title.clone();
+    spawn_local(async move {
+        layers.set(Some(
+            invoke_json::<MapLayers>(
+                "query_map_layers",
+                &Args {
+                    map_title: query_title,
+                },
+            )
+            .await,
+        ));
+    });
+    let open = move |_ev: MouseEvent| {
+        let args = BevyArgs {
+            map_title: map_title.clone(),
+            cache_ids: cache_handles.clone(),
+        };
+        status.set("Starting swarmy-bevy...".to_string());
+        spawn_local(async move {
+            match invoke_response("exec_swarmy_bevy_map_layers", &args).await {
+                Ok(response) => status.set(response.message),
+                Err(err) => status.set(err),
+            }
+        });
+    };
+    view! {
+        <div>
+            <div class="flex items-center gap-2">
+                <h2 class=HEADING_CLASS>"Map lessons"</h2>
+                <button
+                    class="btn btn-primary btn-xs"
+                    title="The layers as bars on the map, each in its color, the keys 1 to 4 show or hide them"
+                    on:click=open
+                >
+                    <Icon icon=CUBE weight=IconWeight::Light />
+                    "Show in swarmy-bevy"
+                </button>
+                <span class="text-xs text-gray-400">{move || status.get()}</span>
+            </div>
+            {move || match layers.get() {
+                None => {
+                    view! { <Loading message="Finding the fights, proxies and creep" /> }.into_any()
+                }
+                Some(Err(err)) => view! { <p class="text-xs text-gray-400">{err}</p> }.into_any(),
+                Some(Ok(layers)) => {
+                    view! {
+                        <table class=TABLE_CLASS>
+                            <tbody>
+                                {layers
+                                    .layers
+                                    .iter()
+                                    .map(|layer| {
+                                        let total: usize = layer
+                                            .spots
+                                            .iter()
+                                            .map(|spot| spot.count)
+                                            .sum();
+                                        let top = layer
+                                            .spots
+                                            .first()
+                                            .map(|spot| {
+                                                format!(
+                                                    "the most at cells ({}, {}): {} in {} games",
+                                                    spot.x * layers.spot_cells,
+                                                    spot.y * layers.spot_cells,
+                                                    spot.count,
+                                                    spot.games,
+                                                )
+                                            })
+                                            .unwrap_or_else(|| "none".to_string());
+                                        view! {
+                                            <tr title=layer.description.clone()>
+                                                <td class="pr-3 text-gray-300">{layer.label.clone()}</td>
+                                                <td class="pr-3 text-right font-mono">{total}</td>
+                                                <td>{top}</td>
+                                            </tr>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </tbody>
+                        </table>
+                    }
+                        .into_any()
+                }
+            }}
+        </div>
+    }
+}
 
 /// Where the Siege Tanks sieged and killed the most in the games of the map, with a button to see
 /// all the spots as bars on the map in swarmy-bevy.
@@ -277,51 +417,71 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
                 <span class="text-xs text-gray-400">{move || status.get()}</span>
             </div>
             <p class="text-xs text-gray-500">
-                {format!("Where the Siege Tanks sieged, in squares of {SIEGE_SPOT_CELLS}x{SIEGE_SPOT_CELLS} cells, and the enemy units that cost resources they killed until they unsieged.")}
+                {format!(
+                    "Where the Siege Tanks sieged, in squares of {SIEGE_SPOT_CELLS}x{SIEGE_SPOT_CELLS} cells, and the enemy units that cost resources they killed until they unsieged.",
+                )}
             </p>
             {move || match spots.get() {
                 None => view! { <Loading message="Finding the sieges" /> }.into_any(),
                 Some(Err(err)) => view! { <p class="text-xs text-gray-400">{err}</p> }.into_any(),
-                Some(Ok(spots)) if spots.spots.is_empty() => view! {
-                    <p class="text-xs text-gray-400">"No Siege Tank sieged in the games of this map."</p>
+                Some(Ok(spots)) if spots.spots.is_empty() => {
+                    view! {
+                        <p class="text-xs text-gray-400">
+                            "No Siege Tank sieged in the games of this map."
+                        </p>
+                    }
+                        .into_any()
                 }
-                .into_any(),
-                Some(Ok(spots)) => view! {
-                    <p class="text-xs text-gray-300">
-                        {format!("{} sieges in {} games, {} kills.", spots.sieges, spots.games, spots.kills)}
-                    </p>
-                    <table class=TABLE_CLASS>
-                        <thead>
-                            <tr class="text-left text-gray-300">
-                                <th class="pr-3">"Cells"</th>
-                                <th class="pr-3 text-right">"Kills"</th>
-                                <th class="pr-3 text-right">"Sieges"</th>
-                                <th class="pr-3 text-right">"Kills per siege"</th>
-                                <th class="text-right">"Games"</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {spots
-                                .spots
-                                .iter()
-                                .take(SIEGE_SPOTS_SHOWN)
-                                .map(|spot| {
-                                    let (x, y) = (spot.x * spots.spot_cells, spot.y * spots.spot_cells);
-                                    view! {
-                                        <tr>
-                                            <td class="pr-3 font-mono">{format!("({x}, {y})")}</td>
-                                            <td class="pr-3 text-right font-mono text-white">{spot.kills}</td>
-                                            <td class="pr-3 text-right font-mono">{spot.sieges}</td>
-                                            <td class="pr-3 text-right font-mono">{format!("{:.1}", spot.kills_per_siege())}</td>
-                                            <td class="text-right font-mono">{spot.games}</td>
-                                        </tr>
-                                    }
-                                })
-                                .collect_view()}
-                        </tbody>
-                    </table>
+                Some(Ok(spots)) => {
+                    view! {
+                        <p class="text-xs text-gray-300">
+                            {format!(
+                                "{} sieges in {} games, {} kills.",
+                                spots.sieges,
+                                spots.games,
+                                spots.kills,
+                            )}
+                        </p>
+                        <table class=TABLE_CLASS>
+                            <thead>
+                                <tr class="text-left text-gray-300">
+                                    <th class="pr-3">"Cells"</th>
+                                    <th class="pr-3 text-right">"Kills"</th>
+                                    <th class="pr-3 text-right">"Sieges"</th>
+                                    <th class="pr-3 text-right">"Kills per siege"</th>
+                                    <th class="text-right">"Games"</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {spots
+                                    .spots
+                                    .iter()
+                                    .take(SIEGE_SPOTS_SHOWN)
+                                    .map(|spot| {
+                                        let (x, y) = (
+                                            spot.x * spots.spot_cells,
+                                            spot.y * spots.spot_cells,
+                                        );
+                                        view! {
+                                            <tr>
+                                                <td class="pr-3 font-mono">{format!("({x}, {y})")}</td>
+                                                <td class="pr-3 text-right font-mono text-white">
+                                                    {spot.kills}
+                                                </td>
+                                                <td class="pr-3 text-right font-mono">{spot.sieges}</td>
+                                                <td class="pr-3 text-right font-mono">
+                                                    {format!("{:.1}", spot.kills_per_siege())}
+                                                </td>
+                                                <td class="text-right font-mono">{spot.games}</td>
+                                            </tr>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </tbody>
+                        </table>
+                    }
+                        .into_any()
                 }
-                .into_any(),
             }}
         </div>
     }

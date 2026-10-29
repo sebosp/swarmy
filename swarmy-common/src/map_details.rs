@@ -137,3 +137,37 @@ pub struct SiegeSpots {
     /// The most kills first.
     pub spots: Vec<SiegeSpot>,
 }
+
+/// The cells of a side of a map spot of the map layers, as the siege spots.
+pub const MAP_LAYER_CELLS: u32 = 4;
+
+/// A spot of a map layer: the map cell divided by [`MAP_LAYER_CELLS`].
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MapLayerSpot {
+    pub x: u32,
+    pub y: u32,
+    /// The units died, the structures built or the tumors placed in the spot.
+    pub count: usize,
+    /// The games with at least one in the spot.
+    pub games: usize,
+}
+
+/// What happens where on a map in the games of the snapshot, drawn by swarmy-bevy.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MapLayer {
+    /// `fights`, `proxies`, `creep` or `early_buildings`.
+    pub kind: String,
+    pub label: String,
+    pub description: String,
+    /// The most counted first.
+    pub spots: Vec<MapLayerSpot>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MapLayers {
+    pub map_title: String,
+    /// [`MAP_LAYER_CELLS`]
+    pub spot_cells: u32,
+    pub games: usize,
+    pub layers: Vec<MapLayer>,
+}
