@@ -7,6 +7,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
     (
         "2026-10-29",
         &[
+            "The message of a new replay shows the most costly thing to fix of the Main Player Name of Config in that game.",
             "Replay Detail: Three things to fix, what cost each player the most in the game (supply blocks, idle production, floating, missed injects, chrono boosts and MULEs, the worst fight), with an estimate in resources to compare them.",
             "Map Details: Map lessons, where the fights happen, the proxies of the first 04:00, the creep tumors and the buildings of the first 03:00 near the start (the walls), in the games of the map, and Show in swarmy-bevy draws them as bars, the keys 1 to 4 show or hide each layer.",
             "Replay Detail: Against the opponent's opening, the openings of your race that won the most against the opening of the opponent in the 1v1 games of the snapshot, with yours highlighted.",

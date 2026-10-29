@@ -103,6 +103,7 @@ pub fn run() {
             connect_swarmy_rerun,
             replay_detail::query_replay_detail,
             replay_detail::query_adjacent_replay,
+            replay_detail::query_replay_lesson,
             personal_db::get_replay_notes,
             duplicates::find_duplicate_replays,
             duplicates::move_duplicate_replays,

@@ -7,7 +7,7 @@ use crate::scan::optimize_progress::TauriEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use phosphor_leptos::{Icon, IconWeight, DATABASE};
-use swarmy_common::{NewReplaysStatus, NEW_REPLAYS_EVENT};
+use swarmy_common::{Lesson, NewReplaysStatus, NEW_REPLAYS_EVENT};
 use wasm_bindgen::prelude::*;
 
 /// Listens to the watcher for as long as the app runs.
@@ -32,7 +32,10 @@ fn listen_to_new_replays(status: RwSignal<NewReplaysStatus>) {
 }
 
 /// The message of a new replay is shown for this long.
-const NEW_REPLAY_TOAST_SECONDS: u64 = 8;
+const NEW_REPLAY_TOAST_SECONDS: u64 = 15;
+
+/// The replay is analysed for the lesson once StarCraft II finished writing it.
+const LESSON_DELAY_SECONDS: u64 = 3;
 
 #[component]
 pub fn NewReplaysBanner() -> impl IntoView {
@@ -41,6 +44,8 @@ pub fn NewReplaysBanner() -> impl IntoView {
     listen_to_new_replays(status);
     // With the notify_new_replays setting, each replay the watcher finds is shown for a while.
     let toast = RwSignal::new(None::<String>);
+    // The most costly lesson of the Main Player Name of Config in the new replay.
+    let lesson = RwSignal::new(None::<Lesson>);
     Effect::new(move |previous: Option<Option<String>>| {
         let current = status.read().latest_replay.clone();
         let notify = status.read().notify;
@@ -52,6 +57,30 @@ pub fn NewReplaysBanner() -> impl IntoView {
                 .unwrap_or_default()
                 .to_string();
             toast.set(Some(name.clone()));
+            lesson.set(None);
+            let location = current.clone().unwrap_or_default();
+            set_timeout(
+                move || {
+                    spawn_local(async move {
+                        #[derive(serde::Serialize)]
+                        struct Args {
+                            replay_location: String,
+                        }
+                        let args = Args {
+                            replay_location: location,
+                        };
+                        if let Ok(found) = invoke_json::<Option<Lesson>>(
+                            "query_replay_lesson",
+                            &args,
+                        )
+                        .await
+                        {
+                            lesson.set(found);
+                        }
+                    });
+                },
+                std::time::Duration::from_secs(LESSON_DELAY_SECONDS),
+            );
             set_timeout(
                 move || {
                     if toast.get_untracked().as_deref() == Some(name.as_str()) {
@@ -84,24 +113,51 @@ pub fn NewReplaysBanner() -> impl IntoView {
         )
     };
     view! {
-        {move || toast.get().map(|name| view! {
-            <div class="toast toast-end toast-bottom z-50">
-                <div class="alert alert-info text-sm">
-                    <span>{format!("New replay found: {name}")}</span>
-                    <button
-                        class="btn btn-accent btn-xs"
-                        title="Opens Scan and runs Optimize, it only adds the replays that are not in the snapshot"
-                        on:click=move |_| {
-                            toast.set(None);
-                            navigation.optimize_snapshot();
-                        }
-                    >
-                        "Add to snapshot"
-                    </button>
-                    <button class="btn btn-ghost btn-xs" title="Close" on:click=move |_| toast.set(None)>"✕"</button>
-                </div>
-            </div>
-        })}
+        {move || {
+            toast
+                .get()
+                .map(|name| {
+                    view! {
+                        <div class="toast toast-end toast-bottom z-50">
+                            <div class="alert alert-info text-sm">
+                                <span>
+                                    {format!("New replay found: {name}")}
+                                    {move || {
+                                        lesson
+                                            .get()
+                                            .map(|lesson| {
+                                                view! {
+                                                    <br />
+                                                    <span class="font-semibold">
+                                                        {format!("To fix: {}", lesson.title)}
+                                                    </span>
+                                                    {format!(", {}", lesson.detail)}
+                                                }
+                                            })
+                                    }}
+                                </span>
+                                <button
+                                    class="btn btn-accent btn-xs"
+                                    title="Opens Scan and runs Optimize, it only adds the replays that are not in the snapshot"
+                                    on:click=move |_| {
+                                        toast.set(None);
+                                        navigation.optimize_snapshot();
+                                    }
+                                >
+                                    "Add to snapshot"
+                                </button>
+                                <button
+                                    class="btn btn-ghost btn-xs"
+                                    title="Close"
+                                    on:click=move |_| toast.set(None)
+                                >
+                                    "✕"
+                                </button>
+                            </div>
+                        </div>
+                    }
+                })
+        }}
         <Show when=move || status.get().needs_optimize()>
             <div class="flex items-center justify-between gap-2 px-3 py-1 text-sm text-indigo-100 bg-indigo-900/60 border-b border-indigo-500/40">
                 <span>{message}</span>

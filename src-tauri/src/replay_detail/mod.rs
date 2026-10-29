@@ -26,6 +26,38 @@ pub async fn query_replay_detail(
     .await
 }
 
+/// The most costly lesson of the Main Player Name of Config in a replay file, for the message of
+/// a new replay. None when the player is not in the replay or the game had nothing costly.
+pub fn try_replay_lesson(
+    replay_location: &str,
+    main_player_name: &str,
+) -> Result<Option<Lesson>, SwarmyError> {
+    if main_player_name.is_empty() {
+        return Ok(None);
+    }
+    let detail = data::analyze_replay_cached(replay_location)?;
+    Ok(detail
+        .players
+        .iter()
+        .find(|summary| summary.player.name.rsplit("<sp/>").next() == Some(main_player_name))
+        .and_then(|summary| summary.lessons.first().cloned()))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn query_replay_lesson(
+    app_handle: tauri::AppHandle,
+    replay_location: String,
+) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(&app_handle)?;
+    run_query(move || {
+        ApiResponseBuilder::new().process_result(try_replay_lesson(
+            &replay_location,
+            &app_config.main_player_name,
+        ))
+    })
+    .await
+}
+
 /// The newest replay, or the one before or after the current one, of the locked map and players.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn query_adjacent_replay(
