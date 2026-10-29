@@ -245,6 +245,36 @@ pub async fn open_external_url(
     })
 }
 
+/// Opens the folder dialog of the system, starting at `directory` when it exists. The message is
+/// the folder picked, empty when the dialog was cancelled.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn pick_folder(
+    app_handle: tauri::AppHandle,
+    directory: String,
+    title: String,
+) -> Result<ApiResponse, SwarmyError> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut dialog = app_handle.dialog().file().set_title(title);
+    let start = std::path::Path::new(&directory);
+    if !directory.is_empty() && start.is_dir() {
+        dialog = dialog.set_directory(start);
+    }
+    // The dialog waits for the user, it is not shown from a worker of the async runtime.
+    let picked = tokio::task::spawn_blocking(move || dialog.blocking_pick_folder()).await?;
+    let folder = match picked {
+        Some(path) => path
+            .into_path()
+            .map_err(|err| SwarmyError::Other(format!("Unsupported folder: {err}")))?
+            .display()
+            .to_string(),
+        None => String::new(),
+    };
+    Ok(ApiResponseBuilder::new()
+        .with_success()
+        .with_message(folder)
+        .build())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

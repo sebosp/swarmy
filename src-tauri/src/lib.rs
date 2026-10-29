@@ -86,6 +86,7 @@ pub fn run() {
             basic_scan_replay_path,
             optimize_replay_path,
             get_snapshot_metadata,
+            settings::pick_folder,
             query_map_stats,
             swarmy_bevy::exec_swarmy_bevy_map_caches,
             swarmy_bevy::exec_swarmy_bevy_replay,

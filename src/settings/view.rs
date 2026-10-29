@@ -1,7 +1,7 @@
 //! Leptos view for app configuration.
 
 use leptos::{ev::MouseEvent, prelude::*};
-use phosphor_leptos::{Icon, IconWeight, QUESTION};
+use phosphor_leptos::{Icon, IconWeight, FOLDER_OPEN, QUESTION};
 use swarmy_common::*;
 
 use crate::{settings::actions::trigger_set_current_app_config, DisplayBackendStatus};
@@ -155,14 +155,19 @@ pub fn Config() -> impl IntoView {
                             </span>
                         </div>
                         <div></div>
-                        <label class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white" title="Shows a message with the name of each new replay the watcher finds, i.e. when a game ends">
+                        <label
+                            class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white"
+                            title="Shows a message with the name of each new replay the watcher finds, i.e. when a game ends"
+                        >
                             <input
                                 id="notify_new_replays"
                                 type="checkbox"
                                 class="size-4 accent-indigo-500"
                                 prop:disabled=move || !watch_new_replays.get()
                                 prop:checked=move || notify_new_replays.get()
-                                on:change=move |ev| notify_new_replays.set(event_target_checked(&ev))
+                                on:change=move |ev| {
+                                    notify_new_replays.set(event_target_checked(&ev))
+                                }
                             />
                             "Show a message for each new replay found"
                         </label>
@@ -173,6 +178,7 @@ pub fn Config() -> impl IntoView {
             <div class="grid grid-cols-4 sm:items-start sm:gap-4 sm:py-6">
                 <ConfigStringInput
                     name="cache_path"
+                    directory=true
                     label="Map Caches Path"
                     description="The replays only refer to their maps, to analyse the maps the Map Info caches (terrain, start locations, resources) and the maps are downloaded from Blizzard's depot servers into this directory, like StarCraft II does. swarmy-caches in your home directory by default."
                     value=cache_path
@@ -186,18 +192,20 @@ pub fn Config() -> impl IntoView {
                 />
                 <ConfigStringInput
                     name="replay_path"
+                    directory=true
                     label="Replay Path"
                     description="The parent path for the replay collection to analyse."
                     value=replay_path
                 />
                 <ConfigStringInput
                     name="duplicates_path"
+                    directory=true
                     label="Duplicate Replays Folder"
                     description="The same game is often saved more than once, i.e. copied from another computer or downloaded again from a tournament pack. \
-                        Find duplicates in Scan compares the contents of the replays (their sha256) and Move to the duplicates folder moves the extra copies here, \
-                        so that a game is counted once in the statistics. The subdirectories they were in are kept. The copy already in the snapshot, or else the first one by path, stays in the Replay Path.\n\n\
-                        Nothing is deleted: check the folder and delete it yourself, or move the files back. It must be outside of the Replay Path, \
-                        i.e. ~/SC2Replays-duplicates. Leave it empty to only list the duplicates."
+                    Find duplicates in Scan compares the contents of the replays (their sha256) and Move to the duplicates folder moves the extra copies here, \
+                    so that a game is counted once in the statistics. The subdirectories they were in are kept. The copy already in the snapshot, or else the first one by path, stays in the Replay Path.\n\n\
+                    Nothing is deleted: check the folder and delete it yourself, or move the files back. It must be outside of the Replay Path, \
+                    i.e. ~/SC2Replays-duplicates. Leave it empty to only list the duplicates."
                     value=duplicates_path
                     optional=true
                     warning=true
@@ -342,30 +350,72 @@ pub fn ConfigStringInput(
     /// The description is a warning, shown in an amber tooltip instead of the browser's one.
     #[prop(optional)]
     warning: bool,
+    /// The value is a directory, a Browse button picks it with the folder dialog of the system.
+    #[prop(optional)]
+    directory: bool,
 ) -> impl IntoView {
     let is_missing = move || !optional && value.get().is_empty();
+    let browse_error = RwSignal::new(None::<String>);
+    let browse = move |_: MouseEvent| {
+        let args = PickFolderArgs {
+            directory: value.get_untracked(),
+            title: label.to_string(),
+        };
+        leptos::task::spawn_local(async move {
+            match crate::common::invoke_response("pick_folder", &args).await {
+                // Empty when the dialog was cancelled.
+                Ok(response) if !response.message.is_empty() => {
+                    browse_error.set(None);
+                    value.set(response.message);
+                }
+                Ok(_) => {}
+                Err(err) => browse_error.set(Some(err)),
+            }
+        });
+    };
     view! {
         <div class="mt-2 col-span-1 sm:mt-0">
             <label class="block text-sm/6 font-medium text-white sm:pt-1.5">{label}</label>
         </div>
         <div class="mt-2 col-span-2 sm:mt-0">
-            <input
-                type="text"
-                aria-invalid=move || if is_missing() { "true" } else { "false" }
-                aria-describedby=move || format!("{}-description", name)
-                class=move || {
-                    if is_missing() {
-                        "block w-full rounded-md bg-white/5 px-3 py-1.5 text-red-400 outline-1 -outline-offset-1 outline-red-500/50 placeholder:text-red-400/70 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 sm:pr-9 sm:text-sm/6"
-                    } else {
-                        "block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+            <div class="flex gap-2">
+                <input
+                    type="text"
+                    aria-invalid=move || if is_missing() { "true" } else { "false" }
+                    aria-describedby=move || format!("{}-description", name)
+                    class=move || {
+                        if is_missing() {
+                            "block w-full rounded-md bg-white/5 px-3 py-1.5 text-red-400 outline-1 -outline-offset-1 outline-red-500/50 placeholder:text-red-400/70 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 sm:pr-9 sm:text-sm/6"
+                        } else {
+                            "block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                        }
                     }
-                }
-                on:input=move |ev| {
-                    let input_value = event_target_value(&ev);
-                    value.set(input_value)
-                }
-                value=move || value.get().to_string()
-            />
+                    on:input=move |ev| {
+                        let input_value = event_target_value(&ev);
+                        value.set(input_value)
+                    }
+                    value=move || value.get().to_string()
+                />
+                {directory
+                    .then(|| {
+                        view! {
+                            <button
+                                type="button"
+                                class="btn btn-outline btn-sm shrink-0"
+                                title="Pick the folder"
+                                on:click=browse
+                            >
+                                <Icon
+                                    icon=FOLDER_OPEN
+                                    weight=IconWeight::Light
+                                    prop:class="stroke-current"
+                                />
+                                "Browse"
+                            </button>
+                        }
+                    })}
+            </div>
+            <crate::common::ErrorMessage error=browse_error />
             <p
                 id=move || format!("{}-description", name)
                 class=move || {
@@ -389,11 +439,7 @@ pub fn ConfigStringInput(
         {if warning {
             view! {
                 <div class="col-span-1 text-amber-400">
-                    <span
-                        class="group relative inline-block"
-                        tabindex="0"
-                        aria-label=description
-                    >
+                    <span class="group relative inline-block" tabindex="0" aria-label=description>
                         <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
                         <span
                             role="tooltip"
@@ -416,4 +462,11 @@ pub fn ConfigStringInput(
                 .into_any()
         }}
     }
+}
+
+/// The arguments of the pick_folder command.
+#[derive(serde::Serialize)]
+struct PickFolderArgs {
+    directory: String,
+    title: String,
 }
