@@ -2,7 +2,7 @@
 
 use super::notes::ReplayNotesPanel;
 use crate::components::abilities::AbilityUses;
-use crate::components::charts::{BarChart, ChartData};
+use crate::components::charts::{BarChart, ChartData, LineChart};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
 };
@@ -73,27 +73,54 @@ pub fn ReplayDetailView() -> impl IntoView {
                 <Loading message="Analysing the replay..." />
             </Show>
             <ErrorMessage error />
-            {move || detail.get().map(|detail| view! {
-                <ReplayNavigation detail=detail.clone() error />
-                <ReplayHeader detail=detail.clone() />
-                <ReplayNotesPanel sha256=detail.sha256.clone() />
-                <div class="flex gap-4 text-xs text-gray-400">
-                    <label class="flex items-center gap-1">
-                        <input type="checkbox" class="checkbox checkbox-xs" bind:checked=hide_workers />
-                        "Hide workers in the build order"
-                    </label>
-                    <label class="flex items-center gap-1">
-                        <input type="checkbox" class="checkbox checkbox-xs" bind:checked=whole_game />
-                        {format!(
-                            "Show the whole build order, not only the first {} minutes",
-                            BUILD_ORDER_DEFAULT_SECONDS / 60,
-                        )}
-                    </label>
-                </div>
-                <PlayerSections players=detail.players.clone() snapshot_seconds=detail.snapshot_seconds hide_workers whole_game />
-                <Engagements engagements=detail.engagements />
-                <Messages messages=detail.messages />
-            })}
+            {move || {
+                detail
+                    .get()
+                    .map(|detail| {
+                        view! {
+                            <ReplayNavigation detail=detail.clone() error />
+                            <ReplayHeader detail=detail.clone() />
+                            <ReplayNotesPanel sha256=detail.sha256.clone() />
+                            <div class="flex gap-4 text-xs text-gray-400">
+                                <label class="flex items-center gap-1">
+                                    <input
+                                        type="checkbox"
+                                        class="checkbox checkbox-xs"
+                                        bind:checked=hide_workers
+                                    />
+                                    "Hide workers in the build order"
+                                </label>
+                                <label class="flex items-center gap-1">
+                                    <input
+                                        type="checkbox"
+                                        class="checkbox checkbox-xs"
+                                        bind:checked=whole_game
+                                    />
+                                    {format!(
+                                        "Show the whole build order, not only the first {} minutes",
+                                        BUILD_ORDER_DEFAULT_SECONDS / 60,
+                                    )}
+                                </label>
+                            </div>
+                            {detail
+                                .win_chances
+                                .clone()
+                                .map(|chances| {
+                                    view! {
+                                        <WinChanceChart chances players=detail.players.clone() />
+                                    }
+                                })}
+                            <PlayerSections
+                                players=detail.players.clone()
+                                snapshot_seconds=detail.snapshot_seconds
+                                hide_workers
+                                whole_game
+                            />
+                            <Engagements engagements=detail.engagements />
+                            <Messages messages=detail.messages />
+                        }
+                    })
+            }}
         </div>
     }
 }
@@ -138,14 +165,18 @@ fn go_to_replay(ext_fs_id: Option<u64>, step: ReplayStep, error: RwSignal<Option
 fn LockToggle(locked: Signal<bool>, on_toggle: Callback<()>, title: &'static str) -> impl IntoView {
     view! {
         <button
-            class=move || if locked.get() { "btn btn-xs btn-accent" } else { "btn btn-xs btn-ghost" }
+            class=move || {
+                if locked.get() { "btn btn-xs btn-accent" } else { "btn btn-xs btn-ghost" }
+            }
             title=title
             on:click=move |_| on_toggle.run(())
         >
-            {move || if locked.get() {
-                view! { <Icon icon=LOCK_SIMPLE weight=IconWeight::Fill /> }.into_any()
-            } else {
-                view! { <Icon icon=LOCK_SIMPLE_OPEN weight=IconWeight::Light /> }.into_any()
+            {move || {
+                if locked.get() {
+                    view! { <Icon icon=LOCK_SIMPLE weight=IconWeight::Fill /> }.into_any()
+                } else {
+                    view! { <Icon icon=LOCK_SIMPLE_OPEN weight=IconWeight::Light /> }.into_any()
+                }
             }}
         </button>
     }
@@ -175,7 +206,11 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
                 let player_name = player_name.clone();
                 Callback::new(move |_| {
                     locks.update(|locks| {
-                        if let Some(idx) = locks.player_names.iter().position(|name| *name == player_name) {
+                        if let Some(idx) = locks
+                            .player_names
+                            .iter()
+                            .position(|name| *name == player_name)
+                        {
                             locks.player_names.remove(idx);
                         } else {
                             locks.player_names.push(player_name.clone());
@@ -185,7 +220,11 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
             };
             view! {
                 <span class="flex items-center gap-1">
-                    <LockToggle locked on_toggle=toggle title="Lock the player: the previous and next replays are of this player" />
+                    <LockToggle
+                        locked
+                        on_toggle=toggle
+                        title="Lock the player: the previous and next replays are of this player"
+                    />
                     <ResultMarker result=summary.player.result.clone() />
                     <PlayerLink player_name />
                 </span>
@@ -237,7 +276,11 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
                 "Latest"
             </button>
             <span class="flex items-center gap-1">
-                <LockToggle locked=map_locked on_toggle=toggle_map title="Lock the map: the previous and next replays are on this map" />
+                <LockToggle
+                    locked=map_locked
+                    on_toggle=toggle_map
+                    title="Lock the map: the previous and next replays are on this map"
+                />
                 <MapLink map_title=detail.map_title.clone() />
             </span>
             {players}
@@ -256,25 +299,25 @@ fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
                     <MapLink map_title=detail.map_title.clone() />
                 </h1>
                 <p class="text-sm text-gray-400">
-                    "Replay "
-                    <ReplayLink ext_fs_id=detail.ext_fs_id />
+                    "Replay " <ReplayLink ext_fs_id=detail.ext_fs_id />
                     {format!(
                         " · {} · {} · patch version ",
                         detail.replay_date,
                         format_game_time(detail.duration_seconds),
-                    )}
-                    <PatchLink version=detail.protocol_version />
+                    )} <PatchLink version=detail.protocol_version />
                 </p>
                 <p class="text-sm text-gray-300">
                     "Winner: "
                     {detail
                         .winners
                         .into_iter()
-                        .map(|player_name| view! {
-                            <span class="mr-2">
-                                <ResultMarker result="Win".to_string() />
-                                <PlayerLink player_name />
-                            </span>
+                        .map(|player_name| {
+                            view! {
+                                <span class="mr-2">
+                                    <ResultMarker result="Win".to_string() />
+                                    <PlayerLink player_name />
+                                </span>
+                            }
                         })
                         .collect_view()}
                 </p>
@@ -336,7 +379,11 @@ fn PatchComparison(seconds: u32, average: Option<PatchAverage>) -> impl IntoView
             format_game_time(average.seconds),
             average.samples,
         );
-        view! { <span class=format!("ml-2 {color}") title=title>{average.compare(seconds)}</span> }
+        view! {
+            <span class=format!("ml-2 {color}") title=title>
+                {average.compare(seconds)}
+            </span>
+        }
     })
 }
 
@@ -369,9 +416,10 @@ fn section_band<V: IntoView + 'static>(
             <h3 class="px-2 py-1 text-sm font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
                 {title}
             </h3>
-            <div class=format!("grid {} divide-x divide-white/15", player_columns(players.len()))>
-                {cells}
-            </div>
+            <div class=format!(
+                "grid {} divide-x divide-white/15",
+                player_columns(players.len()),
+            )>{cells}</div>
         </div>
     }
 }
@@ -394,11 +442,24 @@ fn PlayerSections(
             view! {
                 <div class="px-2 py-1">
                     <div class="flex items-center gap-2 text-base text-white">
-                        <span class="inline-block w-3 h-3 rounded-full" style=format!("background: rgb({r},{g},{b})")></span>
+                        <span
+                            class="inline-block w-3 h-3 rounded-full"
+                            style=format!("background: rgb({r},{g},{b})")
+                        ></span>
                         <ResultMarker result=summary.player.result.clone() />
                         <PlayerLink player_name=summary.player.name.clone() />
-                        <span class="text-sm text-gray-400"><RaceLink race=summary.player.race.clone() /></span>
-                        {summary.rating.map(|rating| view! { <span class="text-xs text-gray-400">{format!("MMR {rating}")}</span> })}
+                        <span class="text-sm text-gray-400">
+                            <RaceLink race=summary.player.race.clone() />
+                        </span>
+                        {summary
+                            .rating
+                            .map(|rating| {
+                                view! {
+                                    <span class="text-xs text-gray-400">
+                                        {format!("MMR {rating}")}
+                                    </span>
+                                }
+                            })}
                     </div>
                     <PlayerBadges summary=summary.clone() />
                 </div>
@@ -410,110 +471,167 @@ fn PlayerSections(
             <div class=format!(
                 "sticky top-0 z-10 grid {} divide-x divide-white/15 rounded-md border border-white/20 bg-gray-900",
                 player_columns(players.len()),
-            )>
-                {player_headers}
-            </div>
+            )>{player_headers}</div>
 
-            {section_band("Expansions", "h-24", &players, move |summary| view! {
-                <ul class="text-xs text-gray-400 font-mono">
-                    {base_events(summary)
-                        .into_iter()
-                        .map(|(seconds, new_base, text, average)| view! {
-                            <li>
-                                <ResultMarker result=if new_base { "Win" } else { "Loss" }.to_string() />
-                                {format!("{} {text}", format_game_time(seconds))}
-                                <PatchComparison seconds average />
-                            </li>
-                        })
-                        .collect_view()}
-                </ul>
-            })}
-
-            {section_band("Resources", "h-24", &players, move |summary| {
-                let resources = summary.resources.clone();
-                view! {
-                    <table class=TABLE_CLASS>
-                        <tbody>
-                            <tr>
-                                <td class="pr-2">"Lost"</td>
-                                <td class="pr-2 text-red-400">{format!("{} minerals, {} vespene", resources.lost.minerals, resources.lost.vespene)}</td>
-                            </tr>
-                            <tr>
-                                <td class="pr-2">"Killed"</td>
-                                <td class="pr-2 text-green-400">{format!("{} minerals, {} vespene", resources.killed.minerals, resources.killed.vespene)}</td>
-                            </tr>
-                            <tr title="The time needed to mine the lost resources back, at the income when they were lost">
-                                <td class="pr-2">"Mining time lost"</td>
-                                <td class="pr-2">{format_game_time(resources.mining_seconds_lost)}</td>
-                            </tr>
-                            <tr title="The build time of the units and structures lost">
-                                <td class="pr-2">"Build time lost"</td>
-                                <td class="pr-2">{format_game_time(resources.build_seconds_lost)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                }
-            })}
-
-            {section_band("Macro", "h-56", &players, move |summary| view! {
-                <MacroDetails macro_summary=summary.macro_summary.clone() chart_scale />
-            })}
-
-            {section_band("Abilities", "h-48", &players, move |summary| view! {
-                <AbilityUses abilities=summary.abilities.clone() />
-            })}
-
-            {section_band("Focus", "h-40", &players, move |summary| view! {
-                <FocusDetails focus=summary.focus.clone() chart_scale />
-            })}
-
-            {section_band("Economy", "h-28", &players, move |summary| {
-                let enemy_benchmarks = enemy_benchmarks(&all_players, summary);
-                view! {
-                    <table class=TABLE_CLASS>
-                        <thead>
-                            <tr class="text-left text-gray-300">
-                                <th class="pr-2">"Time"</th>
-                                <th class="pr-2">"Workers"</th>
-                                <th class="pr-2">"Supply"</th>
-                                <th class="pr-2">"Income/min"</th>
-                                <th>"Army value"</th>
-                            </tr>
-                        </thead>
-                        <tbody class="font-mono">
-                            {summary
-                                .benchmarks
-                                .iter()
-                                .map(|benchmark| {
-                                    let enemy = enemy_benchmarks
-                                        .iter()
-                                        .find(|enemy| enemy.minute == benchmark.minute);
-                                    let ahead = |value: fn(&Benchmark) -> i32| {
-                                        let value_of = value(benchmark);
-                                        view! {
-                                            {value_of}
-                                            {enemy
-                                                .is_some_and(|enemy| value_of > value(enemy))
-                                                .then(|| view! {
-                                                    <span class="text-green-500" title="Ahead of the enemy">" ▲"</span>
-                                                })}
-                                        }
-                                    };
+            {section_band(
+                "Expansions",
+                "h-24",
+                &players,
+                move |summary| {
+                    view! {
+                        <ul class="text-xs text-gray-400 font-mono">
+                            {base_events(summary)
+                                .into_iter()
+                                .map(|(seconds, new_base, text, average)| {
                                     view! {
-                                        <tr>
-                                            <td class="pr-2">{format_game_time(benchmark.minute * 60)}</td>
-                                            <td class="pr-2">{ahead(|benchmark| benchmark.workers)}</td>
-                                            <td class="pr-2">{ahead(|benchmark| benchmark.supply)}</td>
-                                            <td class="pr-2">{ahead(|benchmark| benchmark.minerals_rate + benchmark.vespene_rate)}</td>
-                                            <td>{ahead(|benchmark| benchmark.army_value)}</td>
-                                        </tr>
+                                        <li>
+                                            <ResultMarker result=if new_base { "Win" } else { "Loss" }
+                                                .to_string() />
+                                            {format!("{} {text}", format_game_time(seconds))}
+                                            <PatchComparison seconds average />
+                                        </li>
                                     }
                                 })
                                 .collect_view()}
-                        </tbody>
-                    </table>
-                }
-            })}
+                        </ul>
+                    }
+                },
+            )}
+
+            {section_band(
+                "Resources",
+                "h-24",
+                &players,
+                move |summary| {
+                    let resources = summary.resources.clone();
+                    view! {
+                        <table class=TABLE_CLASS>
+                            <tbody>
+                                <tr>
+                                    <td class="pr-2">"Lost"</td>
+                                    <td class="pr-2 text-red-400">
+                                        {format!(
+                                            "{} minerals, {} vespene",
+                                            resources.lost.minerals,
+                                            resources.lost.vespene,
+                                        )}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="pr-2">"Killed"</td>
+                                    <td class="pr-2 text-green-400">
+                                        {format!(
+                                            "{} minerals, {} vespene",
+                                            resources.killed.minerals,
+                                            resources.killed.vespene,
+                                        )}
+                                    </td>
+                                </tr>
+                                <tr title="The time needed to mine the lost resources back, at the income when they were lost">
+                                    <td class="pr-2">"Mining time lost"</td>
+                                    <td class="pr-2">
+                                        {format_game_time(resources.mining_seconds_lost)}
+                                    </td>
+                                </tr>
+                                <tr title="The build time of the units and structures lost">
+                                    <td class="pr-2">"Build time lost"</td>
+                                    <td class="pr-2">
+                                        {format_game_time(resources.build_seconds_lost)}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    }
+                },
+            )}
+
+            {section_band(
+                "Macro",
+                "h-56",
+                &players,
+                move |summary| {
+                    view! {
+                        <MacroDetails macro_summary=summary.macro_summary.clone() chart_scale />
+                    }
+                },
+            )}
+
+            {section_band(
+                "Abilities",
+                "h-48",
+                &players,
+                move |summary| view! { <AbilityUses abilities=summary.abilities.clone() /> },
+            )}
+
+            {section_band(
+                "Focus",
+                "h-40",
+                &players,
+                move |summary| view! { <FocusDetails focus=summary.focus.clone() chart_scale /> },
+            )}
+
+            {section_band(
+                "Economy",
+                "h-28",
+                &players,
+                move |summary| {
+                    let enemy_benchmarks = enemy_benchmarks(&all_players, summary);
+                    view! {
+                        <table class=TABLE_CLASS>
+                            <thead>
+                                <tr class="text-left text-gray-300">
+                                    <th class="pr-2">"Time"</th>
+                                    <th class="pr-2">"Workers"</th>
+                                    <th class="pr-2">"Supply"</th>
+                                    <th class="pr-2">"Income/min"</th>
+                                    <th>"Army value"</th>
+                                </tr>
+                            </thead>
+                            <tbody class="font-mono">
+                                {summary
+                                    .benchmarks
+                                    .iter()
+                                    .map(|benchmark| {
+                                        let enemy = enemy_benchmarks
+                                            .iter()
+                                            .find(|enemy| enemy.minute == benchmark.minute);
+                                        let ahead = |value: fn(&Benchmark) -> i32| {
+                                            let value_of = value(benchmark);
+                                            view! {
+                                                {value_of}
+                                                {enemy
+                                                    .is_some_and(|enemy| value_of > value(enemy))
+                                                    .then(|| {
+                                                        view! {
+                                                            <span class="text-green-500" title="Ahead of the enemy">
+                                                                " ▲"
+                                                            </span>
+                                                        }
+                                                    })}
+                                            }
+                                        };
+                                        view! {
+                                            <tr>
+                                                <td class="pr-2">
+                                                    {format_game_time(benchmark.minute * 60)}
+                                                </td>
+                                                <td class="pr-2">{ahead(|benchmark| benchmark.workers)}</td>
+                                                <td class="pr-2">{ahead(|benchmark| benchmark.supply)}</td>
+                                                <td class="pr-2">
+                                                    {ahead(|benchmark| {
+                                                        benchmark.minerals_rate + benchmark.vespene_rate
+                                                    })}
+                                                </td>
+                                                <td>{ahead(|benchmark| benchmark.army_value)}</td>
+                                            </tr>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </tbody>
+                        </table>
+                    }
+                },
+            )}
 
             {section_band(
                 if snapshot_seconds < 600 {
@@ -522,97 +640,160 @@ fn PlayerSections(
                     "Army at 10:00".to_string()
                 },
                 "h-28",
-                &players, move |summary| view! {
-                <p class="text-xs text-gray-300">{format!("{} bases", summary.bases_at_10)}</p>
-                <UnitCountsTable counts=summary.army_at_10.clone() />
-            })}
+                &players,
+                move |summary| {
+                    view! {
+                        <p class="text-xs text-gray-300">
+                            {format!("{} bases", summary.bases_at_10)}
+                        </p>
+                        <UnitCountsTable counts=summary.army_at_10.clone() />
+                    }
+                },
+            )}
 
-            {section_band("Unit choices", "h-36", &players, move |summary| {
-                let total_decisions =
-                    summary.good_decisions + summary.even_decisions + summary.bad_decisions.len();
-                view! {
-                    <p class="text-xs text-gray-400" title="Units produced scored against the enemy army at the time, from the balance data strengths and weaknesses">
-                        <span class="text-green-500">{format!("{} good", summary.good_decisions)}</span>
-                        {format!(" · {} even · ", summary.even_decisions)}
-                        <span class="text-red-500">{format!("{} bad", summary.bad_decisions.len())}</span>
-                        {format!(" out of {total_decisions}")}
-                    </p>
-                    <table class=TABLE_CLASS>
-                        <tbody>
-                            {summary
-                                .bad_decisions
-                                .iter()
-                                .map(|decision| view! {
-                                    <tr>
-                                        <td class="pr-2 font-mono">{format_game_time(decision.seconds)}</td>
-                                        <td class="pr-2 text-white"><UnitLink unit_name=decision.unit.clone() /></td>
-                                        <td class="pr-2 text-red-400">{format!("{:+.2}", decision.score)}</td>
-                                        <td>"weak vs " <UnitCountLinks counts=decision.weak_vs.clone() /></td>
-                                    </tr>
-                                })
-                                .collect_view()}
-                        </tbody>
-                    </table>
-                }
-            })}
+            {section_band(
+                "Unit choices",
+                "h-36",
+                &players,
+                move |summary| {
+                    let total_decisions = summary.good_decisions + summary.even_decisions
+                        + summary.bad_decisions.len();
+                    view! {
+                        <p
+                            class="text-xs text-gray-400"
+                            title="Units produced scored against the enemy army at the time, from the balance data strengths and weaknesses"
+                        >
+                            <span class="text-green-500">
+                                {format!("{} good", summary.good_decisions)}
+                            </span>
+                            {format!(" · {} even · ", summary.even_decisions)}
+                            <span class="text-red-500">
+                                {format!("{} bad", summary.bad_decisions.len())}
+                            </span>
+                            {format!(" out of {total_decisions}")}
+                        </p>
+                        <table class=TABLE_CLASS>
+                            <tbody>
+                                {summary
+                                    .bad_decisions
+                                    .iter()
+                                    .map(|decision| {
+                                        view! {
+                                            <tr>
+                                                <td class="pr-2 font-mono">
+                                                    {format_game_time(decision.seconds)}
+                                                </td>
+                                                <td class="pr-2 text-white">
+                                                    <UnitLink unit_name=decision.unit.clone() />
+                                                </td>
+                                                <td class="pr-2 text-red-400">
+                                                    {format!("{:+.2}", decision.score)}
+                                                </td>
+                                                <td>
+                                                    "weak vs "
+                                                    <UnitCountLinks counts=decision.weak_vs.clone() />
+                                                </td>
+                                            </tr>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </tbody>
+                        </table>
+                    }
+                },
+            )}
 
-            {section_band("Most effective units", "h-44", &players, move |summary| view! {
-                <UnitsTable units=summary.units.clone() min_produced=MIN_PRODUCED_FOR_EFFECTIVENESS />
-            })}
+            {section_band(
+                "Most effective units",
+                "h-44",
+                &players,
+                move |summary| {
+                    view! {
+                        <UnitsTable
+                            units=summary.units.clone()
+                            min_produced=MIN_PRODUCED_FOR_EFFECTIVENESS
+                        />
+                    }
+                },
+            )}
 
-            {section_band("Units killed · Units lost · Killed by", "h-48", &players, move |summary| view! {
-                <div class="grid grid-cols-3 gap-2">
-                    <div>
-                        <p class="text-xs text-gray-300">"Killed"</p>
-                        <UnitCountsTable counts=summary.units_killed.clone() />
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-300">"Lost"</p>
-                        <UnitCountsTable counts=summary.units_lost.clone() />
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-300">"Killed by"</p>
-                        <UnitCountsTable counts=summary.killed_by.clone() />
-                    </div>
-                </div>
-            })}
+            {section_band(
+                "Units killed · Units lost · Killed by",
+                "h-48",
+                &players,
+                move |summary| {
+                    view! {
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <p class="text-xs text-gray-300">"Killed"</p>
+                                <UnitCountsTable counts=summary.units_killed.clone() />
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-300">"Lost"</p>
+                                <UnitCountsTable counts=summary.units_lost.clone() />
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-300">"Killed by"</p>
+                                <UnitCountsTable counts=summary.killed_by.clone() />
+                            </div>
+                        </div>
+                    }
+                },
+            )}
 
-            {section_band("Build order", "h-96", &players, move |summary| {
-                let build_order = summary.build_order.clone();
-                view! {
-                    <table class=TABLE_CLASS>
-                        <thead class="sticky top-0 bg-gray-800">
-                            <tr class="text-left text-gray-300">
-                                <th class="pr-2">"Time"</th>
-                                <th class="pr-2">"Supply"</th>
-                                <th>"Unit, structure or upgrade"</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {move || build_order
-                                .iter()
-                                .filter(|entry| !(hide_workers.get() && entry.is_worker))
-                                .filter(|entry| whole_game.get() || entry.seconds <= BUILD_ORDER_DEFAULT_SECONDS)
-                                .cloned()
-                                .map(|entry| view! {
-                                    <tr>
-                                        <td class="pr-2 font-mono">{format_game_time(entry.seconds)}</td>
-                                        <td class="pr-2 font-mono">{entry.supply}</td>
-                                        <td class="text-white">
-                                            {if entry.is_upgrade {
-                                                entry.name.into_any()
-                                            } else {
-                                                view! { <UnitLink unit_name=entry.name /> }.into_any()
-                                            }}
-                                            <PatchComparison seconds=entry.seconds average=entry.patch_average />
-                                        </td>
-                                    </tr>
-                                })
-                                .collect_view()}
-                        </tbody>
-                    </table>
-                }
-            })}
+            {section_band(
+                "Build order",
+                "h-96",
+                &players,
+                move |summary| {
+                    let build_order = summary.build_order.clone();
+                    view! {
+                        <table class=TABLE_CLASS>
+                            <thead class="sticky top-0 bg-gray-800">
+                                <tr class="text-left text-gray-300">
+                                    <th class="pr-2">"Time"</th>
+                                    <th class="pr-2">"Supply"</th>
+                                    <th>"Unit, structure or upgrade"</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {move || {
+                                    build_order
+                                        .iter()
+                                        .filter(|entry| !(hide_workers.get() && entry.is_worker))
+                                        .filter(|entry| {
+                                            whole_game.get()
+                                                || entry.seconds <= BUILD_ORDER_DEFAULT_SECONDS
+                                        })
+                                        .cloned()
+                                        .map(|entry| {
+                                            view! {
+                                                <tr>
+                                                    <td class="pr-2 font-mono">
+                                                        {format_game_time(entry.seconds)}
+                                                    </td>
+                                                    <td class="pr-2 font-mono">{entry.supply}</td>
+                                                    <td class="text-white">
+                                                        {if entry.is_upgrade {
+                                                            entry.name.into_any()
+                                                        } else {
+                                                            view! { <UnitLink unit_name=entry.name /> }.into_any()
+                                                        }}
+                                                        <PatchComparison
+                                                            seconds=entry.seconds
+                                                            average=entry.patch_average
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        })
+                                        .collect_view()
+                                }}
+                            </tbody>
+                        </table>
+                    }
+                },
+            )}
         </div>
     }
 }
@@ -624,27 +805,67 @@ fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
     let opening = (!summary.opening.is_empty()).then(|| summary.opening.join(" → "));
     view! {
         <div class="mt-1 flex flex-wrap gap-1">
-            {opening.map(|opening| view! { <span class=badge title="The first tech structures">{format!("Opening: {opening}")}</span> })}
+            {opening
+                .map(|opening| {
+                    view! {
+                        <span class=badge title="The first tech structures">
+                            {format!("Opening: {opening}")}
+                        </span>
+                    }
+                })}
             // The first Overlord almost always scouts, the badge only tells something for the
             // other races.
-            {summary.first_scout.filter(|_| summary.player.race != "Zerg").map(|scout| view! {
-                <span class=badge title="The first command targeting the enemy start location">
-                    {format!("Scouted at {} with {}", format_game_time(scout.seconds), scout.text)}
-                </span>
-            })}
-            {summary.first_kill_seconds.map(|seconds| view! {
-                <span class=badge>{format!("First kill at {}", format_game_time(seconds))}</span>
-            })}
-            {summary.proxy.map(|proxy| view! {
-                <span class="inline-block rounded bg-orange-900 px-1.5 py-0.5 text-xs text-orange-200">
-                    {format!("Proxy: {} at {}", proxy.text, format_game_time(proxy.seconds))}
-                </span>
-            })}
-            {summary.was_behind.then(|| view! {
-                <span class=badge title="The army value was below 70% of the enemy one at some point after 05:00">
-                    "Was behind in army"
-                </span>
-            })}
+            {summary
+                .first_scout
+                .filter(|_| summary.player.race != "Zerg")
+                .map(|scout| {
+                    view! {
+                        <span
+                            class=badge
+                            title="The first command targeting the enemy start location"
+                        >
+                            {format!(
+                                "Scouted at {} with {}",
+                                format_game_time(scout.seconds),
+                                scout.text,
+                            )}
+                        </span>
+                    }
+                })}
+            {summary
+                .first_kill_seconds
+                .map(|seconds| {
+                    view! {
+                        <span class=badge>
+                            {format!("First kill at {}", format_game_time(seconds))}
+                        </span>
+                    }
+                })}
+            {summary
+                .proxy
+                .map(|proxy| {
+                    view! {
+                        <span class="inline-block rounded bg-orange-900 px-1.5 py-0.5 text-xs text-orange-200">
+                            {format!(
+                                "Proxy: {} at {}",
+                                proxy.text,
+                                format_game_time(proxy.seconds),
+                            )}
+                        </span>
+                    }
+                })}
+            {summary
+                .was_behind
+                .then(|| {
+                    view! {
+                        <span
+                            class=badge
+                            title="The army value was below 70% of the enemy one at some point after 05:00"
+                        >
+                            "Was behind in army"
+                        </span>
+                    }
+                })}
         </div>
     }
 }
@@ -725,7 +946,10 @@ fn FocusDetails(focus: PlayerFocus, chart_scale: CommandsScale) -> impl IntoView
             let percent = actions as f32 * 100. / total.max(1) as f32;
             view! {
                 <span class="mr-2 inline-flex items-center gap-1">
-                    <span class=format!("inline-block w-2 h-2 rounded-sm {}", focus_color(*kind).0)></span>
+                    <span class=format!(
+                        "inline-block w-2 h-2 rounded-sm {}",
+                        focus_color(*kind).0,
+                    )></span>
                     {format!("{} {percent:.0}%", kind.label())}
                 </span>
             }
@@ -754,18 +978,26 @@ fn FocusDetails(focus: PlayerFocus, chart_scale: CommandsScale) -> impl IntoView
         );
     }
     view! {
-        <p class="text-xs text-gray-400" title="The units selected and commanded: army units, townhalls and production, workers, townhalls built, research">
+        <p
+            class="text-xs text-gray-400"
+            title="The units selected and commanded: army units, townhalls and production, workers, townhalls built, research"
+        >
             {legend}
         </p>
-        <p class="text-xs text-gray-300" title="The longest time with army selections or commands and no macro, expand or upgrade action, after 02:00">
+        <p
+            class="text-xs text-gray-300"
+            title="The longest time with army selections or commands and no macro, expand or upgrade action, after 02:00"
+        >
             "Longest army only: "
             {match focus.longest_army_only {
-                Some(range) => format!(
-                    "{} from {} to {}",
-                    format_game_time(range.end - range.start),
-                    format_game_time(range.start),
-                    format_game_time(range.end),
-                ),
+                Some(range) => {
+                    format!(
+                        "{} from {} to {}",
+                        format_game_time(range.end - range.start),
+                        format_game_time(range.start),
+                        format_game_time(range.end),
+                    )
+                }
                 None => "-".to_string(),
             }}
         </p>
@@ -795,15 +1027,30 @@ fn MacroDetails(macro_summary: MacroSummary, chart_scale: CommandsScale) -> impl
             <tbody>
                 <tr title="All the supply used, below 200">
                     <td class="pr-2">"Supply blocked"</td>
-                    <td class="font-mono">{format_game_time(macro_summary.supply_blocked_seconds)}</td>
+                    <td class="font-mono">
+                        {format_game_time(macro_summary.supply_blocked_seconds)}
+                    </td>
                 </tr>
                 <tr title="More than 1000 minerals and vespene unspent">
                     <td class="pr-2">"Floating resources"</td>
-                    <td class="font-mono">{format!("{} · {} unspent on average", format_game_time(macro_summary.floating_seconds), macro_summary.avg_unspent)}</td>
+                    <td class="font-mono">
+                        {format!(
+                            "{} · {} unspent on average",
+                            format_game_time(macro_summary.floating_seconds),
+                            macro_summary.avg_unspent,
+                        )}
+                    </td>
                 </tr>
                 <tr>
                     <td class="pr-2">"Injects · Chrono boosts · MULEs"</td>
-                    <td>{format!("{} · {} · {}", macro_summary.injects, macro_summary.chrono_boosts, macro_summary.mules)}</td>
+                    <td>
+                        {format!(
+                            "{} · {} · {}",
+                            macro_summary.injects,
+                            macro_summary.chrono_boosts,
+                            macro_summary.mules,
+                        )}
+                    </td>
                 </tr>
                 <tr>
                     <td class="pr-2">"Commands per minute"</td>
@@ -812,11 +1059,15 @@ fn MacroDetails(macro_summary: MacroSummary, chart_scale: CommandsScale) -> impl
                 {macro_summary
                     .production_idle
                     .iter()
-                    .map(|idle| view! {
-                        <tr title="The time between the end of a unit and the start of the next one">
-                            <td class="pr-2">{format!("{} idle ({})", idle.structure, idle.structures)}</td>
-                            <td class="font-mono">{format_game_time(idle.idle_seconds)}</td>
-                        </tr>
+                    .map(|idle| {
+                        view! {
+                            <tr title="The time between the end of a unit and the start of the next one">
+                                <td class="pr-2">
+                                    {format!("{} idle ({})", idle.structure, idle.structures)}
+                                </td>
+                                <td class="font-mono">{format_game_time(idle.idle_seconds)}</td>
+                            </tr>
+                        }
                     })
                     .collect_view()}
             </tbody>
@@ -835,15 +1086,127 @@ fn UnitCountsTable(counts: Vec<UnitCount>) -> impl IntoView {
             <tbody>
                 {counts
                     .into_iter()
-                    .map(|count| view! {
-                        <tr>
-                            <td class="pr-2 text-white"><UnitLink unit_name=count.unit /></td>
-                            <td>{count.count}</td>
-                        </tr>
+                    .map(|count| {
+                        view! {
+                            <tr>
+                                <td class="pr-2 text-white">
+                                    <UnitLink unit_name=count.unit />
+                                </td>
+                                <td>{count.count}</td>
+                            </tr>
+                        }
                     })
                     .collect_view()}
             </tbody>
         </table>
+    }
+}
+
+/// What favors a side less than this, in log-odds, is not named in the tooltip.
+const WIN_CHANCE_FACTOR_THRESHOLD: f32 = 0.1;
+
+/// The chance of each team to win over the game, from its army, economy and trades.
+#[component]
+fn WinChanceChart(chances: WinChances, players: Vec<ReplayPlayerSummary>) -> impl IntoView {
+    let team_name = |team: &[String]| {
+        team.iter()
+            .map(|name| clean_player_name_clan_escapes(name))
+            .collect::<Vec<_>>()
+            .join(" & ")
+    };
+    // A team has the color of its first player.
+    let team_color = |team: &[String]| {
+        players
+            .iter()
+            .find(|summary| team.first() == Some(&summary.player.name))
+            .map(|summary| {
+                let [r, g, b, _] = summary.player.color;
+                format!("rgb({r},{g},{b})")
+            })
+            .unwrap_or_else(|| "#9ca3af".to_string())
+    };
+    let first = team_name(&chances.first_team);
+    let second = team_name(&chances.second_team);
+    let points = &chances.points;
+    let tooltips = points
+        .iter()
+        .map(|point| {
+            let factors = [
+                ("army", point.army),
+                ("income", point.income),
+                ("workers", point.workers),
+                ("trades", point.trades),
+            ];
+            let favoring = |sign: f32| {
+                factors
+                    .iter()
+                    .filter(|(_, value)| value * sign > WIN_CHANCE_FACTOR_THRESHOLD)
+                    .map(|(name, _)| *name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let mut tooltip = format!(
+                "{} · {first} {:.0}% · {second} {:.0}%",
+                format_game_time(point.seconds),
+                point.chance * 100.,
+                (1. - point.chance) * 100.,
+            );
+            for (team, sign) in [(&first, 1.), (&second, -1.)] {
+                let factors = favoring(sign);
+                if !factors.is_empty() {
+                    tooltip.push_str(&format!("<br>{team} ahead in {factors}"));
+                }
+            }
+            tooltip
+        })
+        .collect();
+    let data = ChartData::new(
+        points
+            .iter()
+            .map(|point| format_game_time(point.seconds))
+            .collect(),
+    )
+    .with_series(
+        &first,
+        points
+            .iter()
+            .map(|point| (point.chance * 100.).round() as f64)
+            .collect(),
+    )
+    .with_series(
+        &second,
+        points
+            .iter()
+            .map(|point| ((1. - point.chance) * 100.).round() as f64)
+            .collect(),
+    )
+    .with_owned_colors(vec![
+        team_color(&chances.first_team),
+        team_color(&chances.second_team),
+    ])
+    .with_tooltips(tooltips)
+    .with_y_max(100.)
+    .with_value_suffix("%");
+    let empty = points.is_empty();
+    view! {
+        <div class="rounded-md border border-white/15 bg-gray-800/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+                "Win chance"
+            </h2>
+            <div class="px-2 py-1">
+                <p class="text-xs text-gray-400">
+                    "Who the game favors every 30 seconds, from the army value, income, workers and resources killed of each side, \
+                    as they turned out in thousands of games of the snapshot. It does not see the mistakes: \
+                    a side ahead can still lose a fight, take a bad engagement or blunder the game away."
+                </p>
+                <Show when=move || empty>
+                    <p class="text-xs text-gray-500">"The game ended before 02:00."</p>
+                </Show>
+                <Show when=move || !empty>
+                    <LineChart data=data.clone() />
+                </Show>
+            </div>
+        </div>
     }
 }
 
@@ -866,7 +1229,12 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                             <th class="pr-2">"Time"</th>
                             <th class="pr-2">"Player"</th>
                             <th class="pr-2">"Lost"</th>
-                            <th class="pr-2" title="The time needed to mine the lost resources back">"Mining time"</th>
+                            <th
+                                class="pr-2"
+                                title="The time needed to mine the lost resources back"
+                            >
+                                "Mining time"
+                            </th>
                             <th>"Units"</th>
                         </tr>
                     </thead>
@@ -897,20 +1265,48 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                     .enumerate()
                                     .map(|(idx, loss)| {
                                         let lost = loss.resources.total();
-                                        // A side that lost much more than the other traded badly.
-                                        let bad_trade = engagement_bad_trade(lost, most_lost, least_lost);
+                                        let bad_trade = engagement_bad_trade(
+                                            lost,
+                                            most_lost,
+                                            least_lost,
+                                        );
                                         let good_trade = lost == least_lost
                                             && engagement_bad_trade(most_lost, most_lost, least_lost);
+                                        // A side that lost much more than the other traded badly.
                                         view! {
                                             <tr>
-                                                <td class="pr-2 font-mono">{(idx == 0).then(|| time.clone())}</td>
-                                                <td class="pr-2">
-                                                    {bad_trade.then(|| view! { <span class="text-red-500" title="Bad trade">"▼ "</span> })}
-                                                    {good_trade.then(|| view! { <span class="text-green-500" title="Good trade">"▲ "</span> })}
-                                                    <PlayerLink player_name=loss.player />
+                                                <td class="pr-2 font-mono">
+                                                    {(idx == 0).then(|| time.clone())}
                                                 </td>
-                                                <td class="pr-2">{format!("{}m {}g · {} supply", loss.resources.minerals, loss.resources.vespene, loss.supply)}</td>
-                                                <td class="pr-2 font-mono">{format_game_time(loss.mining_seconds)}</td>
+                                                <td class="pr-2">
+                                                    {bad_trade
+                                                        .then(|| {
+                                                            view! {
+                                                                <span class="text-red-500" title="Bad trade">
+                                                                    "▼ "
+                                                                </span>
+                                                            }
+                                                        })}
+                                                    {good_trade
+                                                        .then(|| {
+                                                            view! {
+                                                                <span class="text-green-500" title="Good trade">
+                                                                    "▲ "
+                                                                </span>
+                                                            }
+                                                        })} <PlayerLink player_name=loss.player />
+                                                </td>
+                                                <td class="pr-2">
+                                                    {format!(
+                                                        "{}m {}g · {} supply",
+                                                        loss.resources.minerals,
+                                                        loss.resources.vespene,
+                                                        loss.supply,
+                                                    )}
+                                                </td>
+                                                <td class="pr-2 font-mono">
+                                                    {format_game_time(loss.mining_seconds)}
+                                                </td>
                                                 <td>{loss.units}</td>
                                             </tr>
                                         }
@@ -946,12 +1342,18 @@ fn Messages(messages: Vec<TimedEvent>) -> impl IntoView {
                     <tbody>
                         {messages
                             .into_iter()
-                            .map(|event| view! {
-                                <tr>
-                                    <td class="pr-2 font-mono">{format_game_time(event.seconds)}</td>
-                                    <td class="pr-2"><PlayerLink player_name=event.player /></td>
-                                    <td class="text-white">{event.text}</td>
-                                </tr>
+                            .map(|event| {
+                                view! {
+                                    <tr>
+                                        <td class="pr-2 font-mono">
+                                            {format_game_time(event.seconds)}
+                                        </td>
+                                        <td class="pr-2">
+                                            <PlayerLink player_name=event.player />
+                                        </td>
+                                        <td class="text-white">{event.text}</td>
+                                    </tr>
+                                }
                             })
                             .collect_view()}
                     </tbody>

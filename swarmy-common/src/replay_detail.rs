@@ -309,6 +309,30 @@ pub struct Engagement {
     pub losses: Vec<EngagementLoss>,
 }
 
+/// The chance of the first team to win at a moment of the game, from the economy and the armies
+/// of the teams. The players' mistakes are not in it, it is who the game favors at that moment.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct WinChancePoint {
+    pub seconds: u32,
+    /// From 0 to 1, the chance of the second team is `1 - chance`.
+    pub chance: f32,
+    /// What favors the first team (positive) or the second one (negative), in log-odds: the army
+    /// value, the income, the workers and the resources killed compared to the lost ones.
+    pub army: f32,
+    pub income: f32,
+    pub workers: f32,
+    pub trades: f32,
+}
+
+/// The win chance over a game of two teams.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct WinChances {
+    /// The players of the first and the second team, as in [`ReplayPlayer::name`].
+    pub first_team: Vec<String>,
+    pub second_team: Vec<String>,
+    pub points: Vec<WinChancePoint>,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ReplayDetail {
     pub ext_fs_id: u64,
@@ -327,4 +351,7 @@ pub struct ReplayDetail {
     pub engagements: Vec<Engagement>,
     /// The chat messages, the player is the sender.
     pub messages: Vec<TimedEvent>,
+    /// None for games that are not between two teams.
+    #[serde(default)]
+    pub win_chances: Option<WinChances>,
 }

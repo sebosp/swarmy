@@ -1,6 +1,9 @@
 //! Analysis of a single replay file.
 
 use super::focus::{classify_action, FocusAccumulator};
+use super::win_chance::{
+    win_chance, SideStats, WIN_CHANCE_INTERVAL_SECONDS, WIN_CHANCE_START_SECONDS,
+};
 use crate::data::*;
 use crate::replay_rerun::decisions::{
     army_supply, balance_units, base_unit_name, closest_balance_units, format_unit_counts,
@@ -174,6 +177,8 @@ struct PlayerAccumulator {
     /// Minerals and vespene per minute at the last stats update.
     income_per_minute: i32,
     army_value: i32,
+    /// The economy and army at the last stats update, for the win chance.
+    side: SideStats,
     last_stats_seconds: Option<u32>,
     unspent_samples: Vec<i32>,
     start: Option<(f32, f32)>,
@@ -292,6 +297,16 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
     let mut registered_units: HashMap<u32, String> = HashMap::new();
     let mut snapshot_taken = false;
     let mut last_loop = 0;
+    // The win chance is of the team of the first player against the other team.
+    let first_team = players.teams.first().copied();
+    let has_two_teams = {
+        let mut teams = players.teams.clone();
+        teams.sort_unstable();
+        teams.dedup();
+        teams.len() == 2
+    };
+    let mut win_chance_points: Vec<WinChancePoint> = vec![];
+    let mut next_win_chance = WIN_CHANCE_START_SECONDS;
     while let Some(item) = event_iterator.next() {
         let state = &event_iterator.sc2_state;
         let (game_loop, tracker_event) = match &item.event_type {
@@ -374,6 +389,20 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         };
         last_loop = game_loop;
         let seconds = loop_seconds(game_loop);
+        // The stats until now are the ones of the point.
+        while has_two_teams && seconds >= next_win_chance {
+            let side = |in_first_team: bool| {
+                players
+                    .names
+                    .iter()
+                    .zip(&players.teams)
+                    .filter(|(_, team)| (Some(**team) == first_team) == in_first_team)
+                    .filter_map(|(name, _)| accumulators.get(name))
+                    .fold(SideStats::default(), |sum, acc| sum + acc.side)
+            };
+            win_chance_points.push(win_chance(next_win_chance, &side(true), &side(false)));
+            next_win_chance += WIN_CHANCE_INTERVAL_SECONDS;
+        }
         if !snapshot_taken && seconds >= SNAPSHOT_SECONDS {
             snapshot_taken = true;
             take_snapshot(&players, &mut accumulators, &state.units, balance);
@@ -393,6 +422,17 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 acc.income_per_minute =
                     stats.minerals_collection_rate + stats.vespene_collection_rate;
                 acc.army_value = stats.minerals_used_current_army + stats.vespene_used_current_army;
+                acc.side = SideStats {
+                    army: acc.army_value,
+                    income: acc.income_per_minute,
+                    workers: stats.workers_active_count,
+                    killed: stats.minerals_killed_army
+                        + stats.minerals_killed_economy
+                        + stats.minerals_killed_technology
+                        + stats.vespene_killed_army
+                        + stats.vespene_killed_economy
+                        + stats.vespene_killed_technology,
+                };
                 if stats.food_made > 0
                     && stats.food_used >= stats.food_made
                     && stats.food_made < 200
@@ -620,6 +660,20 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         .filter_map(|user| Some((user.name.clone(), user.scaled_rating?)))
         .collect();
     let player_list = &basic_data.details.player_list;
+    let win_chances = has_two_teams.then(|| {
+        let team = |in_first_team: bool| {
+            player_list
+                .iter()
+                .filter(|player| (Some(player.team_id) == first_team) == in_first_team)
+                .map(|player| player.name.clone())
+                .collect()
+        };
+        WinChances {
+            first_team: team(true),
+            second_team: team(false),
+            points: win_chance_points,
+        }
+    });
     let summaries = player_list
         .iter()
         .map(|details| {
@@ -713,6 +767,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         players: summaries,
         engagements,
         messages,
+        win_chances,
         ..Default::default()
     })
 }

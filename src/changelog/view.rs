@@ -5,6 +5,13 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-10-29",
+        &[
+            "Replay Detail: a Win chance chart, who the game favors every 30 seconds from the army value, income, workers and resources killed of each side, fitted on 27,441 games. The tooltip says what each side is ahead in. It does not see the mistakes, a side ahead can still lose.",
+            "Config: Browse buttons pick the Replay Path, the Map Caches Path and the Duplicate Replays Folder with the folder dialog of the system.",
+        ],
+    ),
+    (
         "2026-10-28",
         &[
             "Replay Detail: an Abilities section with the uses of the abilities with energy or a cooldown, i.e. Abduct, Fungal Growth, Neural Parasite, Transfuse, Inject Larva or Yamato Cannon, compared to the average of the patch, with the rank of the game and of the player and a top 10 badge.",
