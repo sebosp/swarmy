@@ -14,6 +14,7 @@ pub const PATCH_OVERVIEW_PAGE: &str = "Patch Overview";
 pub const UNIT_OVERVIEW_PAGE: &str = "Unit Overview";
 pub const PATCH_EVOLUTION_PAGE: &str = "Patch Evolution";
 pub const RACE_DETAIL_PAGE: &str = "Race Detail";
+pub const PROGRESS_PAGE: &str = "Progress";
 pub const SCAN_PAGE: &str = "Scan";
 pub const REPLAY_LIST_PAGE: &str = "Replay List";
 pub const HELP_PAGE: &str = "Help";

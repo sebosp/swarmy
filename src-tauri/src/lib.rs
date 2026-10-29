@@ -22,6 +22,7 @@ pub mod map_scout;
 pub mod patch_overview;
 pub mod personal_db;
 pub mod player_detail;
+pub mod progress;
 pub mod race_detail;
 pub mod replay_detail;
 pub mod replay_list;
@@ -122,6 +123,8 @@ pub fn run() {
             patch_overview::save_evolution,
             ability_usage::query_ability_usage,
             race_detail::query_race_detail,
+            progress::query_progress,
+            progress::set_progress_goals,
             get_app_versions,
             open_external_url,
         ])

@@ -8,6 +8,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
         "2026-10-29",
         &[
             "Replay Detail: Three things to fix, what cost each player the most in the game (supply blocks, idle production, floating, missed injects, chrono boosts and MULEs, the worst fight), with an estimate in resources to compare them.",
+            "Progress: with the Main Player Name of Config, the workers at 06:00, income at 08:00, seconds supply blocked and army at 10:00 of your last 200 games, against humans, computers or both, with the win rate of the last 20 games and goals drawn on the charts.",
             "Replay Detail: Economy shows next to the workers, supply, income and army of 04:00 to 10:00 the median of the players who won the same 1v1 matchup in the patch.",
             "Replay Detail: the turning points of the win chance, the minutes it changed the most with the fight behind them, and a button that opens swarmy-bevy at that moment.",
             "Replay Detail: Energy used, the injects, chrono boosts and MULEs compared to what the energy of the Queens, Nexuses and Orbital Commands allowed. Control groups and camera, the groups used, recalls and camera moves per minute.",

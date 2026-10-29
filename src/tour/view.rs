@@ -14,7 +14,7 @@ struct TourStep {
     points: &'static [&'static str],
 }
 
-const STEPS: [TourStep; 13] = [
+const STEPS: [TourStep; 14] = [
     TourStep {
         title: "Configure the directories",
         page: "Config",
@@ -110,6 +110,14 @@ const STEPS: [TourStep; 13] = [
         page: RACE_DETAIL_PAGE,
         points: &[
             "The matchups and patches of a race, the maps it wins the most on, its units and abilities, and its players with the most games.",
+        ],
+    },
+    TourStep {
+        title: "Your progress",
+        page: PROGRESS_PAGE,
+        points: &[
+            "With your name in Config, your workers at 06:00, income at 08:00, seconds supply blocked and army at 10:00 over your last games, against humans or computers.",
+            "Set a goal for each number, the charts draw it next to your games and the average of the last 10.",
         ],
     },
     TourStep {

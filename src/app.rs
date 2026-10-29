@@ -13,6 +13,7 @@ use swarmy_ui::navigation::*;
 use swarmy_ui::patch_overview::evolution::PatchEvolutionView;
 use swarmy_ui::patch_overview::view::PatchOverviewView;
 use swarmy_ui::player_detail::view::PlayerDetailView;
+use swarmy_ui::progress::view::ProgressView;
 use swarmy_ui::race_detail::view::RaceDetailView;
 use swarmy_ui::replay_detail::view::ReplayDetailView;
 use swarmy_ui::replay_list::view::ReplayList;
@@ -121,6 +122,11 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == RACE_DETAIL_PAGE>
                     <div id="swarmy-tauri-race-detail-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <RaceDetailView />
+                    </div>
+                </Show>
+                <Show when=move || active_page.get() == PROGRESS_PAGE>
+                    <div id="swarmy-tauri-progress-content" class="flex flex-col grow min-w-0 p-2 rounded">
+                        <ProgressView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == HELP_PAGE>

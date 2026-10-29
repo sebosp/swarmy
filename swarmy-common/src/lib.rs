@@ -26,6 +26,8 @@ pub mod abilities;
 pub use abilities::*;
 pub mod race_detail;
 pub use race_detail::*;
+pub mod progress;
+pub use progress::*;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::oneshot;
 
