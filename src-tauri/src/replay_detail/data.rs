@@ -299,6 +299,10 @@ pub fn try_query_replay_detail(
         Ok(timings) => super::patch_timings::annotate(&mut detail, &timings),
         Err(err) => tracing::warn!("No patch timings for {}: {err:?}", detail.protocol_version),
     }
+    match super::winner_benchmarks::winner_benchmarks_cached(&ipc_path, detail.protocol_version) {
+        Ok(benchmarks) => super::winner_benchmarks::annotate(&mut detail, &benchmarks),
+        Err(err) => tracing::warn!("No winner benchmarks: {err:?}"),
+    }
     match crate::ability_usage::ability_usage_cached(&ipc_path) {
         Ok(usage) => crate::ability_usage::annotate(&mut detail, &usage),
         Err(err) => tracing::warn!("No ability usage: {err:?}"),
@@ -834,6 +838,9 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 ability_efficiency,
                 control,
                 lessons: vec![],
+                // Compared to the winners of the matchup once the snapshot is known.
+                winner_benchmarks: vec![],
+                winner_games: 0,
             }
         })
         .collect::<Vec<ReplayPlayerSummary>>();

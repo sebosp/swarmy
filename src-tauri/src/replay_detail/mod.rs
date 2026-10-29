@@ -6,6 +6,7 @@ pub mod lessons;
 pub mod navigation;
 pub mod patch_timings;
 pub mod win_chance;
+pub mod winner_benchmarks;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
 use data::try_query_replay_detail;

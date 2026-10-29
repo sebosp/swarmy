@@ -274,6 +274,12 @@ pub struct ReplayPlayerSummary {
     pub macro_summary: MacroSummary,
     pub focus: PlayerFocus,
     pub benchmarks: Vec<Benchmark>,
+    /// The median benchmarks of the players who won the same matchup in the patch, in a 1v1.
+    #[serde(default)]
+    pub winner_benchmarks: Vec<Benchmark>,
+    /// The games of [`Self::winner_benchmarks`].
+    #[serde(default)]
+    pub winner_games: u32,
     /// The army units alive at 10:00, or at the end of shorter games.
     pub army_at_10: Vec<UnitCount>,
     /// The townhalls alive at 10:00, or at the end of shorter games.

@@ -734,6 +734,19 @@ fn PlayerSections(
                                     <th class="pr-2">"Income/min"</th>
                                     <th>"Army value"</th>
                                 </tr>
+                                {(!summary.winner_benchmarks.is_empty())
+                                    .then(|| {
+                                        view! {
+                                            <tr class="text-left text-gray-500">
+                                                <th colspan="5" class="font-normal">
+                                                    {format!(
+                                                        "/ the median of the {} winners of the matchup in the patch",
+                                                        summary.winner_games,
+                                                    )}
+                                                </th>
+                                            </tr>
+                                        }
+                                    })}
                             </thead>
                             <tbody class="font-mono">
                                 {summary
@@ -743,10 +756,30 @@ fn PlayerSections(
                                         let enemy = enemy_benchmarks
                                             .iter()
                                             .find(|enemy| enemy.minute == benchmark.minute);
-                                        let ahead = |value: fn(&Benchmark) -> i32| {
+                                        let winner = summary
+                                            .winner_benchmarks
+                                            .iter()
+                                            .find(|winner| winner.minute == benchmark.minute)
+                                            .cloned();
+                                        let winner_games = summary.winner_games;
+                                        let ahead = move |value: fn(&Benchmark) -> i32| {
                                             let value_of = value(benchmark);
                                             view! {
                                                 {value_of}
+                                                {winner
+                                                    .as_ref()
+                                                    .map(|winner| {
+                                                        view! {
+                                                            <span
+                                                                class="text-gray-500"
+                                                                title=format!(
+                                                                    "The median of the {winner_games} players who won this matchup in the patch",
+                                                                )
+                                                            >
+                                                                {format!(" /{}", value(winner))}
+                                                            </span>
+                                                        }
+                                                    })}
                                                 {enemy
                                                     .is_some_and(|enemy| value_of > value(enemy))
                                                     .then(|| {
