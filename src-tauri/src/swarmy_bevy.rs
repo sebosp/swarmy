@@ -68,17 +68,19 @@ pub async fn exec_swarmy_bevy_map_caches(
 pub async fn exec_swarmy_bevy_replay(
     app_handle: AppHandle,
     replay_file_name: String,
+    replay_seconds: Option<u32>,
 ) -> Result<ApiResponse, SwarmyError> {
     let app_config = load_stored_app_settings(&app_handle)?;
-    spawn_swarmy_bevy(
-        &app_handle,
-        vec![
-            "--path".to_string(),
-            app_config.cache_path,
-            "--replay".to_string(),
-            replay_file_name,
-        ],
-    )
+    let mut args = vec![
+        "--path".to_string(),
+        app_config.cache_path,
+        "--replay".to_string(),
+        replay_file_name,
+    ];
+    if let Some(seconds) = replay_seconds {
+        args.extend(["--replay-seconds".to_string(), seconds.to_string()]);
+    }
+    spawn_swarmy_bevy(&app_handle, args)
 }
 
 /// Shows the spots of the map where the Siege Tanks sieged and killed the most in the games of

@@ -389,6 +389,21 @@ pub struct WinChances {
     pub first_team: Vec<String>,
     pub second_team: Vec<String>,
     pub points: Vec<WinChancePoint>,
+    /// The moments the chance changed the most, in time order.
+    #[serde(default)]
+    pub turning_points: Vec<TurningPoint>,
+}
+
+/// A moment the chance of the first team changed the most, i.e. a lost fight.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct TurningPoint {
+    pub start_seconds: u32,
+    pub end_seconds: u32,
+    /// The change of the chance of the first team, from -1 to 1.
+    pub change: f32,
+    /// What each team lost in the biggest engagement of the moment, i.e.
+    /// `Sazed lost 2,400 (12xRoach), Cheater 1 lost 600 (4xMarine)`.
+    pub engagement: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]

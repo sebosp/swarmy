@@ -734,6 +734,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         WinChances {
             first_team: team(true),
             second_team: team(false),
+            turning_points: super::win_chance::turning_points(&win_chance_points, &engagements),
             points: win_chance_points,
         }
     });

@@ -59,6 +59,9 @@ pub struct SwarmyBevyMapCacheParams {
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct SwarmyBevyReplayParams {
     pub replay_file_name: String,
+    /// The game second the replay starts at, i.e. a turning point.
+    #[serde(default)]
+    pub replay_seconds: Option<u32>,
 }
 
 /// The parameters for rerun streaming visualization

@@ -8,6 +8,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
         "2026-10-29",
         &[
             "Replay Detail: Three things to fix, what cost each player the most in the game (supply blocks, idle production, floating, missed injects, chrono boosts and MULEs, the worst fight), with an estimate in resources to compare them.",
+            "Replay Detail: the turning points of the win chance, the minutes it changed the most with the fight behind them, and a button that opens swarmy-bevy at that moment.",
             "Replay Detail: Energy used, the injects, chrono boosts and MULEs compared to what the energy of the Queens, Nexuses and Orbital Commands allowed. Control groups and camera, the groups used, recalls and camera moves per minute.",
             "Replay Detail: a Win chance chart, who the game favors every 30 seconds from the army value, income, workers and resources killed of each side, fitted on 27,441 games. The tooltip says what each side is ahead in. It does not see the mistakes, a side ahead can still lose.",
             "Config: Browse buttons pick the Replay Path, the Map Caches Path and the Duplicate Replays Folder with the folder dialog of the system.",

@@ -9,7 +9,9 @@ use crate::components::links::{
 use crate::components::loading::Loading;
 use crate::components::units::UnitsTable;
 use crate::navigation::use_navigation;
-use crate::replay_list::actions::{trigger_swarmy_bevy_on_replay, trigger_swarmy_rerun_on_replay};
+use crate::replay_list::actions::{
+    trigger_swarmy_bevy_on_replay, trigger_swarmy_bevy_on_replay_at, trigger_swarmy_rerun_on_replay,
+};
 use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
@@ -107,7 +109,11 @@ pub fn ReplayDetailView() -> impl IntoView {
                                 .clone()
                                 .map(|chances| {
                                     view! {
-                                        <WinChanceChart chances players=detail.players.clone() />
+                                        <WinChanceChart
+                                            chances
+                                            players=detail.players.clone()
+                                            replay_location=detail.replay_location.clone()
+                                        />
                                     }
                                 })}
                             <PlayerSections
@@ -1249,7 +1255,11 @@ const WIN_CHANCE_FACTOR_THRESHOLD: f32 = 0.1;
 
 /// The chance of each team to win over the game, from its army, economy and trades.
 #[component]
-fn WinChanceChart(chances: WinChances, players: Vec<ReplayPlayerSummary>) -> impl IntoView {
+fn WinChanceChart(
+    chances: WinChances,
+    players: Vec<ReplayPlayerSummary>,
+    replay_location: String,
+) -> impl IntoView {
     let team_name = |team: &[String]| {
         team.iter()
             .map(|name| clean_player_name_clan_escapes(name))
@@ -1330,6 +1340,7 @@ fn WinChanceChart(chances: WinChances, players: Vec<ReplayPlayerSummary>) -> imp
     .with_y_max(100.)
     .with_value_suffix("%");
     let empty = points.is_empty();
+    let turning_points = chances.turning_points.clone();
     view! {
         <div class="rounded-md border border-white/15 bg-gray-800/40">
             <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
@@ -1347,6 +1358,61 @@ fn WinChanceChart(chances: WinChances, players: Vec<ReplayPlayerSummary>) -> imp
                 <Show when=move || !empty>
                     <LineChart data=data.clone() />
                 </Show>
+                {(!turning_points.is_empty())
+                    .then(|| {
+                        view! {
+                            <h3 class="mt-1 text-sm font-semibold text-white">"Turning points"</h3>
+                            <ul class="text-xs text-gray-300 space-y-1">
+                                {turning_points
+                                    .into_iter()
+                                    .map(|point| {
+                                        let favored = if point.change > 0. {
+                                            &first
+                                        } else {
+                                            &second
+                                        };
+                                        let location = replay_location.clone();
+                                        let start = point.start_seconds;
+                                        view! {
+                                            <li class="flex items-center gap-2">
+                                                <span class="font-mono">
+                                                    {format!(
+                                                        "{}-{}",
+                                                        format_game_time(point.start_seconds),
+                                                        format_game_time(point.end_seconds),
+                                                    )}
+                                                </span>
+                                                <span>
+                                                    {format!("{favored} +{:.0}%", point.change.abs() * 100.)}
+                                                </span>
+                                                <span class="text-gray-400">
+                                                    {point
+                                                        .engagement
+                                                        .clone()
+                                                        .unwrap_or_else(|| {
+                                                            "no fight: the economy or the army changed".to_string()
+                                                        })}
+                                                </span>
+                                                <button
+                                                    class="btn btn-ghost btn-xs"
+                                                    title="Open the replay in swarmy-bevy at this moment"
+                                                    on:click=move |_ev: MouseEvent| {
+                                                        trigger_swarmy_bevy_on_replay_at(&location, Some(start))
+                                                    }
+                                                >
+                                                    <Icon
+                                                        icon=CUBE
+                                                        weight=IconWeight::Light
+                                                        prop:class="stroke-current"
+                                                    />
+                                                </button>
+                                            </li>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </ul>
+                        }
+                    })}
             </div>
         </div>
     }

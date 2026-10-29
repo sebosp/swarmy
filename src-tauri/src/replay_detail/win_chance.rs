@@ -21,7 +21,7 @@
 //!
 //! The team games use the sums of the players of each team, the model was fitted on 1v1.
 
-use swarmy_common::WinChancePoint;
+use swarmy_common::{Engagement, TurningPoint, WinChancePoint};
 
 /// The first point of the chart, before it the sides are even.
 pub const WIN_CHANCE_START_SECONDS: u32 = 120;
@@ -117,6 +117,83 @@ pub fn win_chance(seconds: u32, first: &SideStats, second: &SideStats) -> WinCha
     }
 }
 
+/// The points compared for a turning point, a minute.
+const TURNING_POINT_STEPS: usize = 2;
+
+/// A change of the chance smaller than this is not a turning point.
+pub const MIN_TURNING_POINT_CHANGE: f32 = 0.15;
+
+pub const MAX_TURNING_POINTS: usize = 3;
+
+/// The moments of a minute in which the chance of the first team changed the most, at most
+/// [`MAX_TURNING_POINTS`] that do not overlap, with the biggest engagement of each.
+pub fn turning_points(points: &[WinChancePoint], engagements: &[Engagement]) -> Vec<TurningPoint> {
+    let mut changes: Vec<(usize, f32)> = (TURNING_POINT_STEPS..points.len())
+        .map(|idx| {
+            (
+                idx,
+                points[idx].chance - points[idx - TURNING_POINT_STEPS].chance,
+            )
+        })
+        .filter(|(_, change)| change.abs() >= MIN_TURNING_POINT_CHANGE)
+        .collect();
+    changes.sort_by(|a, b| b.1.abs().total_cmp(&a.1.abs()));
+    let mut chosen: Vec<(usize, f32)> = vec![];
+    for (idx, change) in changes {
+        if chosen.len() == MAX_TURNING_POINTS {
+            break;
+        }
+        if chosen
+            .iter()
+            .all(|(other, _)| other.abs_diff(idx) > TURNING_POINT_STEPS)
+        {
+            chosen.push((idx, change));
+        }
+    }
+    chosen.sort_by_key(|(idx, _)| *idx);
+    chosen
+        .into_iter()
+        .map(|(idx, change)| {
+            let start_seconds = points[idx - TURNING_POINT_STEPS].seconds;
+            let end_seconds = points[idx].seconds;
+            let engagement = engagements
+                .iter()
+                .filter(|engagement| {
+                    engagement.end_seconds + WIN_CHANCE_INTERVAL_SECONDS >= start_seconds
+                        && engagement.start_seconds <= end_seconds
+                })
+                .max_by_key(|engagement| {
+                    engagement
+                        .losses
+                        .iter()
+                        .map(|loss| loss.resources.minerals + loss.resources.vespene)
+                        .sum::<u32>()
+                })
+                .map(|engagement| {
+                    engagement
+                        .losses
+                        .iter()
+                        .map(|loss| {
+                            format!(
+                                "{} lost {} ({})",
+                                swarmy_common::clean_player_name_clan_escapes(&loss.player),
+                                loss.resources.minerals + loss.resources.vespene,
+                                loss.units
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                });
+            TurningPoint {
+                start_seconds,
+                end_seconds,
+                change,
+                engagement,
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,6 +230,26 @@ mod tests {
         let ahead = side(2000, 1000, 30, 0);
         let behind = side(1000, 1000, 30, 0);
         assert!(win_chance(240, &ahead, &behind).army < win_chance(900, &ahead, &behind).army);
+    }
+
+    #[test]
+    fn it_finds_the_turning_points() {
+        let chances = [0.5, 0.5, 0.52, 0.5, 0.3, 0.28, 0.3, 0.32, 0.6, 0.62];
+        let points: Vec<WinChancePoint> = chances
+            .iter()
+            .enumerate()
+            .map(|(idx, chance)| WinChancePoint {
+                seconds: 120 + 30 * idx as u32,
+                chance: *chance,
+                ..Default::default()
+            })
+            .collect();
+        let turning = turning_points(&points, &[]);
+        // The rise of 08:00 to 08:30 (+0.32) and the fall of 03:30 to 04:00 (-0.22).
+        assert_eq!(turning.len(), 2);
+        assert!((180..=210).contains(&turning[0].start_seconds));
+        assert!(turning[0].change < -0.2);
+        assert!(turning[1].change > 0.29);
     }
 
     #[test]
