@@ -304,10 +304,44 @@ pub struct ReplayPlayerSummary {
     pub ability_efficiency: Vec<AbilityEfficiency>,
     #[serde(default)]
     pub control: ControlSummary,
+    /// The openings of the race that won the most against the opening of the enemy, in the 1v1
+    /// games of the snapshot.
+    #[serde(default)]
+    pub opening_answers: OpeningAnswers,
     /// What cost the player the most in the game, the most costly first, at most
     /// [`MAX_LESSONS`].
     #[serde(default)]
     pub lessons: Vec<Lesson>,
+}
+
+/// An opening and how it did against an enemy opening.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct OpeningAnswer {
+    /// i.e. `Barracks → Factory → Starport`
+    pub opening: String,
+    pub games: u32,
+    pub wins: u32,
+}
+
+impl OpeningAnswer {
+    pub fn win_rate(&self) -> f64 {
+        self.wins as f64 / self.games.max(1) as f64
+    }
+
+    /// The win rate with 5 wins and 5 losses added, so that 4 wins of 5 games do not rank above
+    /// 140 of 260.
+    pub fn ranking(&self) -> f64 {
+        (self.wins as f64 + 5.) / (self.games as f64 + 10.)
+    }
+}
+
+/// The openings that won the most against the opening of the enemy.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct OpeningAnswers {
+    pub enemy_opening: String,
+    pub answers: Vec<OpeningAnswer>,
+    /// The player's own opening against it, when it was played enough.
+    pub own: Option<OpeningAnswer>,
 }
 
 /// The lessons of a player in a game.

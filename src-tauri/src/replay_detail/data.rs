@@ -303,6 +303,10 @@ pub fn try_query_replay_detail(
         Ok(benchmarks) => super::winner_benchmarks::annotate(&mut detail, &benchmarks),
         Err(err) => tracing::warn!("No winner benchmarks: {err:?}"),
     }
+    match super::opening_answers::opening_answers_cached(&ipc_path) {
+        Ok(answers) => super::opening_answers::annotate(&mut detail, &answers),
+        Err(err) => tracing::warn!("No opening answers: {err:?}"),
+    }
     match crate::ability_usage::ability_usage_cached(&ipc_path) {
         Ok(usage) => crate::ability_usage::annotate(&mut detail, &usage),
         Err(err) => tracing::warn!("No ability usage: {err:?}"),
@@ -841,6 +845,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 // Compared to the winners of the matchup once the snapshot is known.
                 winner_benchmarks: vec![],
                 winner_games: 0,
+                opening_answers: OpeningAnswers::default(),
             }
         })
         .collect::<Vec<ReplayPlayerSummary>>();
@@ -873,39 +878,63 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
     })
 }
 
-/// The first tech structures, supply, gas, townhalls and defenses are not tech.
-fn opening(build_order: &[BuildOrderEntry], balance: &VersionedBalanceUnits) -> Vec<String> {
-    const NOT_TECH: [&str; 15] = [
-        "SupplyDepot",
-        "Pylon",
-        "Refinery",
-        "Assimilator",
-        "Extractor",
-        "Hatchery",
-        "CommandCenter",
-        "Nexus",
-        "Bunker",
-        "MissileTurret",
-        "PhotonCannon",
-        "ShieldBattery",
-        "SpineCrawler",
-        "SporeCrawler",
-        "CreepTumor",
-    ];
-    let mut opening: Vec<String> = vec![];
-    for entry in build_order {
-        let is_structure = balance.get(&entry.name).is_some_and(|unit| {
+/// The tech structures of an opening.
+pub const OPENING_STRUCTURES: usize = 3;
+
+/// The structures that are not tech, they are not part of an opening.
+pub const NOT_TECH: [&str; 24] = [
+    "SupplyDepot",
+    "Pylon",
+    "Refinery",
+    "Assimilator",
+    "Extractor",
+    "Hatchery",
+    "CommandCenter",
+    "Nexus",
+    "Bunker",
+    "MissileTurret",
+    "PhotonCannon",
+    "ShieldBattery",
+    "SpineCrawler",
+    "SporeCrawler",
+    "CreepTumor",
+    "CreepTumorQueen",
+    "CreepTumorBurrowed",
+    "OrbitalCommand",
+    "PlanetaryFortress",
+    "RefineryRich",
+    "AssimilatorRich",
+    "ExtractorRich",
+    "WarpGate",
+    // The grenade of the Reaper has the structure attribute.
+    "KD8Charge",
+];
+
+/// The variants of the structures that are not new structures, i.e. a Barracks lifting off.
+const STRUCTURE_VARIANT_SUFFIXES: [&str; 4] = ["Flying", "Lowered", "Burrowed", "Uprooted"];
+
+/// A structure that is part of an opening: not supply, gas, a townhall, a defense or the variant
+/// of another structure.
+pub fn is_tech_structure(name: &str, balance: &VersionedBalanceUnits) -> bool {
+    !NOT_TECH.contains(&name)
+        && !STRUCTURE_VARIANT_SUFFIXES
+            .iter()
+            .any(|suffix| name.ends_with(suffix))
+        && balance.get(name).is_some_and(|unit| {
             unit.attributes
                 .inner
                 .iter()
                 .any(|attribute| attribute.kind.as_deref() == Some("Structure"))
-        });
-        if is_structure
-            && !NOT_TECH.contains(&entry.name.as_str())
-            && !opening.contains(&entry.name)
-        {
+        })
+}
+
+/// The first tech structures, supply, gas, townhalls and defenses are not tech.
+fn opening(build_order: &[BuildOrderEntry], balance: &VersionedBalanceUnits) -> Vec<String> {
+    let mut opening: Vec<String> = vec![];
+    for entry in build_order {
+        if is_tech_structure(&entry.name, balance) && !opening.contains(&entry.name) {
             opening.push(entry.name.clone());
-            if opening.len() == 3 {
+            if opening.len() == OPENING_STRUCTURES {
                 break;
             }
         }

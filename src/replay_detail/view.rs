@@ -522,6 +522,74 @@ fn PlayerSections(
             )}
 
             {section_band(
+                view! {
+                    <span title="In the 1v1 games of the snapshot, the openings of the race (its first three tech structures) that won the most against the opening of the opponent in this game, from at least 5 games. The win rates are pulled towards 50% by 5 wins and 5 losses, so that few games do not rank first">
+                        "Against the opponent's opening"
+                    </span>
+                },
+                "h-28",
+                &players,
+                move |summary| {
+                    let answers = summary.opening_answers.clone();
+                    if answers.answers.is_empty() {
+                        return view! {
+                            <p class="text-xs text-gray-500">
+                                "Not a 1v1, or the opening of the opponent is played too little"
+                            </p>
+                        }
+                            .into_any();
+                    }
+                    let own = summary.opening.join(" → ");
+                    view! {
+                        <p class="text-xs text-gray-400">
+                            {format!("vs {}", answers.enemy_opening)}
+                        </p>
+                        <table class=TABLE_CLASS>
+                            <tbody>
+                                {answers
+                                    .answers
+                                    .iter()
+                                    .map(|answer| {
+                                        let class = if answer.opening == own {
+                                            "pr-2 text-amber-300"
+                                        } else {
+                                            "pr-2"
+                                        };
+                                        view! {
+                                            <tr>
+                                                <td class=class>{answer.opening.clone()}</td>
+                                                <td class="pr-2 font-mono">
+                                                    {format!(
+                                                        "{:.0}% of {}",
+                                                        100. * answer.win_rate(),
+                                                        answer.games,
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        }
+                                    })
+                                    .collect_view()}
+                                {answers
+                                    .own
+                                    .filter(|own| !answers.answers.contains(own))
+                                    .map(|own| {
+                                        view! {
+                                            <tr title="Your opening in this game">
+                                                <td class="pr-2 text-amber-300">{own.opening.clone()}</td>
+                                                <td class="pr-2 font-mono">
+                                                    {format!("{:.0}% of {}", 100. * own.win_rate(), own.games)}
+                                                </td>
+                                            </tr>
+                                        }
+                                    })}
+                            </tbody>
+                        </table>
+                    }
+                        .into_any()
+                },
+            )}
+
+            {section_band(
                 "Expansions",
                 "h-24",
                 &players,

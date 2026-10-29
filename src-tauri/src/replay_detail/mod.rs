@@ -4,6 +4,7 @@ pub mod data;
 pub mod focus;
 pub mod lessons;
 pub mod navigation;
+pub mod opening_answers;
 pub mod patch_timings;
 pub mod win_chance;
 pub mod winner_benchmarks;
