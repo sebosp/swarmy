@@ -13,7 +13,7 @@ use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
 use crate::replay_rerun::{ReplayPlayers, NEUTRAL_PLAYER};
 use polars::prelude::*;
 use s2protocol::basic_replay_data::SC2ReplayBasicData;
-use s2protocol::game_events::{ReplayGameEvent, VersionedBalanceUnits};
+use s2protocol::game_events::{GameEControlGroupUpdate, ReplayGameEvent, VersionedBalanceUnits};
 use s2protocol::message_events::ReplayMessageEvent;
 use s2protocol::state::SC2UnitCmdData;
 use s2protocol::tracker_events::ReplayTrackerEvent;
@@ -181,6 +181,10 @@ struct PlayerAccumulator {
     side: SideStats,
     last_stats_seconds: Option<u32>,
     unspent_samples: Vec<i32>,
+    income_samples: Vec<i32>,
+    /// The seconds the energy casters and the hatcheries were alive and done, by name.
+    caster_seconds: BTreeMap<&'static str, f32>,
+    control: ControlAccumulator,
     start: Option<(f32, f32)>,
     build_order: Vec<BuildOrderEntry>,
     expansions: Vec<BuildOrderEntry>,
@@ -214,6 +218,27 @@ struct PlayerAccumulator {
     /// The commands of the abilities with energy or a cooldown, by [`TrackedAbility::ability`].
     abilities: BTreeMap<&'static str, u32>,
 }
+
+#[derive(Default)]
+struct ControlAccumulator {
+    groups: std::collections::BTreeSet<u8>,
+    assigns: u32,
+    recalls: u32,
+    camera_moves: u32,
+}
+
+/// The control of the computer players in the details, the humans are 2.
+pub const COMPUTER_CONTROL: u8 = 3;
+
+/// The casters counted for [`AbilityEfficiency`], with the structures that are injected.
+const CASTERS: [&str; 6] = [
+    "Queen",
+    "Nexus",
+    "OrbitalCommand",
+    "Hatchery",
+    "Lair",
+    "Hive",
+];
 
 /// The analysis of a replay file does not change, it is kept for the Player view which analyses
 /// all the games of a player.
@@ -306,6 +331,9 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         teams.len() == 2
     };
     let mut win_chance_points: Vec<WinChancePoint> = vec![];
+    // Without balance data for the version the commands have no names, the injects, chrono
+    // boosts and MULEs are not counted and are not compared with the casters' energy.
+    let (mut commands, mut named_commands) = (0usize, 0usize);
     let mut next_win_chance = WIN_CHANCE_START_SECONDS;
     while let Some(item) = event_iterator.next() {
         let state = &event_iterator.sc2_state;
@@ -325,6 +353,27 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     None => continue,
                 };
                 let seconds = loop_seconds(*game_loop);
+                match event {
+                    ReplayGameEvent::ControlGroupUpdate(update) => {
+                        let control = &mut accumulators.entry(player.clone()).or_default().control;
+                        match update.m_control_group_update {
+                            GameEControlGroupUpdate::ERecall => control.recalls += 1,
+                            GameEControlGroupUpdate::EClear => {}
+                            _ => {
+                                control.assigns += 1;
+                                control.groups.insert(update.m_control_group_index);
+                            }
+                        }
+                    }
+                    ReplayGameEvent::CameraUpdate(camera) if camera.m_target.is_some() => {
+                        accumulators
+                            .entry(player.clone())
+                            .or_default()
+                            .control
+                            .camera_moves += 1;
+                    }
+                    _ => {}
+                }
                 if let ReplayGameEvent::Cmd(cmd) = event {
                     let acc = accumulators.entry(player.clone()).or_default();
                     let minute = (seconds / 60) as usize;
@@ -344,6 +393,8 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                         .as_ref()
                         .map(|abil| abil.ability.as_str())
                         .unwrap_or_default();
+                    commands += 1;
+                    named_commands += (!ability.is_empty()) as usize;
                     if ability.starts_with("SpawnLarva") {
                         acc.macro_summary.injects += 1;
                     } else if ability.starts_with("ChronoBoost") {
@@ -421,6 +472,18 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 acc.supply_made = stats.food_made;
                 acc.income_per_minute =
                     stats.minerals_collection_rate + stats.vespene_collection_rate;
+                if seconds >= 60 {
+                    acc.income_samples.push(acc.income_per_minute);
+                }
+                // The casters alive since the previous stats of the player.
+                for unit in state.units.values() {
+                    if unit.is_init || players.unit_player(unit) != player {
+                        continue;
+                    }
+                    if let Some(caster) = CASTERS.iter().find(|caster| **caster == unit.name) {
+                        *acc.caster_seconds.entry(caster).or_default() += interval as f32;
+                    }
+                }
                 acc.army_value = stats.minerals_used_current_army + stats.vespene_used_current_army;
                 acc.side = SideStats {
                     army: acc.army_value,
@@ -682,6 +745,22 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
             let color = &details.color;
             let name_without_clan = details.name.rsplit("<sp/>").next().unwrap_or_default();
             let mut macro_summary = acc.macro_summary;
+            macro_summary.avg_income = match acc.income_samples.len() {
+                0 => 0,
+                samples => (acc.income_samples.iter().sum::<i32>() / samples as i32).max(0) as u32,
+            };
+            let ability_efficiency = if named_commands * 2 >= commands {
+                super::lessons::ability_efficiency(&acc.caster_seconds, &macro_summary)
+            } else {
+                vec![]
+            };
+            let game_minutes = (loop_seconds(last_loop) as f32 / 60.).max(1.);
+            let control = ControlSummary {
+                groups: acc.control.groups.iter().copied().collect(),
+                assigns: acc.control.assigns,
+                recalls_per_minute: acc.control.recalls as f32 / game_minutes,
+                camera_moves_per_minute: acc.control.camera_moves as f32 / game_minutes,
+            };
             macro_summary.avg_unspent = match acc.unspent_samples.len() {
                 0 => 0,
                 samples => (acc.unspent_samples.iter().sum::<i32>() / samples as i32) as u32,
@@ -701,6 +780,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     race: normalize_race(&details.race),
                     result: details.result.clone(),
                     team_id: details.team_id,
+                    is_computer: details.control == COMPUTER_CONTROL,
                     color: [color.r, color.g, color.b, color.a],
                 },
                 rating: ratings.get(name_without_clan).copied(),
@@ -750,7 +830,20 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                         ..Default::default()
                     })
                     .collect(),
+                ability_efficiency,
+                control,
+                lessons: vec![],
             }
+        })
+        .collect::<Vec<ReplayPlayerSummary>>();
+    let summaries = summaries
+        .into_iter()
+        .map(|mut summary| {
+            // The computers do not learn.
+            if !summary.player.is_computer {
+                summary.lessons = super::lessons::lessons(&summary, &engagements);
+            }
+            summary
         })
         .collect();
     Ok(ReplayDetail {

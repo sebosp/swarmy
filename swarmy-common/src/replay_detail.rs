@@ -105,6 +105,9 @@ pub struct ReplayPlayer {
     /// Win, Loss, Tie or Undecided.
     pub result: String,
     pub team_id: u8,
+    /// A computer player, i.e. Cheater 3 (Insane).
+    #[serde(default)]
+    pub is_computer: bool,
     /// RGBA
     pub color: [u8; 4],
 }
@@ -220,6 +223,9 @@ pub struct MacroSummary {
     pub injects: u32,
     pub chrono_boosts: u32,
     pub mules: u32,
+    /// The minerals and vespene collected per minute, on average.
+    #[serde(default)]
+    pub avg_income: u32,
     /// The commands issued in each minute of the game.
     pub commands_per_minute: Vec<u32>,
 }
@@ -287,6 +293,58 @@ pub struct ReplayPlayerSummary {
     /// the order of [`crate::TRACKED_ABILITIES`].
     #[serde(default)]
     pub abilities: Vec<crate::AbilityUse>,
+    /// The injects, chrono boosts and MULEs compared to what the casters could have done.
+    #[serde(default)]
+    pub ability_efficiency: Vec<AbilityEfficiency>,
+    #[serde(default)]
+    pub control: ControlSummary,
+    /// What cost the player the most in the game, the most costly first, at most
+    /// [`MAX_LESSONS`].
+    #[serde(default)]
+    pub lessons: Vec<Lesson>,
+}
+
+/// The lessons of a player in a game.
+pub const MAX_LESSONS: usize = 3;
+
+/// Something that cost a player resources in a game, i.e. being supply blocked or idle
+/// production, with an estimate of the resources it cost.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Lesson {
+    pub title: String,
+    pub detail: String,
+    /// The minerals and vespene it cost, estimated, to compare the lessons.
+    pub cost: u32,
+    /// When it happened, if it happened at a moment.
+    pub seconds: Option<u32>,
+}
+
+/// The uses of an ability with energy by the casters of a player, compared to the uses their
+/// energy allowed: the energy regenerates at 0.7875 per second.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AbilityEfficiency {
+    /// i.e. Inject Larva
+    pub ability: String,
+    /// i.e. Queen
+    pub caster: String,
+    pub uses: u32,
+    /// The minutes the casters were alive, added.
+    pub caster_minutes: f32,
+    /// The uses that the energy of the casters allowed.
+    pub possible: f32,
+}
+
+/// The control groups and the camera of a player.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ControlSummary {
+    /// The control groups the player assigned units to, 0 to 9.
+    pub groups: Vec<u8>,
+    /// Assigning units to a control group, setting or adding.
+    pub assigns: u32,
+    /// Selecting a control group.
+    pub recalls_per_minute: f32,
+    /// Moving the camera, with the minimap, the screen edges or a camera hotkey.
+    pub camera_moves_per_minute: f32,
 }
 
 /// What a player lost in an engagement.

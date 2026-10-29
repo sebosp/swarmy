@@ -2,6 +2,7 @@
 
 pub mod data;
 pub mod focus;
+pub mod lessons;
 pub mod navigation;
 pub mod patch_timings;
 pub mod win_chance;

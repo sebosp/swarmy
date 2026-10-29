@@ -474,6 +474,48 @@ fn PlayerSections(
             )>{player_headers}</div>
 
             {section_band(
+                view! {
+                    <span title="What cost the most minerals and vespene in this game, estimated so that they compare: a supply block costs the income of its seconds, idle production 2 per second, the missed injects, chrono boosts and MULEs what they are worth, a lost fight what was lost more than the enemy">
+                        "Three things to fix"
+                    </span>
+                },
+                "h-28",
+                &players,
+                move |summary| {
+                    if summary.player.is_computer {
+                        return view! { <p class="text-xs text-gray-500">"A computer player"</p> }
+                            .into_any();
+                    }
+                    if summary.lessons.is_empty() {
+                        return view! { <p class="text-xs text-gray-500">"Nothing costly"</p> }
+                            .into_any();
+                    }
+                    view! {
+                        <ol class="text-xs text-gray-300 list-decimal list-inside space-y-1">
+                            {summary
+                                .lessons
+                                .iter()
+                                .map(|lesson| {
+                                    view! {
+                                        <li>
+                                            <span class="font-semibold text-amber-300">
+                                                {lesson.title.clone()}
+                                            </span>
+                                            <span class="text-gray-500">
+                                                {format!(" ~{}: ", format_resources(lesson.cost))}
+                                            </span>
+                                            {lesson.detail.clone()}
+                                        </li>
+                                    }
+                                })
+                                .collect_view()}
+                        </ol>
+                    }
+                        .into_any()
+                },
+            )}
+
+            {section_band(
                 "Expansions",
                 "h-24",
                 &players,
@@ -552,6 +594,106 @@ fn PlayerSections(
                 move |summary| {
                     view! {
                         <MacroDetails macro_summary=summary.macro_summary.clone() chart_scale />
+                    }
+                },
+            )}
+
+            {section_band(
+                view! {
+                    <span title="The injects, chrono boosts and MULEs compared to what the energy of the casters allowed (0.7875 energy per second, an inject per hatchery every 29 seconds). The casters also spend energy on creep tumors and transfuse, 100% is not expected">
+                        "Energy used"
+                    </span>
+                },
+                "h-20",
+                &players,
+                move |summary| {
+                    if summary.ability_efficiency.is_empty() {
+                        return view! {
+                            <p class="text-xs text-gray-500">
+                                "No casters, or the commands of this patch have no names yet"
+                            </p>
+                        }
+                            .into_any();
+                    }
+                    view! {
+                        <table class=TABLE_CLASS>
+                            <tbody>
+                                {summary
+                                    .ability_efficiency
+                                    .iter()
+                                    .map(|efficiency| {
+                                        let share = 100. * efficiency.uses as f32
+                                            / efficiency.possible.max(1.);
+                                        view! {
+                                            <tr title=format!(
+                                                "{:.0} minutes of {} alive and done",
+                                                efficiency.caster_minutes,
+                                                efficiency.caster,
+                                            )>
+                                                <td class="pr-2">{efficiency.ability.clone()}</td>
+                                                <td class="pr-2">
+                                                    {format!(
+                                                        "{} of ~{:.0}",
+                                                        efficiency.uses,
+                                                        efficiency.possible,
+                                                    )}
+                                                </td>
+                                                <td class="pr-2 font-semibold">{format!("{share:.0}%")}</td>
+                                            </tr>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </tbody>
+                        </table>
+                    }
+                        .into_any()
+                },
+            )}
+
+            {section_band(
+                view! {
+                    <span title="Control groups give quick access to armies and structures, the camera moves (minimap clicks, screen edge, camera hotkeys) show how the attention moves over the map">
+                        "Control groups and camera"
+                    </span>
+                },
+                "h-16",
+                &players,
+                move |summary| {
+                    let control = summary.control.clone();
+                    let groups = control
+                        .groups
+                        .iter()
+                        .map(|group| group.to_string())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    view! {
+                        <table class=TABLE_CLASS>
+                            <tbody>
+                                <tr>
+                                    <td class="pr-2">"Groups"</td>
+                                    <td class="pr-2 font-mono">
+                                        {if groups.is_empty() {
+                                            "none".to_string()
+                                        } else {
+                                            groups
+                                        }}
+                                    </td>
+                                    <td class="pr-2">{format!("{} assigns", control.assigns)}</td>
+                                </tr>
+                                <tr>
+                                    <td class="pr-2">"Per minute"</td>
+                                    <td class="pr-2">
+                                        {format!("{:.0} recalls", control.recalls_per_minute)}
+                                    </td>
+                                    <td class="pr-2">
+                                        {format!(
+                                            "{:.0} camera moves",
+                                            control.camera_moves_per_minute,
+                                        )}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     }
                 },
             )}
