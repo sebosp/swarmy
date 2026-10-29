@@ -298,6 +298,22 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
 fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
     let location = detail.replay_location.clone();
     let bevy_location = detail.replay_location.clone();
+    let ext_fs_id = detail.ext_fs_id;
+    let exported = RwSignal::new(String::new());
+    let export = move |_ev: MouseEvent| {
+        #[derive(serde::Serialize)]
+        struct Args {
+            ext_fs_id: u64,
+        }
+        exported.set("Writing the report...".to_string());
+        spawn_local(async move {
+            match invoke_response("export_replay_report", &Args { ext_fs_id }).await {
+                Ok(response) if response.message.is_empty() => exported.set(String::new()),
+                Ok(response) => exported.set(format!("Saved {}", response.message)),
+                Err(err) => exported.set(err),
+            }
+        });
+    };
     view! {
         <div class="flex items-start justify-between rounded-md border border-white/15 bg-gray-800/40 p-2">
             <div>
@@ -345,6 +361,14 @@ fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
                     <Icon icon=CUBE weight=IconWeight::Light />
                     "Load in swarmy-bevy"
                 </button>
+                <button
+                    class="btn btn-outline btn-sm"
+                    title="Saves the game as a single HTML page to share with a coach or a friend: the win chance, the three things to fix, the economy, the build orders and the biggest fights"
+                    on:click=export
+                >
+                    "Export report"
+                </button>
+                <span class="text-xs text-gray-400 self-center">{move || exported.get()}</span>
             </div>
         </div>
     }
@@ -674,8 +698,8 @@ fn PlayerSections(
 
             {section_band(
                 view! {
-                    <span title="The injects, chrono boosts and MULEs compared to what the energy of the casters allowed (0.7875 energy per second, an inject per hatchery every 29 seconds). The casters also spend energy on creep tumors and transfuse, 100% is not expected">
-                        "Energy used"
+                    <span title="The injects, chrono boosts and MULEs until 10:00 compared to what the energy of the casters allowed (0.7875 energy per second, an inject per hatchery every 29 seconds). The casters also spend energy on creep tumors and transfuse, 100% is not expected">
+                        "Energy used until 10:00"
                     </span>
                 },
                 "h-20",

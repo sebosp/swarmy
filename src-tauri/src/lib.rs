@@ -104,6 +104,7 @@ pub fn run() {
             replay_detail::query_replay_detail,
             replay_detail::query_adjacent_replay,
             replay_detail::query_replay_lesson,
+            replay_detail::export_replay_report,
             personal_db::get_replay_notes,
             duplicates::find_duplicate_replays,
             duplicates::move_duplicate_replays,

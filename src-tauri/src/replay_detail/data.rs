@@ -182,6 +182,10 @@ struct PlayerAccumulator {
     last_stats_seconds: Option<u32>,
     unspent_samples: Vec<i32>,
     income_samples: Vec<i32>,
+    /// The injects, chrono boosts and MULEs until [`SNAPSHOT_SECONDS`], for the energy used.
+    early_injects: u32,
+    early_chrono_boosts: u32,
+    early_mules: u32,
     /// The seconds the energy casters and the hatcheries were alive and done, by name.
     caster_seconds: BTreeMap<&'static str, f32>,
     control: ControlAccumulator,
@@ -403,12 +407,16 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                         .unwrap_or_default();
                     commands += 1;
                     named_commands += (!ability.is_empty()) as usize;
+                    let early = seconds <= SNAPSHOT_SECONDS;
                     if ability.starts_with("SpawnLarva") {
                         acc.macro_summary.injects += 1;
+                        acc.early_injects += early as u32;
                     } else if ability.starts_with("ChronoBoost") {
                         acc.macro_summary.chrono_boosts += 1;
+                        acc.early_chrono_boosts += early as u32;
                     } else if ability.starts_with("CalldownMULE") {
                         acc.macro_summary.mules += 1;
+                        acc.early_mules += early as u32;
                     }
                     if let Some(tracked) = tracked_ability(ability) {
                         *acc.abilities.entry(tracked.ability).or_default() += 1;
@@ -483,8 +491,8 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 if seconds >= 60 {
                     acc.income_samples.push(acc.income_per_minute);
                 }
-                // The casters alive since the previous stats of the player.
-                for unit in state.units.values() {
+                // The casters alive since the previous stats of the player, until 10:00.
+                for unit in state.units.values().filter(|_| seconds <= SNAPSHOT_SECONDS) {
                     if unit.is_init || players.unit_player(unit) != player {
                         continue;
                     }
@@ -759,7 +767,13 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 samples => (acc.income_samples.iter().sum::<i32>() / samples as i32).max(0) as u32,
             };
             let ability_efficiency = if named_commands * 2 >= commands {
-                super::lessons::ability_efficiency(&acc.caster_seconds, &macro_summary)
+                let early = MacroSummary {
+                    injects: acc.early_injects,
+                    chrono_boosts: acc.early_chrono_boosts,
+                    mules: acc.early_mules,
+                    ..Default::default()
+                };
+                super::lessons::ability_efficiency(&acc.caster_seconds, &early)
             } else {
                 vec![]
             };

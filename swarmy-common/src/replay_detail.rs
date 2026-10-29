@@ -359,8 +359,8 @@ pub struct Lesson {
     pub seconds: Option<u32>,
 }
 
-/// The uses of an ability with energy by the casters of a player, compared to the uses their
-/// energy allowed: the energy regenerates at 0.7875 per second.
+/// The uses of an ability with energy by the casters of a player until 10:00, compared to the uses
+/// their energy allowed: the energy regenerates at 0.7875 per second.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct AbilityEfficiency {
     /// i.e. Inject Larva

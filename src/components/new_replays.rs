@@ -69,11 +69,8 @@ pub fn NewReplaysBanner() -> impl IntoView {
                         let args = Args {
                             replay_location: location,
                         };
-                        if let Ok(found) = invoke_json::<Option<Lesson>>(
-                            "query_replay_lesson",
-                            &args,
-                        )
-                        .await
+                        if let Ok(found) =
+                            invoke_json::<Option<Lesson>>("query_replay_lesson", &args).await
                         {
                             lesson.set(found);
                         }

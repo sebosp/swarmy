@@ -36,7 +36,9 @@ pub const MULE_VALUE: f32 = 225.;
 /// The lessons that cost less than this are not shown.
 pub const MIN_LESSON_COST: u32 = 100;
 
-/// The uses of the abilities with energy compared to what the energy of the casters allowed.
+/// The uses of the abilities with energy compared to what the energy of the casters allowed, in
+/// the first 10:00 of the game, where the macro is compared: later the casters are many and their
+/// energy goes to creep, transfuse or scans.
 pub fn ability_efficiency(
     caster_seconds: &BTreeMap<&'static str, f32>,
     macro_summary: &MacroSummary,
@@ -137,7 +139,7 @@ pub fn lessons(summary: &ReplayPlayerSummary, engagements: &[Engagement]) -> Vec
             lessons.push(Lesson {
                 title: format!("Missed {}", efficiency.ability),
                 detail: format!(
-                    "{} of about {:.0} possible with the energy of the {} ({:.0}%)",
+                    "{} of about {:.0} possible until 10:00 with the energy of the {} ({:.0}%)",
                     efficiency.uses,
                     efficiency.possible,
                     efficiency.caster,
