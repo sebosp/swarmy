@@ -10,7 +10,6 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
-use leptos::task::spawn_local;
 use phosphor_leptos::{Icon, IconWeight, DATABASE};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
@@ -28,7 +27,6 @@ pub fn ScanDirectory() -> impl IntoView {
     });
     let (snapshot_stats, set_snapshot_stats) = signal(SnapshotStats::default());
     let (confirm_rebuild, set_confirm_rebuild) = signal(false);
-    let cache_message = RwSignal::new(String::new());
 
     let navigation = crate::navigation::use_navigation();
     crate::settings::with_fetch_current_app_config(
@@ -120,65 +118,10 @@ pub fn ScanDirectory() -> impl IntoView {
                             && activity_stage.get() != ActivityStage::ScanInit
                             && activity_stage.get() != ActivityStage::OptimizeInit
                     }
-                    title="Adds the replays that are not in the snapshot yet, generating Arrow files per day (may take some time)"
+                    title="Adds the replays that are not in the snapshot yet, generating Arrow files per day (may take some time). The Map Info caches of the replays are downloaded from Blizzard's depot servers first, the digest of each map version comes from them: the replays added while their caches could not be downloaded are parsed again once they can be read."
                 >
                     <Icon icon=DATABASE weight=IconWeight::Light prop:class="stroke-current" />
-                    "Optimize"
-                </button>
-                <button
-                    class="btn btn-outline btn-sm ml-2"
-                    on:click=move |_| {
-                        set_activity_stage.set(ActivityStage::DownloadingCachesInit);
-                        cache_message.set("Downloading the missing map caches...".to_string());
-                        spawn_local(async move {
-                            #[derive(serde::Serialize)]
-                            struct NoArgs {}
-                            match invoke_json::<
-                                s2protocol::cache_handles::CacheDownloads,
-                            >("download_map_caches", &NoArgs {})
-                                .await
-                            {
-                                Ok(downloads) => {
-                                    let failed = downloads.failed > 0;
-                                    cache_message
-                                        .set(
-                                            format!(
-                                                "{} map caches: {} were there, {} downloaded, {} failed{}",
-                                                downloads.handles,
-                                                downloads.present,
-                                                downloads.downloaded,
-                                                downloads.failed,
-                                                downloads
-                                                    .errors
-                                                    .first()
-                                                    .map(|error| format!(", i.e. {error}"))
-                                                    .unwrap_or_default(),
-                                            ),
-                                        );
-                                    set_activity_stage
-                                        .set(
-                                            if failed {
-                                                ActivityStage::DownloadingCachesFailure
-                                            } else {
-                                                ActivityStage::DownloadingCachesDone
-                                            },
-                                        );
-                                }
-                                Err(err) => {
-                                    cache_message.set(err);
-                                    set_activity_stage.set(ActivityStage::DownloadingCachesFailure);
-                                }
-                            }
-                        });
-                    }
-                    disabled=move || {
-                        app_settings.get().replay_path.is_empty()
-                            || activity_stage.get() == ActivityStage::OptimizeInit
-                            || activity_stage.get() == ActivityStage::DownloadingCachesInit
-                    }
-                    title="Downloads the Map Info caches of the replays of the snapshot that are not in the Map Caches Path of Config from Blizzard's depot servers, i.e. the ones that failed while the replays were optimized"
-                >
-                    "Download Caches"
+                    "Optimize and Download Caches"
                 </button>
                 // Deleting the snapshot needs a second click.
                 <button
@@ -220,7 +163,6 @@ pub fn ScanDirectory() -> impl IntoView {
                 </button>
             </div>
             <DisplayBackendStatus backend_response />
-            <p class="col-span-10 text-xs text-gray-400">{move || cache_message.get()}</p>
             <div class="col-span-10 m-0 p-0">
                 <SnapshotStatusHeader app_settings=app_settings dir_stats_data activity_stage />
                 <OptimizeProgress />

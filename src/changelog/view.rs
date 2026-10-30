@@ -8,7 +8,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
         "2026-10-30",
         &[
             "s2protocol 4.1.0: the commands of the 5.0 patches without balance data (92% of the games of a large snapshot) and of 4.10 (AI Arena) are named, the abilities, injects and chrono boosts of these games are counted. The seconds are at the Faster speed, the snapshot is about ten times smaller (zstd), the replays that could not be read before are read. Optimize parses the replays again.",
-            "Scan: Download Caches downloads the map caches of the snapshot that are missing, i.e. the ones that failed while optimizing, into the Map Caches Path, created when it does not exist (on Windows the caches were not downloaded when the directory did not exist). Optimize tries the missing ones again too.",
+            "Scan: Optimize and Download Caches, the map caches are downloaded into the Map Caches Path, created when it does not exist (on Windows the caches were not downloaded when the directory did not exist), and the missing ones are tried again on every run.",
         ],
     ),
     (

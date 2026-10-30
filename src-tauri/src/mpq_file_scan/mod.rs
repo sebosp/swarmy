@@ -84,17 +84,6 @@ pub async fn download_missing_caches(
     .map_err(SwarmyError::Other)
 }
 
-/// Downloads the missing map caches of the snapshot, the message is the JSON of the downloads.
-#[tauri::command(rename_all = "snake_case")]
-pub async fn download_map_caches(app_handle: AppHandle) -> Result<ApiResponse, SwarmyError> {
-    let settings = crate::settings::load_stored_app_settings(&app_handle)?;
-    let result = download_missing_caches(&settings.replay_path, &settings.cache_path).await;
-    if let Ok(downloads) = &result {
-        tracing::info!("Map caches: {downloads}");
-    }
-    Ok(ApiResponseBuilder::new().process_result(result))
-}
-
 #[tracing::instrument(level = "debug")]
 /// Adds the replays that are not in the snapshot yet, `recreate` deletes the snapshot first.
 pub async fn try_optimize_replay_path(
