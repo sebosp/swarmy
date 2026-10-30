@@ -3,7 +3,7 @@ name: Android
 # Builds the Android APK of swarmy (aarch64) with the Tauri Android project of
 # src-tauri/gen/android, signed as in https://tauri.app/distribute/sign/android/: the release key
 # comes from the secrets ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD
-# and ANDROID_KEY_ALIAS, written into src-tauri/gen/android/keystore.properties on the runner and
+# and ANDROID_KEY_ALIAS (else the first key of the keystore), written into src-tauri/gen/android/keystore.properties on the runner and
 # never committed. Without them the APK is built unsigned.
 #
 # On Android there are no sidecars nor updater (src-tauri/tauri.android.conf.json): the app is
@@ -12,6 +12,8 @@ name: Android
 on:
   push:
     tags: ["v*"]
+    # The branch of the Android work, until it is merged.
+    branches: [android]
   workflow_dispatch:
 
 env:
@@ -56,8 +58,14 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ]; then
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+            # Without ANDROID_KEY_ALIAS, the alias of the first key of the keystore.
+            if [ -z "$ANDROID_KEY_ALIAS" ]; then
+              ANDROID_KEY_ALIAS=$(keytool -list -keystore "$RUNNER_TEMP/keystore.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+                | grep -m1 PrivateKeyEntry | cut -d, -f1)
+              echo "The alias of the keystore: $ANDROID_KEY_ALIAS"
+            fi
             {
               echo "keyAlias=$ANDROID_KEY_ALIAS"
               echo "password=$ANDROID_KEYSTORE_PASSWORD"
