@@ -1,0 +1,84 @@
+name: Android
+
+# Builds the Android APK of swarmy (aarch64) with the Tauri Android project of
+# src-tauri/gen/android, signed as in https://tauri.app/distribute/sign/android/: the release key
+# comes from the secrets ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD
+# and ANDROID_KEY_ALIAS, written into src-tauri/gen/android/keystore.properties on the runner and
+# never committed. Without them the APK is built unsigned.
+#
+# On Android there are no sidecars nor updater (src-tauri/tauri.android.conf.json): the app is
+# the interface, for the remote swarmy backends to come.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # The debug information of the release libraries out of the APK.
+  CARGO_PROFILE_RELEASE_STRIP: "true"
+
+jobs:
+  apk:
+    name: APK aarch64
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: aarch64-linux-android,wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: aarch64-linux-android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # The runner has the Android SDK; the NDK of the build is installed with sdkmanager.
+      - name: Install the NDK
+        run: |
+          echo "y" | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" >/dev/null
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+
+      - name: Install trunk and the Tauri CLI
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+
+      - name: Set up the signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+            {
+              echo "keyAlias=$ANDROID_KEY_ALIAS"
+              echo "password=$ANDROID_KEYSTORE_PASSWORD"
+              echo "storeFile=$RUNNER_TEMP/keystore.jks"
+            } > src-tauri/gen/android/keystore.properties
+            echo "Signed with the release key"
+          else
+            echo "No signing secrets, the APK is unsigned"
+          fi
+
+      - name: Build the APK
+        run: cargo tauri android build --apk --target aarch64 --ci
+
+      - name: Clean up the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/keystore.jks" src-tauri/gen/android/keystore.properties
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: swarmy-android-aarch64
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          if-no-files-found: error
