@@ -49,9 +49,11 @@ pub struct SetupState {
 pub fn run() {
     logging::init(&<logging::Args as clap::Parser>::parse());
     let (majordomo_tx, majordomo_rx) = mpsc::channel(4_096); // TODO: Magic number removal
-    tauri::Builder::default()
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_clipboard_manager::init());
+    // The updater is for the desktop bundles, Android and iOS update through their stores.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    builder
         .plugin(tauri_plugin_shell::init())
         .manage(SetupState { majordomo_tx })
         .manage(RerunViewerState::default())
