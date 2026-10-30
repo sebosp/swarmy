@@ -37,11 +37,23 @@ pub fn closest_balance_units(version: u32) -> Result<&'static VersionedBalanceUn
     Ok(&balance_units()?[&closest])
 }
 
-/// The version of the balance data closest to the protocol version, the patch of a game.
-pub fn closest_balance_version(version: u32) -> Result<u32, SwarmyError> {
-    balance_units()?
+/// The versions of the balance data exported from the Editor, the patches. The derived ones, i.e.
+/// 75689 (4.10) with the units of 94137, only name the commands of their replays, they are not
+/// compared as patches.
+pub fn patch_balance_versions() -> Result<Vec<u32>, SwarmyError> {
+    let mut versions: Vec<u32> = balance_units()?
         .keys()
         .copied()
+        .filter(|version| !s2protocol::game_events::DERIVED_BALANCE_DATA_VERSIONS.contains(version))
+        .collect();
+    versions.sort_unstable();
+    Ok(versions)
+}
+
+/// The version of the balance data closest to the protocol version, the patch of a game.
+pub fn closest_balance_version(version: u32) -> Result<u32, SwarmyError> {
+    patch_balance_versions()?
+        .into_iter()
         .min_by_key(|available| available.abs_diff(version))
         .ok_or_else(|| SwarmyError::Other("No balance data available".to_string()))
 }

@@ -94,8 +94,8 @@ fn with_changes(values: Vec<String>) -> Vec<PatchValue> {
 
 pub fn try_list_patch_units() -> Result<PatchUnitList, SwarmyError> {
     let all_units = balance_units()?;
-    let mut versions: Vec<u32> = all_units.keys().copied().collect();
-    versions.sort();
+    // The derived balance data are not patches.
+    let versions = crate::replay_rerun::decisions::patch_balance_versions()?;
     let mut units: BTreeSet<(String, String)> = BTreeSet::new();
     for version_units in all_units.values() {
         for (name, unit) in version_units {
@@ -117,8 +117,8 @@ pub fn try_list_patch_units() -> Result<PatchUnitList, SwarmyError> {
 pub fn try_query_unit_overview(unit_name: String) -> Result<PatchUnit, SwarmyError> {
     use PatchRowKind::{Benefit, Cost, Neutral};
     let all_units = balance_units()?;
-    let mut versions: Vec<u32> = all_units.keys().copied().collect();
-    versions.sort();
+    // The derived balance data are not patches.
+    let versions = crate::replay_rerun::decisions::patch_balance_versions()?;
     let units: Vec<Option<&VersionedBalanceUnit>> = versions
         .iter()
         .map(|version| all_units[version].get(&unit_name))

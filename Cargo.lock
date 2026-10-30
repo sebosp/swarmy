@@ -566,6 +566,8 @@ dependencies = [
  "arrow-schema 59.3.2",
  "arrow-select 59.3.2",
  "flatbuffers",
+ "lz4_flex 0.14.0",
+ "zstd",
 ]
 
 [[package]]
@@ -4528,6 +4530,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lz4_flex"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecbdfe44b1bd960b68170b417450a628c43f7cf56bb3c5317e61cb230ee7f226"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "manyhow"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4823,9 +4834,9 @@ dependencies = [
 
 [[package]]
 name = "nom-mpq"
-version = "2.0.11"
+version = "2.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6837ee482b1277db7a6d21e7da9e759927573b2cb8062742adaa80b104ca16ec"
+checksum = "b2c659c6278e787541623aeefa16b78c305681f5abb9e21b7dec1bdb9291e4e9"
 dependencies = [
  "bzip2-rs",
  "convert_case 0.12.0",
@@ -7410,7 +7421,7 @@ dependencies = [
  "futures",
  "itertools 0.15.0",
  "jiff",
- "lz4_flex",
+ "lz4_flex 0.13.1",
  "parking_lot",
  "quiver",
  "re_arrow_util",
@@ -7538,7 +7549,7 @@ dependencies = [
  "http",
  "itertools 0.15.0",
  "jiff",
- "lz4_flex",
+ "lz4_flex 0.13.1",
  "opentelemetry",
  "prost",
  "prost-reflect",
@@ -8389,9 +8400,9 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s2protocol"
-version = "4.0.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8708bffea3886c99d1f04df785853292be8cea504277ca6a8663dd18bff6003b"
+checksum = "64b11898b33c1c2b1a90ca4736bf25387265c7ddddd1106d2cd94bb120825ead"
 dependencies = [
  "arrow 59.3.2",
  "chrono",
