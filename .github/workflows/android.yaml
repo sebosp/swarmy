@@ -16,8 +16,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # The debug information of the release libraries out of the APK.
-  CARGO_PROFILE_RELEASE_STRIP: "true"
 
 jobs:
   apk:
@@ -70,8 +68,15 @@ jobs:
             echo "No signing secrets, the APK is unsigned"
           fi
 
+      # The frontend first: the stripping of the release profile would break its wasm-opt.
+      - name: Build the frontend
+        run: trunk build --release
+
+      # The Android library stripped of its symbols, 354 MB otherwise.
       - name: Build the APK
-        run: cargo tauri android build --apk --target aarch64 --ci
+        env:
+          CARGO_PROFILE_RELEASE_STRIP: "true"
+        run: cargo tauri android build --apk --target aarch64 --ci --config '{"build":{"beforeBuildCommand":""}}'
 
       - name: Clean up the key
         if: always()
