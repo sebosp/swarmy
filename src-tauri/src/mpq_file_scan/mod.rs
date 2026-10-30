@@ -57,33 +57,6 @@ pub async fn optimize_replay_path(
     Ok(res_rx.await?)
 }
 
-/// Downloads the map caches of the snapshot that are not in the caches directory yet from
-/// Blizzard's depot servers, i.e. the ones that failed while the replays were added. The
-/// directory is created when it does not exist.
-pub async fn download_missing_caches(
-    replay_path: &str,
-    cache_path: &str,
-) -> Result<s2protocol::cache_handles::CacheDownloads, SwarmyError> {
-    if cache_path.is_empty() {
-        return Err(SwarmyError::Other(
-            "The Map Caches Path is not set, set it in Config.".to_string(),
-        ));
-    }
-    let root = PathBuf::from(replay_path).join(IPC_DIR);
-    let cache_path = cache_path.to_string();
-    // The errors of s2protocol are not Send, the downloads run on a blocking thread.
-    let runtime = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || {
-        runtime.block_on(async {
-            s2protocol::arrow_store::partitioned::download_snapshot_caches(&root, &cache_path)
-                .await
-                .map_err(|err| format!("Unable to read the snapshot caches: {err}"))
-        })
-    })
-    .await?
-    .map_err(SwarmyError::Other)
-}
-
 #[tracing::instrument(level = "debug")]
 /// Adds the replays that are not in the snapshot yet, `recreate` deletes the snapshot first.
 pub async fn try_optimize_replay_path(
@@ -152,11 +125,6 @@ pub async fn try_optimize_replay_path(
     // The replays added are no longer new, the copies and unreadable ones are not either.
     crate::replay_watcher::record_skipped_replays(&replay_path);
     crate::replay_watcher::refresh(&app_handle_clone);
-    // The caches that could not be downloaded before are tried again.
-    match download_missing_caches(&replay_path, &cache_path).await {
-        Ok(downloads) => tracing::info!("Map caches: {downloads}"),
-        Err(err) => tracing::error!("Error downloading the map caches: {err}"),
-    }
     // if the ipc directory exists do basic scan.
     let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));
     let arrow_ipc_stats = if ipc_path.exists() && ipc_path.is_dir() {
