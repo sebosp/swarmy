@@ -229,7 +229,7 @@ const LOGIC: [Entry; 22] = [
          that cost resources died, the production structures of the first 04:00 more than 50 \
          cells from the start location (proxies), the creep tumors, and the structures of the \
          first 03:00 near the start location (the walls). swarmy-bevy draws them as bars, the \
-         keys 1 to 4 show or hide each layer.",
+         keys F1 to F4 show or hide each layer.",
     ),
     (
         "Unit choices",

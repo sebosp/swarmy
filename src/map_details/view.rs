@@ -304,7 +304,7 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
                 <h2 class=HEADING_CLASS>"Map lessons"</h2>
                 <button
                     class="btn btn-primary btn-xs"
-                    title="The layers as bars on the map, each in its color, the keys 1 to 4 show or hide them"
+                    title="The layers as bars on the map, each in its color, the keys F1 to F4 show or hide them"
                     on:click=open
                 >
                     <Icon icon=CUBE weight=IconWeight::Light />
