@@ -12,8 +12,6 @@ name: Android
 on:
   push:
     tags: ["v*"]
-    # The branch of the Android work, until it is merged.
-    branches: [android]
   workflow_dispatch:
 
 env:
