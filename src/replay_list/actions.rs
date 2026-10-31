@@ -142,8 +142,14 @@ pub fn trigger_swarmy_rerun_on_replay(replay_file_name: &str) {
 
 /// Opens the replay in swarmy-bevy, the units born and died over time on its map.
 pub fn trigger_swarmy_bevy_on_replay(replay_file_name: &str) {
+    trigger_swarmy_bevy_on_replay_at(replay_file_name, None)
+}
+
+/// Opens the replay in swarmy-bevy at a game second.
+pub fn trigger_swarmy_bevy_on_replay_at(replay_file_name: &str, replay_seconds: Option<u32>) {
     let params = SwarmyBevyReplayParams {
         replay_file_name: replay_file_name.to_string(),
+        replay_seconds,
     };
     spawn_local(async move {
         let args = serde_wasm_bindgen::to_value(&params).unwrap();

@@ -10,6 +10,7 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
+pub mod ability_usage;
 #[cfg(test)]
 mod bench_queries;
 pub mod data;
@@ -21,6 +22,8 @@ pub mod map_scout;
 pub mod patch_overview;
 pub mod personal_db;
 pub mod player_detail;
+pub mod progress;
+pub mod race_detail;
 pub mod replay_detail;
 pub mod replay_list;
 pub mod replay_rerun;
@@ -86,9 +89,14 @@ pub fn run() {
             basic_scan_replay_path,
             optimize_replay_path,
             get_snapshot_metadata,
+            settings::pick_folder,
             query_map_stats,
             swarmy_bevy::exec_swarmy_bevy_map_caches,
             swarmy_bevy::exec_swarmy_bevy_replay,
+            swarmy_bevy::exec_swarmy_bevy_siege_spots,
+            swarmy_bevy::query_siege_spots,
+            swarmy_bevy::exec_swarmy_bevy_map_layers,
+            swarmy_bevy::query_map_layers,
             query_replay_list,
             replay_list::list_replay_filters,
             replay_watcher::get_new_replays_status,
@@ -97,6 +105,8 @@ pub fn run() {
             connect_swarmy_rerun,
             replay_detail::query_replay_detail,
             replay_detail::query_adjacent_replay,
+            replay_detail::query_replay_lesson,
+            replay_detail::export_replay_report,
             personal_db::get_replay_notes,
             duplicates::find_duplicate_replays,
             duplicates::move_duplicate_replays,
@@ -117,6 +127,10 @@ pub fn run() {
             patch_overview::query_patch_evolution,
             patch_overview::list_saved_evolutions,
             patch_overview::save_evolution,
+            ability_usage::query_ability_usage,
+            race_detail::query_race_detail,
+            progress::query_progress,
+            progress::set_progress_goals,
             get_app_versions,
             open_external_url,
         ])

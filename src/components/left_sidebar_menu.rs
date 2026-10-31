@@ -3,24 +3,27 @@ use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use phosphor_leptos::{
     Icon, IconWeight, ALIEN, BARCODE, BINOCULARS, CHART_LINE, CLOCK_COUNTER_CLOCKWISE, FADERS,
-    FILM_STRIP, GIT_DIFF, HOUSE, INTERSECT_SQUARE, MAP_PIN, MAP_TRIFOLD, QUESTION, USER,
+    FILM_STRIP, GIT_DIFF, HOUSE, INTERSECT_SQUARE, MAP_PIN, MAP_TRIFOLD, QUESTION, SHIELD_STAR,
+    SIGNPOST, TREND_UP, USER,
 };
 
 /// The pages of the menu, in order, separated in groups.
 const MENU_GROUPS: [&[&str]; 4] = [
-    &[HOME_PAGE, "Scan"],
+    &[HOME_PAGE, TOUR_PAGE, "Scan"],
     &[
         MAP_LIST_PAGE,
         MAP_DETAILS_PAGE,
         "Replay List",
         REPLAY_DETAIL_PAGE,
         PLAYER_PAGE,
+        PROGRESS_PAGE,
         MAP_SCOUT_PAGE,
     ],
     &[
         PATCH_OVERVIEW_PAGE,
         UNIT_OVERVIEW_PAGE,
         PATCH_EVOLUTION_PAGE,
+        RACE_DETAIL_PAGE,
     ],
     &[HELP_PAGE, CHANGELOG_PAGE, "Config"],
 ];
@@ -59,6 +62,7 @@ fn SidebarMenuItem(name: &'static str, active_page: RwSignal<String>) -> impl In
         "flex items-center justify-center w-9 h-9 rounded hover:bg-gray-700 hover:text-gray-300";
     let icon_data = match name {
         HOME_PAGE => HOUSE,
+        TOUR_PAGE => SIGNPOST,
         "Scan" => BARCODE,
         "Config" => FADERS,
         MAP_LIST_PAGE => MAP_TRIFOLD,
@@ -70,6 +74,8 @@ fn SidebarMenuItem(name: &'static str, active_page: RwSignal<String>) -> impl In
         PATCH_OVERVIEW_PAGE => GIT_DIFF,
         UNIT_OVERVIEW_PAGE => ALIEN,
         PATCH_EVOLUTION_PAGE => CHART_LINE,
+        RACE_DETAIL_PAGE => SHIELD_STAR,
+        PROGRESS_PAGE => TREND_UP,
         HELP_PAGE => QUESTION,
         CHANGELOG_PAGE => CLOCK_COUNTER_CLOCKWISE,
         _ => HOUSE,

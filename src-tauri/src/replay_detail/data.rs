@@ -1,6 +1,9 @@
 //! Analysis of a single replay file.
 
 use super::focus::{classify_action, FocusAccumulator};
+use super::win_chance::{
+    win_chance, SideStats, WIN_CHANCE_INTERVAL_SECONDS, WIN_CHANCE_START_SECONDS,
+};
 use crate::data::*;
 use crate::replay_rerun::decisions::{
     army_supply, balance_units, base_unit_name, closest_balance_units, format_unit_counts,
@@ -10,7 +13,7 @@ use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
 use crate::replay_rerun::{ReplayPlayers, NEUTRAL_PLAYER};
 use polars::prelude::*;
 use s2protocol::basic_replay_data::SC2ReplayBasicData;
-use s2protocol::game_events::{ReplayGameEvent, VersionedBalanceUnits};
+use s2protocol::game_events::{GameEControlGroupUpdate, ReplayGameEvent, VersionedBalanceUnits};
 use s2protocol::message_events::ReplayMessageEvent;
 use s2protocol::state::SC2UnitCmdData;
 use s2protocol::tracker_events::ReplayTrackerEvent;
@@ -93,11 +96,24 @@ fn loop_seconds(game_loop: i64) -> u32 {
     (game_loop.max(0) as f64 / GAME_LOOPS_PER_SECOND) as u32
 }
 
+/// The prefixes of the sprays, rewards, etc, they are registered as upgrades but are not part of
+/// the build order.
+const COSMETIC_UPGRADE_PREFIXES: [&str; 3] = ["Spray", "Reward", "GameHeart"];
+
 /// Sprays, rewards, etc are registered as upgrades but are not part of the build order.
 pub fn is_cosmetic_upgrade(name: &str) -> bool {
-    ["Spray", "Reward", "GameHeart"]
+    COSMETIC_UPGRADE_PREFIXES
         .iter()
         .any(|prefix| name.starts_with(prefix))
+}
+
+/// [`is_cosmetic_upgrade`] of the column.
+pub fn cosmetic_upgrade_expr(column: &str) -> Expr {
+    COSMETIC_UPGRADE_PREFIXES
+        .iter()
+        .map(|prefix| col(column).str().starts_with(lit(*prefix)))
+        .reduce(Expr::or)
+        .expect("there are cosmetic upgrade prefixes")
 }
 
 fn distance(a: (f32, f32), b: (f32, f32)) -> f32 {
@@ -161,8 +177,18 @@ struct PlayerAccumulator {
     /// Minerals and vespene per minute at the last stats update.
     income_per_minute: i32,
     army_value: i32,
+    /// The economy and army at the last stats update, for the win chance.
+    side: SideStats,
     last_stats_seconds: Option<u32>,
     unspent_samples: Vec<i32>,
+    income_samples: Vec<i32>,
+    /// The injects, chrono boosts and MULEs until [`SNAPSHOT_SECONDS`], for the energy used.
+    early_injects: u32,
+    early_chrono_boosts: u32,
+    early_mules: u32,
+    /// The seconds the energy casters and the hatcheries were alive and done, by name.
+    caster_seconds: BTreeMap<&'static str, f32>,
+    control: ControlAccumulator,
     start: Option<(f32, f32)>,
     build_order: Vec<BuildOrderEntry>,
     expansions: Vec<BuildOrderEntry>,
@@ -193,7 +219,30 @@ struct PlayerAccumulator {
     good_decisions: usize,
     even_decisions: usize,
     bad_decisions: Vec<UnitDecision>,
+    /// The commands of the abilities with energy or a cooldown, by [`TrackedAbility::ability`].
+    abilities: BTreeMap<&'static str, u32>,
 }
+
+#[derive(Default)]
+struct ControlAccumulator {
+    groups: std::collections::BTreeSet<u8>,
+    assigns: u32,
+    recalls: u32,
+    camera_moves: u32,
+}
+
+/// The control of the computer players in the details, the humans are 2.
+pub const COMPUTER_CONTROL: u8 = 3;
+
+/// The casters counted for [`AbilityEfficiency`], with the structures that are injected.
+const CASTERS: [&str; 6] = [
+    "Queen",
+    "Nexus",
+    "OrbitalCommand",
+    "Hatchery",
+    "Lair",
+    "Hive",
+];
 
 /// The analysis of a replay file does not change, it is kept for the Player view which analyses
 /// all the games of a player.
@@ -254,6 +303,18 @@ pub fn try_query_replay_detail(
         Ok(timings) => super::patch_timings::annotate(&mut detail, &timings),
         Err(err) => tracing::warn!("No patch timings for {}: {err:?}", detail.protocol_version),
     }
+    match super::winner_benchmarks::winner_benchmarks_cached(&ipc_path, detail.protocol_version) {
+        Ok(benchmarks) => super::winner_benchmarks::annotate(&mut detail, &benchmarks),
+        Err(err) => tracing::warn!("No winner benchmarks: {err:?}"),
+    }
+    match super::opening_answers::opening_answers_cached(&ipc_path) {
+        Ok(answers) => super::opening_answers::annotate(&mut detail, &answers),
+        Err(err) => tracing::warn!("No opening answers: {err:?}"),
+    }
+    match crate::ability_usage::ability_usage_cached(&ipc_path) {
+        Ok(usage) => crate::ability_usage::annotate(&mut detail, &usage),
+        Err(err) => tracing::warn!("No ability usage: {err:?}"),
+    }
     Ok(detail)
 }
 
@@ -273,6 +334,19 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
     let mut registered_units: HashMap<u32, String> = HashMap::new();
     let mut snapshot_taken = false;
     let mut last_loop = 0;
+    // The win chance is of the team of the first player against the other team.
+    let first_team = players.teams.first().copied();
+    let has_two_teams = {
+        let mut teams = players.teams.clone();
+        teams.sort_unstable();
+        teams.dedup();
+        teams.len() == 2
+    };
+    let mut win_chance_points: Vec<WinChancePoint> = vec![];
+    // Without balance data for the version the commands have no names, the injects, chrono
+    // boosts and MULEs are not counted and are not compared with the casters' energy.
+    let (mut commands, mut named_commands) = (0usize, 0usize);
+    let mut next_win_chance = WIN_CHANCE_START_SECONDS;
     while let Some(item) = event_iterator.next() {
         let state = &event_iterator.sc2_state;
         let (game_loop, tracker_event) = match &item.event_type {
@@ -291,6 +365,27 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     None => continue,
                 };
                 let seconds = loop_seconds(*game_loop);
+                match event {
+                    ReplayGameEvent::ControlGroupUpdate(update) => {
+                        let control = &mut accumulators.entry(player.clone()).or_default().control;
+                        match update.m_control_group_update {
+                            GameEControlGroupUpdate::ERecall => control.recalls += 1,
+                            GameEControlGroupUpdate::EClear => {}
+                            _ => {
+                                control.assigns += 1;
+                                control.groups.insert(update.m_control_group_index);
+                            }
+                        }
+                    }
+                    ReplayGameEvent::CameraUpdate(camera) if camera.m_target.is_some() => {
+                        accumulators
+                            .entry(player.clone())
+                            .or_default()
+                            .control
+                            .camera_moves += 1;
+                    }
+                    _ => {}
+                }
                 if let ReplayGameEvent::Cmd(cmd) = event {
                     let acc = accumulators.entry(player.clone()).or_default();
                     let minute = (seconds / 60) as usize;
@@ -299,17 +394,32 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                         per_minute.resize(minute + 1, 0);
                     }
                     per_minute[minute] += 1;
-                    let ability = cmd
+                    // s2protocol names the ability in the command of the change hint, the
+                    // command of the event only has its ids.
+                    let command = match &item.change_hint {
+                        UnitChangeHint::Abilities { event, .. } => event,
+                        _ => cmd,
+                    };
+                    let ability = command
                         .m_abil
                         .as_ref()
                         .map(|abil| abil.ability.as_str())
                         .unwrap_or_default();
+                    commands += 1;
+                    named_commands += (!ability.is_empty()) as usize;
+                    let early = seconds <= SNAPSHOT_SECONDS;
                     if ability.starts_with("SpawnLarva") {
                         acc.macro_summary.injects += 1;
+                        acc.early_injects += early as u32;
                     } else if ability.starts_with("ChronoBoost") {
                         acc.macro_summary.chrono_boosts += 1;
+                        acc.early_chrono_boosts += early as u32;
                     } else if ability.starts_with("CalldownMULE") {
                         acc.macro_summary.mules += 1;
+                        acc.early_mules += early as u32;
+                    }
+                    if let Some(tracked) = tracked_ability(ability) {
+                        *acc.abilities.entry(tracked.ability).or_default() += 1;
                     }
                 }
                 let focus = match &item.change_hint {
@@ -346,6 +456,20 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         };
         last_loop = game_loop;
         let seconds = loop_seconds(game_loop);
+        // The stats until now are the ones of the point.
+        while has_two_teams && seconds >= next_win_chance {
+            let side = |in_first_team: bool| {
+                players
+                    .names
+                    .iter()
+                    .zip(&players.teams)
+                    .filter(|(_, team)| (Some(**team) == first_team) == in_first_team)
+                    .filter_map(|(name, _)| accumulators.get(name))
+                    .fold(SideStats::default(), |sum, acc| sum + acc.side)
+            };
+            win_chance_points.push(win_chance(next_win_chance, &side(true), &side(false)));
+            next_win_chance += WIN_CHANCE_INTERVAL_SECONDS;
+        }
         if !snapshot_taken && seconds >= SNAPSHOT_SECONDS {
             snapshot_taken = true;
             take_snapshot(&players, &mut accumulators, &state.units, balance);
@@ -364,7 +488,30 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 acc.supply_made = stats.food_made;
                 acc.income_per_minute =
                     stats.minerals_collection_rate + stats.vespene_collection_rate;
+                if seconds >= 60 {
+                    acc.income_samples.push(acc.income_per_minute);
+                }
+                // The casters alive since the previous stats of the player, until 10:00.
+                for unit in state.units.values().filter(|_| seconds <= SNAPSHOT_SECONDS) {
+                    if unit.is_init || players.unit_player(unit) != player {
+                        continue;
+                    }
+                    if let Some(caster) = CASTERS.iter().find(|caster| **caster == unit.name) {
+                        *acc.caster_seconds.entry(caster).or_default() += interval as f32;
+                    }
+                }
                 acc.army_value = stats.minerals_used_current_army + stats.vespene_used_current_army;
+                acc.side = SideStats {
+                    army: acc.army_value,
+                    income: acc.income_per_minute,
+                    workers: stats.workers_active_count,
+                    killed: stats.minerals_killed_army
+                        + stats.minerals_killed_economy
+                        + stats.minerals_killed_technology
+                        + stats.vespene_killed_army
+                        + stats.vespene_killed_economy
+                        + stats.vespene_killed_technology,
+                };
                 if stats.food_made > 0
                     && stats.food_used >= stats.food_made
                     && stats.food_made < 200
@@ -592,6 +739,21 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         .filter_map(|user| Some((user.name.clone(), user.scaled_rating?)))
         .collect();
     let player_list = &basic_data.details.player_list;
+    let win_chances = has_two_teams.then(|| {
+        let team = |in_first_team: bool| {
+            player_list
+                .iter()
+                .filter(|player| (Some(player.team_id) == first_team) == in_first_team)
+                .map(|player| player.name.clone())
+                .collect()
+        };
+        WinChances {
+            first_team: team(true),
+            second_team: team(false),
+            turning_points: super::win_chance::turning_points(&win_chance_points, &engagements),
+            points: win_chance_points,
+        }
+    });
     let summaries = player_list
         .iter()
         .map(|details| {
@@ -600,6 +762,28 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
             let color = &details.color;
             let name_without_clan = details.name.rsplit("<sp/>").next().unwrap_or_default();
             let mut macro_summary = acc.macro_summary;
+            macro_summary.avg_income = match acc.income_samples.len() {
+                0 => 0,
+                samples => (acc.income_samples.iter().sum::<i32>() / samples as i32).max(0) as u32,
+            };
+            let ability_efficiency = if named_commands * 2 >= commands {
+                let early = MacroSummary {
+                    injects: acc.early_injects,
+                    chrono_boosts: acc.early_chrono_boosts,
+                    mules: acc.early_mules,
+                    ..Default::default()
+                };
+                super::lessons::ability_efficiency(&acc.caster_seconds, &early)
+            } else {
+                vec![]
+            };
+            let game_minutes = (loop_seconds(last_loop) as f32 / 60.).max(1.);
+            let control = ControlSummary {
+                groups: acc.control.groups.iter().copied().collect(),
+                assigns: acc.control.assigns,
+                recalls_per_minute: acc.control.recalls as f32 / game_minutes,
+                camera_moves_per_minute: acc.control.camera_moves as f32 / game_minutes,
+            };
             macro_summary.avg_unspent = match acc.unspent_samples.len() {
                 0 => 0,
                 samples => (acc.unspent_samples.iter().sum::<i32>() / samples as i32) as u32,
@@ -619,6 +803,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     race: normalize_race(&details.race),
                     result: details.result.clone(),
                     team_id: details.team_id,
+                    is_computer: details.control == COMPUTER_CONTROL,
                     color: [color.r, color.g, color.b, color.a],
                 },
                 rating: ratings.get(name_without_clan).copied(),
@@ -658,7 +843,34 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 good_decisions: acc.good_decisions,
                 even_decisions: acc.even_decisions,
                 bad_decisions: acc.bad_decisions,
+                // Compared to the games of the patch once the snapshot is known.
+                abilities: acc
+                    .abilities
+                    .into_iter()
+                    .map(|(ability, uses)| AbilityUse {
+                        ability: ability.to_string(),
+                        uses,
+                        ..Default::default()
+                    })
+                    .collect(),
+                ability_efficiency,
+                control,
+                lessons: vec![],
+                // Compared to the winners of the matchup once the snapshot is known.
+                winner_benchmarks: vec![],
+                winner_games: 0,
+                opening_answers: OpeningAnswers::default(),
             }
+        })
+        .collect::<Vec<ReplayPlayerSummary>>();
+    let summaries = summaries
+        .into_iter()
+        .map(|mut summary| {
+            // The computers do not learn.
+            if !summary.player.is_computer {
+                summary.lessons = super::lessons::lessons(&summary, &engagements);
+            }
+            summary
         })
         .collect();
     Ok(ReplayDetail {
@@ -675,43 +887,68 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
         players: summaries,
         engagements,
         messages,
+        win_chances,
         ..Default::default()
     })
 }
 
-/// The first tech structures, supply, gas, townhalls and defenses are not tech.
-fn opening(build_order: &[BuildOrderEntry], balance: &VersionedBalanceUnits) -> Vec<String> {
-    const NOT_TECH: [&str; 15] = [
-        "SupplyDepot",
-        "Pylon",
-        "Refinery",
-        "Assimilator",
-        "Extractor",
-        "Hatchery",
-        "CommandCenter",
-        "Nexus",
-        "Bunker",
-        "MissileTurret",
-        "PhotonCannon",
-        "ShieldBattery",
-        "SpineCrawler",
-        "SporeCrawler",
-        "CreepTumor",
-    ];
-    let mut opening: Vec<String> = vec![];
-    for entry in build_order {
-        let is_structure = balance.get(&entry.name).is_some_and(|unit| {
+/// The tech structures of an opening.
+pub const OPENING_STRUCTURES: usize = 3;
+
+/// The structures that are not tech, they are not part of an opening.
+pub const NOT_TECH: [&str; 24] = [
+    "SupplyDepot",
+    "Pylon",
+    "Refinery",
+    "Assimilator",
+    "Extractor",
+    "Hatchery",
+    "CommandCenter",
+    "Nexus",
+    "Bunker",
+    "MissileTurret",
+    "PhotonCannon",
+    "ShieldBattery",
+    "SpineCrawler",
+    "SporeCrawler",
+    "CreepTumor",
+    "CreepTumorQueen",
+    "CreepTumorBurrowed",
+    "OrbitalCommand",
+    "PlanetaryFortress",
+    "RefineryRich",
+    "AssimilatorRich",
+    "ExtractorRich",
+    "WarpGate",
+    // The grenade of the Reaper has the structure attribute.
+    "KD8Charge",
+];
+
+/// The variants of the structures that are not new structures, i.e. a Barracks lifting off.
+const STRUCTURE_VARIANT_SUFFIXES: [&str; 4] = ["Flying", "Lowered", "Burrowed", "Uprooted"];
+
+/// A structure that is part of an opening: not supply, gas, a townhall, a defense or the variant
+/// of another structure.
+pub fn is_tech_structure(name: &str, balance: &VersionedBalanceUnits) -> bool {
+    !NOT_TECH.contains(&name)
+        && !STRUCTURE_VARIANT_SUFFIXES
+            .iter()
+            .any(|suffix| name.ends_with(suffix))
+        && balance.get(name).is_some_and(|unit| {
             unit.attributes
                 .inner
                 .iter()
                 .any(|attribute| attribute.kind.as_deref() == Some("Structure"))
-        });
-        if is_structure
-            && !NOT_TECH.contains(&entry.name.as_str())
-            && !opening.contains(&entry.name)
-        {
+        })
+}
+
+/// The first tech structures, supply, gas, townhalls and defenses are not tech.
+fn opening(build_order: &[BuildOrderEntry], balance: &VersionedBalanceUnits) -> Vec<String> {
+    let mut opening: Vec<String> = vec![];
+    for entry in build_order {
+        if is_tech_structure(&entry.name, balance) && !opening.contains(&entry.name) {
             opening.push(entry.name.clone());
-            if opening.len() == 3 {
+            if opening.len() == OPENING_STRUCTURES {
                 break;
             }
         }

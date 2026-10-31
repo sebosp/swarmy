@@ -31,6 +31,8 @@ pub async fn set_current_app_config(
     store.set("max_version", app_settings.max_version);
     store.set("watch_new_replays", app_settings.watch_new_replays);
     store.set("duplicates_path", app_settings.duplicates_path);
+    store.set("notify_new_replays", app_settings.notify_new_replays);
+    store.set("main_player_name", app_settings.main_player_name.trim());
     // The watcher follows the replay path and the watch setting.
     crate::replay_watcher::configure(&app_handle);
     Ok(())
@@ -73,14 +75,16 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
     let replay_path = store
         .get("replay_path")
         .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .unwrap_or_default()
+        .filter(|path| !path.is_empty())
+        .unwrap_or_else(default_replay_path)
         .trim_end_matches('/')
         .to_string();
 
     let cache_path = store
         .get("cache_path")
         .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .unwrap_or_default()
+        .filter(|path| !path.is_empty())
+        .unwrap_or_else(default_cache_path)
         .trim_end_matches('/')
         .to_string();
 
@@ -114,6 +118,16 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let notify_new_replays = store
+        .get("notify_new_replays")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let main_player_name = store
+        .get("main_player_name")
+        .and_then(|v| v.as_str().map(|s| s.trim().to_string()))
+        .unwrap_or_default();
+
     let duplicates_path = store
         .get("duplicates_path")
         .and_then(|v| v.as_str().map(|s| s.trim_end_matches('/').to_string()))
@@ -123,7 +137,7 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
         replay_path,
         cache_path,
         snapshot_stats: SnapshotStats::default(),
-        disable_parallelism: disable_parallelism,
+        disable_parallelism,
         scan_max_files,
         process_max_files,
         traverse_max_depth,
@@ -131,7 +145,46 @@ pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSett
         max_version,
         watch_new_replays,
         duplicates_path,
+        notify_new_replays,
+        main_player_name,
     })
+}
+
+/// The directory of the map caches until one is configured: `swarmy-caches` in the home
+/// directory, `%USERPROFILE%\swarmy-caches` on Windows. It is created when it is missing.
+pub fn default_cache_path() -> String {
+    let Some(home) = dirs::home_dir() else {
+        return String::new();
+    };
+    let path = home.join("swarmy-caches");
+    if let Err(err) = std::fs::create_dir_all(&path) {
+        tracing::warn!(
+            "Unable to create the map caches directory {}: {err}",
+            path.display()
+        );
+    }
+    path.display().to_string()
+}
+
+/// The directory where StarCraft II saves the replays, until one is configured, empty when it
+/// does not exist: `Documents\StarCraft II\Accounts` on Windows (`%USERPROFILE%\Documents`
+/// unless the Documents folder was moved) and `Library/Application Support/Blizzard/StarCraft
+/// II/Accounts` on macOS. On Linux StarCraft II runs in a Wine prefix, there is no usual place.
+pub fn default_replay_path() -> String {
+    let accounts = if cfg!(target_os = "windows") {
+        dirs::document_dir()
+            .or_else(|| dirs::home_dir().map(|home| home.join("Documents")))
+            .map(|documents| documents.join("StarCraft II").join("Accounts"))
+    } else if cfg!(target_os = "macos") {
+        dirs::home_dir()
+            .map(|home| home.join("Library/Application Support/Blizzard/StarCraft II/Accounts"))
+    } else {
+        None
+    };
+    accounts
+        .filter(|path| path.is_dir())
+        .map(|path| path.display().to_string())
+        .unwrap_or_default()
 }
 
 /// The versions of swarmy and the libraries it is built with, see build.rs.
@@ -190,6 +243,36 @@ pub async fn open_external_url(
             .with_failure()
             .build(),
     })
+}
+
+/// Opens the folder dialog of the system, starting at `directory` when it exists. The message is
+/// the folder picked, empty when the dialog was cancelled.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn pick_folder(
+    app_handle: tauri::AppHandle,
+    directory: String,
+    title: String,
+) -> Result<ApiResponse, SwarmyError> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut dialog = app_handle.dialog().file().set_title(title);
+    let start = std::path::Path::new(&directory);
+    if !directory.is_empty() && start.is_dir() {
+        dialog = dialog.set_directory(start);
+    }
+    // The dialog waits for the user, it is not shown from a worker of the async runtime.
+    let picked = tokio::task::spawn_blocking(move || dialog.blocking_pick_folder()).await?;
+    let folder = match picked {
+        Some(path) => path
+            .into_path()
+            .map_err(|err| SwarmyError::Other(format!("Unsupported folder: {err}")))?
+            .display()
+            .to_string(),
+        None => String::new(),
+    };
+    Ok(ApiResponseBuilder::new()
+        .with_success()
+        .with_message(folder)
+        .build())
 }
 
 #[cfg(test)]

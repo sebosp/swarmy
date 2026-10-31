@@ -69,6 +69,12 @@ pub struct NewReplaysStatus {
     /// The days of the snapshot written by another version of s2protocol, Optimize parses their
     /// replays again.
     pub outdated_days: usize,
+    /// The last replay the watcher found, none until a replay is added while swarmy runs.
+    #[serde(default)]
+    pub latest_replay: Option<String>,
+    /// Whether to show a message for each new replay, the `notify_new_replays` setting.
+    #[serde(default)]
+    pub notify: bool,
 }
 
 impl NewReplaysStatus {

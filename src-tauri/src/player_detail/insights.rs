@@ -63,23 +63,6 @@ fn snapshot_benchmarks(ipc_path: &str) -> Result<Arc<BenchmarkTable>, SwarmyErro
     Ok(table)
 }
 
-/// T, Z or P from the localized race names, `?` for the others.
-fn race_letter_expr(column: &str) -> Expr {
-    let is_race = |races: &[&str]| {
-        col(column).is_in(
-            lit(Series::new("races".into(), races)).implode(false),
-            false,
-        )
-    };
-    when(is_race(&TERRAN))
-        .then(lit("T"))
-        .when(is_race(&ZERG))
-        .then(lit("Z"))
-        .when(is_race(&PROTOSS))
-        .then(lit("P"))
-        .otherwise(lit("?"))
-}
-
 /// The average economy per matchup and minute of the 1v1 games of the snapshot: the first stats
 /// sample after each minute of each player, averaged per matchup of the player.
 fn compute_benchmarks(ipc_path: &str) -> Result<BenchmarkTable, SwarmyError> {
@@ -147,10 +130,15 @@ fn compute_benchmarks(ipc_path: &str) -> Result<BenchmarkTable, SwarmyError> {
             (col("minerals_used_current_army") + col("vespene_used_current_army"))
                 .alias("army_value"),
         ])
-        // The first sample after the minute.
-        .sort(["game_seconds"], Default::default())
+        // The first sample after the minute, the order of the rows of a group is not kept by
+        // the engines so each group is sorted instead of the whole file.
         .group_by([col("ext_fs_id"), col("player_id"), col("minute")])
-        .agg(measures.map(|measure| col(measure).first().fill_null(lit(0))))
+        .agg(measures.map(|measure| {
+            col(measure)
+                .sort_by([col("game_seconds")], Default::default())
+                .first()
+                .fill_null(lit(0))
+        }))
         .join(
             player_matchups,
             [col("ext_fs_id"), col("player_id")],

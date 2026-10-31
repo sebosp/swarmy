@@ -6,12 +6,24 @@ use leptos::prelude::*;
 /// A term and its explanation.
 type Entry = (&'static str, &'static str);
 
-const GETTING_STARTED: [Entry; 4] = [
+const GETTING_STARTED: [Entry; 5] = [
     (
         "1. Config",
         "Set the directory with the replays (it is searched recursively) and the directory where \
-         the map caches (.s2ma files) are downloaded. The Duplicate Replays Folder, outside of the \
-         replay path, is where Scan moves the duplicate replays.",
+         the map caches (.s2ma files) are downloaded. On Windows the replays are by default in \
+         Documents\\StarCraft II\\Accounts and the map caches in swarmy-caches in your home \
+         directory. The Duplicate Replays Folder, outside of the replay path, is where Scan moves \
+         the duplicate replays.",
+    ),
+    (
+        "Map caches",
+        "A replay does not contain its map, only the cache handles of the files the game needs: \
+         the map itself, its Map Info (the terrain heights, the playable area, the start \
+         locations, the minerals and geysers) and other files such as tournament logos. To \
+         analyse the maps, Optimize downloads these cache files from Blizzard's depot servers \
+         (i.e. eu-s2-depot.classic.blizzard.com) into the Map Caches Path, once per map, the way \
+         StarCraft II does before a game. Map Details, Map Scout and swarmy-bevy read them from \
+         there, without them a map has no terrain, minimap or resources.",
     ),
     (
         "2. Scan",
@@ -55,7 +67,14 @@ const TROUBLESHOOTING: [Entry; 2] = [
     ),
 ];
 
-const VIEWS: [Entry; 15] = [
+const VIEWS: [Entry; 16] = [
+    (
+        "Progress",
+        "With your Main Player Name in Config, the workers at 06:00, the income at 08:00, the \
+         seconds supply blocked and the army value at 10:00 of your last 200 games, against \
+         humans, computers or both. The table compares your last 20 games with the 20 before, \
+         the charts draw each game, the average of the last 10 and the goal you set.",
+    ),
     (
         "Map List",
         "The maps of the snapshot with their number of games and dates. The cube opens the map \
@@ -173,7 +192,45 @@ const VIEWS: [Entry; 15] = [
     ),
 ];
 
-const LOGIC: [Entry; 17] = [
+const LOGIC: [Entry; 22] = [
+    (
+        "Three things to fix",
+        "The costs of a game in minerals and vespene, estimated so that they compare: a supply \
+         block costs the income of its seconds, idle production 2 per second, floating the \
+         average unspent above 1,000, a missed inject 50, chrono boost 20 and MULE 225, the \
+         worst fight what was lost more than the enemy. The three costliest are shown, the \
+         computers get none. The message of a new replay shows the first one of your game.",
+    ),
+    (
+        "Energy used",
+        "Until 10:00, the injects, chrono boosts and MULEs compared to what the casters alive \
+         and done allowed: 0.7875 energy per second, 25 per inject and at most one inject per \
+         hatchery every 29 seconds, 50 per chrono boost and MULE. The casters also spend \
+         energy on creep tumors, transfuse and scans, 100% is not expected. Without names for \
+         the commands of the patch it is not shown.",
+    ),
+    (
+        "Turning points",
+        "The minutes in which the win chance of the first team changed by 15 points or more, at \
+         most three that do not overlap, with what each team lost in the biggest fight of the \
+         minute. The cube opens swarmy-bevy at that moment.",
+    ),
+    (
+        "Winners of the matchup and answers to an opening",
+        "The economy of Replay Detail shows the median of the human players who won a 1v1 with \
+         the same races in the patch, from at least 5 games. The answers to the opponent's \
+         opening are the openings (the first three tech structures) of your race that won the \
+         most against it in the 1v1 games of the snapshot, from at least 5 games, the win rates \
+         pulled to 50% by 5 wins and 5 losses so that few games do not rank first.",
+    ),
+    (
+        "Map lessons",
+        "In Map Details, in squares of 4x4 cells, the 40 spots of each layer: where the units \
+         that cost resources died, the production structures of the first 04:00 more than 50 \
+         cells from the start location (proxies), the creep tumors, and the structures of the \
+         first 03:00 near the start location (the walls). swarmy-bevy draws them as bars, the \
+         keys F1 to F4 show or hide each layer.",
+    ),
     (
         "Unit choices",
         "When a unit is produced it is scored against the enemy army alive at that moment. For \
