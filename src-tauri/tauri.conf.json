@@ -38,7 +38,19 @@
     "externalBin": [
       "../assets/swarmy-bevy",
       "../assets/rerun-cli"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/lib/systemd/user/swarmy-server.service": "../packaging/linux/swarmy-server.service"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/lib/systemd/user/swarmy-server.service": "../packaging/linux/swarmy-server.service"
+        }
+      }
+    }
   },
   "plugins": {
     "updater": {

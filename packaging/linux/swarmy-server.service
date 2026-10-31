@@ -1,0 +1,29 @@
+# swarmy as the remote backend of other swarmy apps, see docs/Installation.md#remote-backend.
+#
+#   systemctl --user enable --now swarmy-server
+#   loginctl enable-linger   # to start it on boot instead of on login
+#
+# It listens on localhost only until the address is set in ~/.config/swarmy/server.env:
+#
+#   SWARMY_SERVE_ADDRESS=0.0.0.0:7878
+#   SWARMY_SERVER_TOKEN=a-long-random-string
+#   # The settings and personal database, the ones of the swarmy app by default:
+#   #SWARMY_SERVER_DATA_DIR=/home/me/swarmy-server
+
+[Unit]
+Description=swarmy remote backend, the snapshot queries for other swarmy apps
+Documentation=https://github.com/sebosp/swarmy/blob/main/docs/Installation.md#remote-backend
+
+[Service]
+Type=exec
+Environment=SWARMY_SERVE_ADDRESS=127.0.0.1:7878
+EnvironmentFile=-%E/swarmy/server.env
+ExecStart=/usr/bin/swarmy --serve ${SWARMY_SERVE_ADDRESS}
+Restart=on-failure
+RestartSec=5
+# The queries use every core, the games and desktop of the computer go first.
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

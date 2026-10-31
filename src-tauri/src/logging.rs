@@ -54,7 +54,12 @@ pub struct Args {
     pub serve: Option<std::net::SocketAddr>,
     /// With --serve, the directory of the settings and of the personal database, the one of the
     /// swarmy app by default.
-    #[arg(long, value_name = "DIRECTORY", requires = "serve")]
+    #[arg(
+        long,
+        value_name = "DIRECTORY",
+        env = "SWARMY_SERVER_DATA_DIR",
+        requires = "serve"
+    )]
     pub data_dir: Option<PathBuf>,
     /// With --serve, the token the requests need, the Remote Backend Token of their Config.
     #[arg(
