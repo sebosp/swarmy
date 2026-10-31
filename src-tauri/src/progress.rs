@@ -2,13 +2,13 @@
 //! seconds supply blocked and the army at 10:00 of each of their last games, and their goals.
 
 use crate::data::*;
+use crate::host::SwarmyHost;
 use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
 use polars::prelude::*;
 use std::collections::BTreeMap;
 use swarmy_common::*;
-use tauri_plugin_store::StoreBuilder;
 
 /// The last games of the player shown.
 pub const PROGRESS_GAMES: u32 = 200;
@@ -209,19 +209,17 @@ pub fn try_query_progress(
     Ok(report)
 }
 
-fn read_goals(app_handle: &tauri::AppHandle) -> Result<BTreeMap<String, f64>, SwarmyError> {
-    let store = StoreBuilder::new(app_handle, "settings.json").build()?;
-    let _ = store.reload();
-    Ok(store
-        .get(GOALS_KEY)
+fn read_goals(host: &dyn SwarmyHost) -> Result<BTreeMap<String, f64>, SwarmyError> {
+    Ok(host
+        .read_store()?
+        .remove(GOALS_KEY)
         .and_then(|goals| serde_json::from_value(goals).ok())
         .unwrap_or_default())
 }
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn query_progress(app_handle: tauri::AppHandle) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
-    let goals = read_goals(&app_handle)?;
+pub async fn query_progress(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(host)?;
+    let goals = read_goals(host)?;
     run_query(move || {
         ApiResponseBuilder::new().process_result(try_query_progress(
             app_config.replay_path,
@@ -233,16 +231,12 @@ pub async fn query_progress(app_handle: tauri::AppHandle) -> Result<ApiResponse,
 }
 
 /// Saves the goals of the progress, by metric key, a goal of 0 is removed.
-#[tauri::command(rename_all = "snake_case")]
 pub async fn set_progress_goals(
-    app_handle: tauri::AppHandle,
+    host: &dyn SwarmyHost,
     goals: BTreeMap<String, f64>,
 ) -> Result<ApiResponse, SwarmyError> {
     let goals: BTreeMap<String, f64> = goals.into_iter().filter(|(_, goal)| *goal > 0.).collect();
-    let store = StoreBuilder::new(&app_handle, "settings.json").build()?;
-    let _ = store.reload();
-    store.set(GOALS_KEY, serde_json::to_value(&goals)?);
-    store.save()?;
+    host.write_store(GOALS_KEY, serde_json::to_value(&goals)?)?;
     Ok(ApiResponseBuilder::new()
         .with_success()
         .with_message("Goals saved".to_string())

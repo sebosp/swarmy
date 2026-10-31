@@ -1,5 +1,6 @@
 //! Runs the swarmy-bevy sidecar, the 3D view of a map, or of a replay on its map.
 
+use crate::host::SwarmyHost;
 use crate::settings::load_stored_app_settings;
 use swarmy_common::*;
 use tauri::AppHandle;
@@ -155,12 +156,11 @@ pub async fn exec_swarmy_bevy_map_layers(
 }
 
 /// The layers of a map, for the Map Details view.
-#[tauri::command(rename_all = "snake_case")]
 pub async fn query_map_layers(
-    app_handle: AppHandle,
+    host: &dyn SwarmyHost,
     map_title: String,
 ) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+    let app_config = load_stored_app_settings(host)?;
     crate::run_query(move || {
         ApiResponseBuilder::new().process_result(
             crate::map_details::map_layers::try_query_map_layers(app_config.replay_path, map_title),
@@ -170,12 +170,11 @@ pub async fn query_map_layers(
 }
 
 /// The siege spots of a map, for the Map Details view.
-#[tauri::command(rename_all = "snake_case")]
 pub async fn query_siege_spots(
-    app_handle: AppHandle,
+    host: &dyn SwarmyHost,
     map_title: String,
 ) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+    let app_config = load_stored_app_settings(host)?;
     crate::run_query(move || {
         ApiResponseBuilder::new().process_result(
             crate::map_details::siege_spots::try_query_siege_spots(

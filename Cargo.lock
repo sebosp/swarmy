@@ -1100,6 +1100,8 @@ dependencies = [
  "http",
  "http-body",
  "http-body-util",
+ "hyper",
+ "hyper-util",
  "itoa",
  "matchit",
  "memchr",
@@ -1107,10 +1109,14 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
+ "serde_json",
+ "serde_path_to_error",
  "sync_wrapper",
+ "tokio",
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -1129,6 +1135,7 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -8678,6 +8685,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_path_to_error"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
+dependencies = [
+ "itoa",
+ "serde",
+ "serde_core",
+]
+
+[[package]]
 name = "serde_qs"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9275,6 +9293,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 name = "swarmy"
 version = "0.2.1"
 dependencies = [
+ "axum",
  "base64 0.22.1",
  "chrono",
  "clap",
@@ -9282,12 +9301,14 @@ dependencies = [
  "convert_case 0.12.0",
  "dirs",
  "duckdb",
+ "futures-util",
  "log",
  "nom-mpq",
  "notify",
  "png",
  "polars",
  "rayon",
+ "reqwest 0.12.28",
  "rerun",
  "s2protocol",
  "serde",

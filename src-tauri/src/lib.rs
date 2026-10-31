@@ -13,8 +13,10 @@ pub use map_stats::*;
 pub mod ability_usage;
 #[cfg(test)]
 mod bench_queries;
+pub mod commands;
 pub mod data;
 pub mod duplicates;
+pub mod host;
 pub mod logging;
 pub mod majordomo;
 pub mod map_details;
@@ -24,15 +26,15 @@ pub mod personal_db;
 pub mod player_detail;
 pub mod progress;
 pub mod race_detail;
+pub mod remote;
 pub mod replay_detail;
 pub mod replay_list;
 pub mod replay_rerun;
 pub mod replay_watcher;
+pub mod server;
 pub mod swarmy_bevy;
 pub mod unit_icons;
-use crate::replay_list::{
-    connect_swarmy_rerun, copy_path_to_clipboard, open_folder, query_replay_list,
-};
+use crate::replay_list::{connect_swarmy_rerun, copy_path_to_clipboard, open_folder};
 use crate::replay_rerun::viewer::RerunViewerState;
 use std::process;
 use std::thread;
@@ -50,7 +52,18 @@ pub struct SetupState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    logging::init(&<logging::Args as clap::Parser>::parse());
+    let args = <logging::Args as clap::Parser>::parse();
+    logging::init(&args);
+    if let Some(addr) = args.serve {
+        // The remote backend of other swarmy apps, without a window.
+        if let Err(err) =
+            tauri::async_runtime::block_on(server::serve(addr, args.data_dir, args.token))
+        {
+            tracing::error!("The server stopped: {err}");
+            process::exit(1);
+        }
+        return;
+    }
     let (majordomo_tx, majordomo_rx) = mpsc::channel(4_096); // TODO: Magic number removal
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -69,6 +82,7 @@ pub fn run() {
             // created and ran while it executes
             spawn(setup(majordomo_rx, app.handle().clone()));
             replay_watcher::configure(app.handle());
+            remote::relay_events(app.handle().clone());
             tracing::info!(
                 "Setup function called on {}:{:?}",
                 process::id(),
@@ -81,57 +95,35 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            get_current_app_config,
-            set_current_app_config,
-            basic_scan_replay_path,
-            optimize_replay_path,
-            get_snapshot_metadata,
-            settings::pick_folder,
-            query_map_stats,
-            swarmy_bevy::exec_swarmy_bevy_map_caches,
-            swarmy_bevy::exec_swarmy_bevy_replay,
-            swarmy_bevy::exec_swarmy_bevy_siege_spots,
-            swarmy_bevy::query_siege_spots,
-            swarmy_bevy::exec_swarmy_bevy_map_layers,
-            swarmy_bevy::query_map_layers,
-            query_replay_list,
-            replay_list::list_replay_filters,
-            replay_watcher::get_new_replays_status,
-            copy_path_to_clipboard,
-            open_folder,
-            connect_swarmy_rerun,
-            replay_detail::query_replay_detail,
-            replay_detail::query_adjacent_replay,
-            replay_detail::query_replay_lesson,
-            replay_detail::export_replay_report,
-            personal_db::get_replay_notes,
-            duplicates::find_duplicate_replays,
-            duplicates::move_duplicate_replays,
-            personal_db::set_replay_notes,
-            personal_db::list_replay_tags,
-            player_detail::query_player_detail,
-            player_detail::list_players,
-            player_detail::query_head_to_head,
-            map_scout::query_map_scout,
-            map_details::query_map_details,
-            map_details::list_maps,
-            patch_overview::list_patch_units,
-            unit_icons::list_unit_icons,
-            patch_overview::query_unit_overview,
-            patch_overview::query_unit_snapshot_stats,
-            patch_overview::query_patch_changes,
-            patch_overview::list_evolution_items,
-            patch_overview::query_patch_evolution,
-            patch_overview::list_saved_evolutions,
-            patch_overview::save_evolution,
-            ability_usage::query_ability_usage,
-            race_detail::query_race_detail,
-            progress::query_progress,
-            progress::set_progress_goals,
-            get_app_versions,
-            open_external_url,
-        ])
+        .invoke_handler(remote::invoke_handler(
+            commands::backend_handler(),
+            tauri::generate_handler![
+                get_current_app_config,
+                set_current_app_config,
+                settings::pick_folder,
+                remote::check_remote_backend,
+                swarmy_bevy::exec_swarmy_bevy_map_caches,
+                swarmy_bevy::exec_swarmy_bevy_replay,
+                swarmy_bevy::exec_swarmy_bevy_siege_spots,
+                swarmy_bevy::exec_swarmy_bevy_map_layers,
+                replay_watcher::get_new_replays_status,
+                copy_path_to_clipboard,
+                open_folder,
+                connect_swarmy_rerun,
+                replay_detail::query_replay_lesson,
+                replay_detail::export_replay_report,
+                patch_overview::list_patch_units,
+                unit_icons::list_unit_icons,
+                patch_overview::query_unit_overview,
+                patch_overview::query_patch_changes,
+                patch_overview::list_evolution_items,
+                patch_overview::query_patch_evolution,
+                patch_overview::list_saved_evolutions,
+                patch_overview::save_evolution,
+                get_app_versions,
+                open_external_url,
+            ],
+        ))
         .plugin(tauri_plugin_store::Builder::default().build())
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -150,6 +142,6 @@ async fn setup(rx: mpsc::Receiver<AsyncTask>, app: AppHandle) -> Result<(), ()> 
         process::id(),
         thread::current().id()
     );
-    let _ = majordomo::MajordomoCoordinator::init_coordinator_thread(rx, app);
+    let _ = majordomo::MajordomoCoordinator::init_coordinator_thread(rx, std::sync::Arc::new(app));
     Ok(())
 }

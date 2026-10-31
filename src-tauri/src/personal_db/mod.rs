@@ -7,12 +7,13 @@
 
 pub mod messages;
 
+use crate::host::SwarmyHost;
 use duckdb::{params, Connection};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use swarmy_common::*;
-use tauri::Manager;
 
 /// The file of the database in the app data directory.
 const DB_FILE_NAME: &str = "swarmy.duckdb";
@@ -46,8 +47,11 @@ pub fn db_error(err: duckdb::Error) -> SwarmyError {
     SwarmyError::Other(format!("Personal database: {err}"))
 }
 
-/// The open database, a single connection shared by the commands.
-static DB: OnceLock<Mutex<Connection>> = OnceLock::new();
+/// The commands use the database one at a time in this process.
+static DB_LOCK: Mutex<()> = Mutex::new(());
+
+/// How long a command waits for another process to release the database.
+const DB_LOCK_WAIT: Duration = Duration::from_secs(10);
 
 /// Opens the database at the path, creating its tables.
 pub fn open_db(path: &Path) -> Result<Connection, SwarmyError> {
@@ -59,29 +63,37 @@ pub fn open_db(path: &Path) -> Result<Connection, SwarmyError> {
     Ok(conn)
 }
 
-fn db_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, SwarmyError> {
-    let dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|err| SwarmyError::Other(format!("No app data directory: {err}")))?;
-    Ok(dir.join(DB_FILE_NAME))
+pub fn db_path(host: &dyn SwarmyHost) -> Result<PathBuf, SwarmyError> {
+    Ok(host.data_dir()?.join(DB_FILE_NAME))
 }
 
-/// Runs a function with the database, opened the first time.
+/// Runs a function with the database. It is opened for each function and closed after, DuckDB
+/// locks the file while it is open: the desktop app and a swarmy started with `--serve` on the
+/// same computer share the database, the one that finds it locked waits for the other.
 pub fn with_db<T>(
-    app_handle: &tauri::AppHandle,
+    path: &Path,
     f: impl FnOnce(&mut Connection) -> Result<T, SwarmyError>,
 ) -> Result<T, SwarmyError> {
-    if DB.get().is_none() {
-        let conn = open_db(&db_path(app_handle)?)?;
-        let _ = DB.set(Mutex::new(conn));
-    }
-    let mut conn = DB
-        .get()
-        .expect("the database was just opened")
+    let _guard = DB_LOCK
         .lock()
         .map_err(|_| SwarmyError::Other("The personal database lock is poisoned".to_string()))?;
+    let start = Instant::now();
+    let mut conn = loop {
+        match open_db(path) {
+            Ok(conn) => break conn,
+            Err(err) if is_locked(&err) && start.elapsed() < DB_LOCK_WAIT => {
+                tracing::debug!("Waiting for the personal database: {err}");
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(err) => return Err(err),
+        }
+    };
     f(&mut conn)
+}
+
+/// Whether another process has the database open.
+fn is_locked(err: &SwarmyError) -> bool {
+    matches!(err, SwarmyError::Other(message) if message.contains("lock"))
 }
 
 /// The notes, rating and tags of a replay.
@@ -212,32 +224,29 @@ pub fn notes_summaries(
     Ok(summaries)
 }
 
-#[tauri::command(rename_all = "snake_case")]
 pub async fn get_replay_notes(
-    app_handle: tauri::AppHandle,
+    host: &dyn SwarmyHost,
     sha256: String,
 ) -> Result<ApiResponse, SwarmyError> {
-    let result = with_db(&app_handle, |conn| {
+    let result = with_db(&db_path(host)?, |conn| {
         get_notes(conn, &sha256).map_err(db_error)
     });
     Ok(ApiResponseBuilder::new().process_result(result))
 }
 
-#[tauri::command(rename_all = "snake_case")]
 pub async fn set_replay_notes(
-    app_handle: tauri::AppHandle,
+    host: &dyn SwarmyHost,
     notes: ReplayNotes,
 ) -> Result<ApiResponse, SwarmyError> {
-    let result = with_db(&app_handle, |conn| {
+    let result = with_db(&db_path(host)?, |conn| {
         set_notes(conn, &notes).map_err(db_error)?;
         get_notes(conn, &notes.sha256).map_err(db_error)
     });
     Ok(ApiResponseBuilder::new().process_result(result))
 }
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn list_replay_tags(app_handle: tauri::AppHandle) -> Result<ApiResponse, SwarmyError> {
-    let result = with_db(&app_handle, |conn| list_tags(conn).map_err(db_error));
+pub async fn list_replay_tags(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let result = with_db(&db_path(host)?, |conn| list_tags(conn).map_err(db_error));
     Ok(ApiResponseBuilder::new().process_result(result))
 }
 

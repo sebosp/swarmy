@@ -21,6 +21,8 @@ pub fn Config() -> impl IntoView {
     let max_version = RwSignal::new(DEFAULT_MAX_VERSION);
     let watch_new_replays = RwSignal::new(false);
     let notify_new_replays = RwSignal::new(false);
+    let remote_backend_url = RwSignal::new("".to_string());
+    let remote_backend_token = RwSignal::new("".to_string());
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
@@ -40,6 +42,8 @@ pub fn Config() -> impl IntoView {
             *max_version.write() = settings.max_version;
             *watch_new_replays.write() = settings.watch_new_replays;
             *notify_new_replays.write() = settings.notify_new_replays;
+            *remote_backend_url.write() = settings.remote_backend_url.clone();
+            *remote_backend_token.write() = settings.remote_backend_token.clone();
             set_backend_response.update(|val| {
                 val.meta.success = true;
                 val.meta.is_complete = true;
@@ -210,6 +214,26 @@ pub fn Config() -> impl IntoView {
                     optional=true
                     warning=true
                 />
+                <ConfigStringInput
+                    name="remote_backend_url"
+                    label="Remote Backend"
+                    description="A swarmy that runs the Scan, Optimize and the queries of its snapshot for this one, \
+                    for a computer that cannot handle them, i.e. http://wormgat-zt:7878. \
+                    Start it on the other computer with: swarmy --serve 0.0.0.0:7878 \
+                    The snapshot is then the one of the Replay Path of the Config of the other computer, \
+                    the paths of this Config are only used to open the replays here. \
+                    Leave it empty to run everything in this computer."
+                    value=remote_backend_url
+                    optional=true
+                />
+                <ConfigStringInput
+                    name="remote_backend_token"
+                    label="Remote Backend Token"
+                    description="The --token of the remote backend, or its SWARMY_SERVER_TOKEN. Empty when it has none."
+                    value=remote_backend_token
+                    optional=true
+                />
+                <CheckRemoteBackend remote_backend_url remote_backend_token />
                 <ConfigNumberInput
                     name="scan_max_files"
                     label="Max number of files to Scan"
@@ -260,6 +284,8 @@ pub fn Config() -> impl IntoView {
                                     max_version: max_version.get(),
                                     watch_new_replays: watch_new_replays.get(),
                                     notify_new_replays: notify_new_replays.get(),
+                                    remote_backend_url: remote_backend_url.get(),
+                                    remote_backend_token: remote_backend_token.get(),
                                     ..Default::default()
                                 },
                                 set_backend_response,
@@ -462,6 +488,67 @@ pub fn ConfigStringInput(
                 .into_any()
         }}
     }
+}
+
+/// Checks that the remote backend answers, with its versions.
+#[component]
+fn CheckRemoteBackend(
+    remote_backend_url: RwSignal<String>,
+    remote_backend_token: RwSignal<String>,
+) -> impl IntoView {
+    let status = RwSignal::new(None::<Result<String, String>>);
+    let check = move |_: MouseEvent| {
+        let args = CheckRemoteBackendArgs {
+            remote_backend_url: remote_backend_url.get_untracked(),
+            remote_backend_token: remote_backend_token.get_untracked(),
+        };
+        status.set(Some(Ok("Checking...".to_string())));
+        leptos::task::spawn_local(async move {
+            let checked = crate::common::invoke_json::<AppVersions>("check_remote_backend", &args)
+                .await
+                .map(|versions| {
+                    let mut message = format!("Connected to swarmy {}", versions.swarmy);
+                    if versions.swarmy != env!("CARGO_PKG_VERSION") {
+                        message.push_str(&format!(
+                            ", this one is {}: the views may fail until both are the same version",
+                            env!("CARGO_PKG_VERSION")
+                        ));
+                    }
+                    message
+                });
+            status.set(Some(checked));
+        });
+    };
+    view! {
+        <div class="col-span-1"></div>
+        <div class="col-span-2 mb-4 flex items-center gap-3">
+            <button
+                type="button"
+                class="btn btn-outline btn-sm shrink-0"
+                prop:disabled=move || remote_backend_url.get().trim().is_empty()
+                on:click=check
+            >
+                "Check the Remote Backend"
+            </button>
+            {move || match status.get() {
+                Some(Ok(message)) => {
+                    view! { <span class="text-sm/6 text-green-400">{message}</span> }.into_any()
+                }
+                Some(Err(err)) => {
+                    view! { <span class="text-sm/6 text-red-400">{err}</span> }.into_any()
+                }
+                None => ().into_any(),
+            }}
+        </div>
+        <div class="col-span-1"></div>
+    }
+}
+
+/// The arguments of the check_remote_backend command.
+#[derive(serde::Serialize)]
+struct CheckRemoteBackendArgs {
+    remote_backend_url: String,
+    remote_backend_token: String,
 }
 
 /// The arguments of the pick_folder command.

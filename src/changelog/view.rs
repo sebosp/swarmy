@@ -5,6 +5,12 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-10-31",
+        &[
+            "Remote backend: swarmy --serve 0.0.0.0:7878 runs without a window as the backend of other swarmy apps, i.e. a laptop that cannot handle a large snapshot sets its URL as Remote Backend in Config. Scan, Optimize (with its progress) and the queries of the snapshot then run in the backend, with its snapshot, notes and goals. Check the Remote Backend in Config tells whether it answers and its version.",
+        ],
+    ),
+    (
         "2026-10-30",
         &[
             "s2protocol 4.1.0: the commands of the 5.0 patches without balance data (92% of the games of a large snapshot) and of 4.10 (AI Arena) are named, the abilities, injects and chrono boosts of these games are counted. The seconds are at the Faster speed, the snapshot is about ten times smaller (zstd), the replays that could not be read before are read. Optimize parses the replays again.",

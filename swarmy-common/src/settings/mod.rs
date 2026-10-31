@@ -48,6 +48,20 @@ pub struct AppSettings {
     /// analyses of one's own games are about.
     #[serde(default)]
     pub main_player_name: String,
+    /// The swarmy started with `--serve` that runs the queries of the snapshot, i.e.
+    /// `http://wormgat-zt:7878`, for a computer that cannot handle them. Empty to run them here.
+    #[serde(default)]
+    pub remote_backend_url: String,
+    /// The token of the remote backend, its `--token`.
+    #[serde(default)]
+    pub remote_backend_token: String,
+}
+
+impl AppSettings {
+    /// Whether the queries of the snapshot run in a remote backend.
+    pub fn is_remote(&self) -> bool {
+        !self.remote_backend_url.trim().is_empty()
+    }
 }
 
 /// The button icons of the units as PNG data URLs, by unit name.

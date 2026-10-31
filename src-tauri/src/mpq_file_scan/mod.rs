@@ -1,24 +1,19 @@
 //! Swarmy Tauri UI - SC2Replay Directory Scan and Export to Arrow IPC Module
 
+use crate::host::SwarmyHost;
 use crate::majordomo::AsyncTask;
-use crate::SetupState;
 use s2protocol::game_events::read_balance_data_from_included_assets;
 use s2protocol::ArrowIpcTypes;
 use std::path::PathBuf;
+use std::sync::Arc;
 use swarmy_common::*;
-use tauri::AppHandle;
-use tauri::Emitter;
-use tauri::State;
 use tracing::instrument;
 
 use crate::try_get_snapshot_metadata;
 
-#[instrument(level = "debug", skip(state))]
-#[tauri::command(rename_all = "snake_case")]
-pub async fn basic_scan_replay_path(
-    state: State<'_, SetupState>,
-) -> Result<ApiResponse, SwarmyError> {
-    let mdp_tx = state.majordomo_tx.clone();
+#[instrument(level = "debug", skip(host))]
+pub async fn basic_scan_replay_path(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let mdp_tx = host.majordomo();
     let res = ApiResponseBuilder::new();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
 
@@ -27,17 +22,15 @@ pub async fn basic_scan_replay_path(
     Ok(res.with_message(stats.message).build())
 }
 
-#[instrument]
-#[tauri::command(rename_all = "snake_case")]
+#[instrument(skip(host))]
 pub async fn optimize_replay_path(
-    state: State<'_, SetupState>,
-    app_handle: AppHandle,
+    host: &dyn SwarmyHost,
     replay_path: String,
     cache_path: String,
     disable_parallelism: bool,
     recreate: bool,
 ) -> Result<ApiResponse, SwarmyError> {
-    let mdp_tx = state.majordomo_tx.clone();
+    let mdp_tx = host.majordomo();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
     // create a thread to scan the directory in the background:
     if let Err(e) = mdp_tx
@@ -60,11 +53,11 @@ pub async fn optimize_replay_path(
 #[tracing::instrument(level = "debug")]
 /// Adds the replays that are not in the snapshot yet, `recreate` deletes the snapshot first.
 pub async fn try_optimize_replay_path(
-    app_handle_clone: AppHandle,
+    host: Arc<dyn SwarmyHost>,
     recreate: bool,
 ) -> Result<SnapshotStats, SwarmyError> {
-    let emitter = app_handle_clone.clone();
-    let app_settings = crate::settings::load_stored_app_settings(&app_handle_clone).unwrap();
+    let emitter = host.clone();
+    let app_settings = crate::settings::load_stored_app_settings(host.as_ref())?;
     let replay_path = app_settings.replay_path.clone();
     let cache_path = app_settings.cache_path.clone();
     let disable_parallelism = app_settings.disable_parallelism;
@@ -88,12 +81,13 @@ pub async fn try_optimize_replay_path(
         max_version: None,
         recreate,
     };
-    // The progress of the snapshot is forwarded to the frontend as Tauri events.
+    // The progress of the snapshot is forwarded to the frontend as events.
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
     let forward_progress = tokio::spawn(async move {
         while let Some(progress) = progress_rx.recv().await {
-            if let Err(err) = emitter.emit(OPTIMIZE_PROGRESS_EVENT, &progress) {
-                tracing::error!("Error sending the optimize progress: {}", err);
+            match serde_json::to_value(&progress) {
+                Ok(progress) => emitter.emit(OPTIMIZE_PROGRESS_EVENT, progress),
+                Err(err) => tracing::error!("Error sending the optimize progress: {}", err),
             }
         }
     });
@@ -124,7 +118,7 @@ pub async fn try_optimize_replay_path(
     result.map_err(SwarmyError::Other)?;
     // The replays added are no longer new, the copies and unreadable ones are not either.
     crate::replay_watcher::record_skipped_replays(&replay_path);
-    crate::replay_watcher::refresh(&app_handle_clone);
+    host.replays_changed();
     // if the ipc directory exists do basic scan.
     let ipc_path = std::path::Path::new(&replay_path).join(String::from(IPC_DIR.to_string()));
     let arrow_ipc_stats = if ipc_path.exists() && ipc_path.is_dir() {

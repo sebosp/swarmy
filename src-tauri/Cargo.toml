@@ -38,7 +38,7 @@ uuid = { version = "1", features = ["v4"] }
 rayon = "1"
 png = "0.18"
 base64 = "0.22"
-clap = { version = "4.6.7", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tracing-appender = "0.2.5"
 dirs = "7.0.0"
@@ -58,6 +58,10 @@ notify = "8"
 duckdb = { version = "1.20000", features = ["bundled"] }
 # The sha256 of the replays, the same as s2protocol's ext_fs_sha256.
 sha256 = "1"
+# The remote backend: the server of `--serve` and the client of the app, see server.rs.
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+futures-util = "0.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

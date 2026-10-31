@@ -1,26 +1,26 @@
 pub mod data;
-use crate::personal_db::{db_error, filter_replays, list_tags, messages, notes_summaries, with_db};
+use crate::host::SwarmyHost;
+use crate::personal_db::{
+    db_error, db_path, filter_replays, list_tags, messages, notes_summaries, with_db,
+};
 use crate::replay_rerun::viewer::{ensure_viewer_running, stream_replay_to_viewer};
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
 use data::{try_list_protocol_versions, try_list_years, try_query_replay_list};
+use std::path::Path;
 use swarmy_common::*;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_opener::OpenerExt;
 
-#[tauri::command(rename_all = "snake_case")]
 pub async fn query_replay_list(
-    app_handle: tauri::AppHandle,
+    host: &dyn SwarmyHost,
     query: ReplayListQuery,
 ) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+    let app_config = load_stored_app_settings(host)?;
+    let db = db_path(host)?;
     run_query(move || {
         let res = ApiResponseBuilder::new();
-        res.process_result(query_replays_with_notes(
-            &app_handle,
-            app_config.replay_path,
-            query,
-        ))
+        res.process_result(query_replays_with_notes(&db, app_config.replay_path, query))
     })
     .await
 }
@@ -28,11 +28,11 @@ pub async fn query_replay_list(
 /// The replays of the query, filtered and annotated with the notes, tags and messages of the
 /// personal database.
 fn query_replays_with_notes(
-    app_handle: &tauri::AppHandle,
+    db: &Path,
     replay_path: String,
     query: ReplayListQuery,
 ) -> Result<ReplayList, SwarmyError> {
-    let replays = with_db(app_handle, |conn| {
+    let replays = with_db(db, |conn| {
         let mut replays = filter_replays(conn, &query.tag, query.min_rating).map_err(db_error)?;
         let message = query.message.trim();
         if !message.is_empty() {
@@ -52,9 +52,7 @@ fn query_replays_with_notes(
         .iter()
         .map(|replay| replay.replay_sha256.clone())
         .collect();
-    let summaries = with_db(app_handle, |conn| {
-        notes_summaries(conn, &sha256s).map_err(db_error)
-    })?;
+    let summaries = with_db(db, |conn| notes_summaries(conn, &sha256s).map_err(db_error))?;
     for replay in &mut list.replays {
         if let Some((rating, tags)) = summaries.get(&replay.replay_sha256) {
             replay.rating = *rating;
@@ -65,16 +63,16 @@ fn query_replays_with_notes(
 }
 
 /// The patches and years of the snapshot, for the dropdowns of the replay list.
-#[tauri::command(rename_all = "snake_case")]
-pub async fn list_replay_filters(app_handle: tauri::AppHandle) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+pub async fn list_replay_filters(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(host)?;
+    let db = db_path(host)?;
     run_query(move || {
         let filters = try_list_protocol_versions(app_config.replay_path.clone()).and_then(
             |protocol_versions| {
                 Ok(ReplayListFilters {
                     protocol_versions,
                     years: try_list_years(app_config.replay_path)?,
-                    tags: with_db(&app_handle, |conn| list_tags(conn).map_err(db_error))?,
+                    tags: with_db(&db, |conn| list_tags(conn).map_err(db_error))?,
                 })
             },
         );
