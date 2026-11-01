@@ -166,7 +166,11 @@ pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
 
 /// A rank among others, i.e. `12 / 3,450`.
 fn rank_of(rank: usize, of: usize) -> String {
-    format!("{} / {}", group_digits(rank as u64), group_digits(of as u64))
+    format!(
+        "{} / {}",
+        group_digits(rank as u64),
+        group_digits(of as u64)
+    )
 }
 
 /// The share of the games ranked as high or higher, with one decimal under 10%, so that 0.4% is
