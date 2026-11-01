@@ -2,7 +2,7 @@
 
 use super::notes::ReplayNotesPanel;
 use crate::components::abilities::AbilityUses;
-use crate::components::charts::{BarChart, ChartData, LineChart};
+use crate::components::charts::{AdvantageChart, BarChart, ChartData};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
 };
@@ -75,6 +75,18 @@ pub fn ReplayDetailView() -> impl IntoView {
                 <Loading message="Analysing the replay..." />
             </Show>
             <ErrorMessage error />
+            // The replay shown until the next one is analysed is grayed out and cannot be hovered,
+            // so that its charts are not read as the ones of the next replay.
+            <div
+                class=move || {
+                    if loading.get() {
+                        "space-y-3 opacity-40 pointer-events-none select-none transition-opacity"
+                    } else {
+                        "space-y-3 transition-opacity"
+                    }
+                }
+                aria-busy=move || loading.get().to_string()
+            >
             {move || {
                 detail
                     .get()
@@ -127,6 +139,7 @@ pub fn ReplayDetailView() -> impl IntoView {
                         }
                     })
             }}
+            </div>
         </div>
     }
 }
@@ -1437,6 +1450,8 @@ fn WinChanceChart(
             tooltip
         })
         .collect();
+    // One line: the chance of the second team is the rest of the first one's, a line for each
+    // would mirror the other.
     let data = ChartData::new(
         points
             .iter()
@@ -1447,24 +1462,26 @@ fn WinChanceChart(
         &first,
         points
             .iter()
-            .map(|point| (point.chance * 100.).round() as f64)
-            .collect(),
-    )
-    .with_series(
-        &second,
-        points
-            .iter()
-            .map(|point| ((1. - point.chance) * 100.).round() as f64)
+            .map(|point| ((point.chance as f64 - 0.5) * 1000.).round() / 10.)
             .collect(),
     )
     .with_owned_colors(vec![
         team_color(&chances.first_team),
         team_color(&chances.second_team),
     ])
-    .with_tooltips(tooltips)
-    .with_y_max(100.)
-    .with_value_suffix("%");
+    .with_tooltips(tooltips);
     let empty = points.is_empty();
+    // The team names say which side of the middle is whose, the color is not the only cue.
+    let side_label = |arrow: &'static str, name: String, color: String| {
+        view! {
+            <p class="flex items-center gap-1 text-xs text-muted">
+                <span class="inline-block size-2.5 rounded-sm" style=format!("background:{color}")></span>
+                {format!("{arrow} {name} ahead")}
+            </p>
+        }
+    };
+    let above = side_label("▲", first.clone(), team_color(&chances.first_team));
+    let below = side_label("▼", second.clone(), team_color(&chances.second_team));
     let turning_points = chances.turning_points.clone();
     view! {
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
@@ -1481,7 +1498,9 @@ fn WinChanceChart(
                     <p class="text-xs text-faint">"The game ended before 02:00."</p>
                 </Show>
                 <Show when=move || !empty>
-                    <LineChart data=data.clone() />
+                    {above.clone()}
+                    <AdvantageChart data=data.clone() />
+                    {below.clone()}
                 </Show>
                 {(!turning_points.is_empty())
                     .then(|| {

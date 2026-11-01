@@ -4,7 +4,7 @@
 // containers, the `div[data-chart-values]`, when they are added or their data changes.
 //
 // The container attributes:
-// - data-name: BarChart or LineChart.
+// - data-name: BarChart, LineChart or AdvantageChart.
 // - data-chart-values: a JSON array of numbers, or of arrays of numbers for several series.
 // - data-chart-labels: a JSON array of the x axis labels.
 // - data-chart-series-names: a JSON array with the name of each series.
@@ -14,6 +14,10 @@
 // - data-chart-y-max: the maximum of the y axis, so that several charts share the scale.
 // - data-chart-value-suffix: appended to the values, i.e. "%".
 // - data-chart-curve: the curve of the lines, "smooth" by default, "straight" or "stepline".
+//
+// An AdvantageChart is one line around an even middle, as the evaluation graph of a chess game:
+// its values go from -50 (the second side wins for sure) to 50 (the first one does), the area
+// between the line and the middle has the first color above it and the second one below.
 (() => {
   if (window.__chartInitDone) return;
   window.__chartInitDone = true;
@@ -136,6 +140,54 @@
     },
   };
 
+  // The offset of the middle in the gradient of the area: the gradient spans the box of the area,
+  // from its highest value, or the middle, down to its lowest value, or the middle.
+  const middleOffset = (values) => {
+    const top = Math.max(0, ...values);
+    const bottom = Math.min(0, ...values);
+    return top === bottom ? 100 : (top / (top - bottom)) * 100;
+  };
+
+  builders.advantage = (container) => {
+    const options = commonOptions(container, "area");
+    const t = theme();
+    const values = options.series[0]?.data ?? [];
+    const [above, below] = options.colors;
+    const middle = middleOffset(values);
+    options.colors = [t.foreground];
+    options.stroke = { curve: "smooth", width: 2, colors: [t.foreground] };
+    options.markers = { size: 0, hover: { size: 5 } };
+    options.plotOptions = { area: { fillTo: "origin" } };
+    options.fill = {
+      type: "gradient",
+      gradient: {
+        type: "vertical",
+        colorStops: [
+          { offset: 0, color: above, opacity: 0.45 },
+          { offset: middle, color: above, opacity: 0.15 },
+          { offset: middle, color: below, opacity: 0.15 },
+          { offset: 100, color: below, opacity: 0.45 },
+        ],
+      },
+    };
+    // The chance of the side ahead: 100% at both edges, 50% in the middle.
+    options.yaxis = {
+      ...options.yaxis,
+      min: -50,
+      max: 50,
+      tickAmount: 4,
+      forceNiceScale: false,
+      labels: {
+        ...options.yaxis.labels,
+        showDuplicates: true,
+        formatter: (value) => `${Math.round(50 + Math.abs(value))}%`,
+      },
+    };
+    options.annotations = { yaxis: [{ y: 0, borderColor: t.muted, strokeDashArray: 0, opacity: 1 }] };
+    options.legend.show = false;
+    return options;
+  };
+
   function initChart(container) {
     if (!container.id) {
       container.id = "apex-auto-" + Math.random().toString(36).slice(2, 9);
@@ -146,8 +198,11 @@
       chartInstances.delete(id);
     }
     const type = container.dataset.name?.replace(/Chart$/, "").toLowerCase();
+    // The charts animate once, when they appear: not when the window is resized or zoomed.
+    const animate = !container.dataset.chartInitialized;
     const options = builders[type]?.(container);
     if (!options || typeof ApexCharts === "undefined") return;
+    options.chart.animations.enabled = animate;
     const chart = new ApexCharts(container, options);
     chart.render();
     chartInstances.set(id, chart);

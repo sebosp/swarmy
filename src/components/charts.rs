@@ -150,6 +150,17 @@ pub fn LineChart(data: ChartData, #[prop(default = "h-48")] class: &'static str)
     view! { <ApexChart name="LineChart" data class /> }
 }
 
+/// One line around an even middle, as the evaluation graph of a chess game: the values go from
+/// -50, the second side wins for sure, to 50, the first one does. The area between the line and
+/// the middle has the first color of `data` above it and the second one below.
+#[component]
+pub fn AdvantageChart(
+    data: ChartData,
+    #[prop(default = "h-48")] class: &'static str,
+) -> impl IntoView {
+    view! { <ApexChart name="AdvantageChart" data class /> }
+}
+
 /// The games (gray) and wins (green) of each label, i.e. per month, as bars.
 #[component]
 pub fn GamesWinsChart(data: Vec<GamesWins>) -> impl IntoView {
