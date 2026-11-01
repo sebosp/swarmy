@@ -38,6 +38,9 @@ pub struct SnapshotStats {
     /// What the user should know about the state, None when the snapshot is ready.
     #[serde(default)]
     pub snapshot_message: Option<String>,
+    /// The replay path of the snapshot, the one of the remote backend when one is set.
+    #[serde(default)]
+    pub replay_path: String,
 }
 
 /// The kind of a `s2protocol::snapshot::SnapshotState`, without its details.
@@ -83,6 +86,7 @@ impl Default for SnapshotStats {
             added_replays: 0,
             snapshot_state: SnapshotStateKind::Missing,
             snapshot_message: None,
+            replay_path: String::new(),
         }
     }
 }

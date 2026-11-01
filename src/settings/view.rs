@@ -66,6 +66,7 @@ pub fn Config() -> impl IntoView {
             <h2 class="text-base/7 font-semibold text-base-content">"Swarmy Settings"</h2>
             <DisplayBackendStatus backend_response />
             <div class="mt-6 space-y-10 border-b border-base-content/10 pb-12 sm:space-y-0 sm:divide-y sm:divide-base-content/10 sm:border-t sm:border-t-white/10 sm:pb-0">
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <fieldset>
                     <legend class="sr-only">"Parallelism"</legend>
                     <div class="grid grid-cols-4 gap-4 py-6">
@@ -146,6 +147,7 @@ pub fn Config() -> impl IntoView {
                         </div>
                     </div>
                 </fieldset>
+                </Show>
                 <fieldset>
                     <legend class="sr-only">"New replays"</legend>
                     <div class="grid grid-cols-4 gap-4 py-6">
@@ -192,12 +194,42 @@ pub fn Config() -> impl IntoView {
             </div>
             <div class="grid grid-cols-4 sm:items-start sm:gap-4 sm:py-6">
                 <ConfigStringInput
+                    name="remote_backend_url"
+                    label="Remote Backend"
+                    description="A swarmy that runs the Scan, Optimize and the queries of its snapshot for this one, \
+                    for a computer that cannot handle them, i.e. http://wormgat-zt:7878. \
+                    Start it on the other computer with: swarmy --serve 0.0.0.0:7878 \
+                    The snapshot is then the one of the Replay Path of the Config of the other computer, \
+                    its Map Caches, Duplicate Replays Folder and Scan limits are set there too: \
+                    the Replay Path of this Config is only for the watcher and to open the replays here. \
+                    Leave it empty to run everything in this computer."
+                    value=remote_backend_url
+                    optional=true
+                />
+                <ConfigStringInput
+                    name="remote_backend_token"
+                    label="Remote Backend Token"
+                    description="The --token of the remote backend, or its SWARMY_SERVER_TOKEN. Empty when it has none."
+                    value=remote_backend_token
+                    optional=true
+                />
+                <CheckRemoteBackend remote_backend_url remote_backend_token />
+                <Show when=move || !remote_backend_url.get().trim().is_empty()>
+                    <div class="col-span-1"></div>
+                    <p class="col-span-2 text-sm/6 text-muted">
+                        "The Map Caches Path, the Duplicate Replays Folder, the parallelism and the limits of Scan and Optimize are the ones of the Config of the remote backend, set them on that computer."
+                    </p>
+                    <div class="col-span-1"></div>
+                </Show>
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
+                <ConfigStringInput
                     name="cache_path"
                     directory=true
                     label="Map Caches Path"
                     description="The replays only refer to their maps, to analyse the maps the Map Info caches (terrain, start locations, resources) and the maps are downloaded from Blizzard's depot servers into this directory, like StarCraft II does. swarmy-caches in your home directory by default."
                     value=cache_path
                 />
+                </Show>
                 <ConfigStringInput
                     name="main_player_name"
                     label="Main Player Name"
@@ -209,9 +241,10 @@ pub fn Config() -> impl IntoView {
                     name="replay_path"
                     directory=true
                     label="Replay Path"
-                    description="The parent path for the replay collection to analyse."
+                    description="The parent path for the replay collection to analyse. With a remote backend, the replays of this computer: the watcher follows it and the replays open from it, the snapshot is the one of the remote backend."
                     value=replay_path
                 />
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <ConfigStringInput
                     name="duplicates_path"
                     directory=true
@@ -225,28 +258,10 @@ pub fn Config() -> impl IntoView {
                     optional=true
                     warning=true
                 />
-                <ConfigStringInput
-                    name="remote_backend_url"
-                    label="Remote Backend"
-                    description="A swarmy that runs the Scan, Optimize and the queries of its snapshot for this one, \
-                    for a computer that cannot handle them, i.e. http://wormgat-zt:7878. \
-                    Start it on the other computer with: swarmy --serve 0.0.0.0:7878 \
-                    The snapshot is then the one of the Replay Path of the Config of the other computer, \
-                    the paths of this Config are only used to open the replays here. \
-                    Leave it empty to run everything in this computer."
-                    value=remote_backend_url
-                    optional=true
-                />
-                <ConfigStringInput
-                    name="remote_backend_token"
-                    label="Remote Backend Token"
-                    description="The --token of the remote backend, or its SWARMY_SERVER_TOKEN. Empty when it has none."
-                    value=remote_backend_token
-                    optional=true
-                />
-                <CheckRemoteBackend remote_backend_url remote_backend_token />
+                </Show>
                 <ConfigAppearance />
                 <ConfigAccessibility reduce_motion underline_links focus_outline />
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <ConfigNumberInput
                     name="scan_max_files"
                     label="Max number of files to Scan"
@@ -277,6 +292,7 @@ pub fn Config() -> impl IntoView {
                     description="Helps skip new replays that may be considered corrupt/unsupported. Set to 0 to disable filter."
                     value=max_version
                 />
+                </Show>
                 <div class="col-span-1"></div>
                 <div class="col-span-2">
                     <button

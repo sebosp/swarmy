@@ -19,14 +19,14 @@ pub fn trigger_set_current_app_config(
                 console_log("Loaded Config");
                 set_backend_response.update(|response| {
                     response.meta.complete_with_success();
-                    response.message = String::from("Config loaded successfully.");
+                    response.message = String::from("Config saved.");
                 });
             }
             Err(e) => {
                 console_log(&format!("Error invoking get_current_app_config: {:?}", e));
                 set_backend_response.update(|response| {
                     response.meta.complete_with_failure();
-                    response.message = format!("Error loading config: {:?}", e);
+                    response.message = format!("Error saving the config: {:?}", e);
                 });
             }
         }

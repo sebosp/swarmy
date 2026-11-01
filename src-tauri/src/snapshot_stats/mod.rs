@@ -75,6 +75,7 @@ pub fn try_get_snapshot_metadata(
             return Ok(SnapshotStats {
                 snapshot_state: SnapshotStateKind::from(&other),
                 snapshot_message: other.message(),
+                replay_path,
                 ..Default::default()
             });
         }
@@ -135,6 +136,7 @@ pub fn try_get_snapshot_metadata(
         is_compatible: metadata.is_compatible(),
         snapshot_state: SnapshotStateKind::Ready,
         snapshot_message: None,
+        replay_path,
         partitions: metadata.partitions,
         added_replays: metadata.added,
         s2protocol_version: Some(metadata.s2protocol_version),

@@ -24,7 +24,7 @@ pub fn trigger_basic_scan_replay_path(
     ev.prevent_default();
     *set_activity_stage.write() = ActivityStage::ScanInit;
     *set_backend_response.write() = ApiResponse::new_incomplete();
-    if app_settings.get().replay_path.is_empty() {
+    if !app_settings.get().can_scan() {
         console_log("Replay path is empty.");
         return;
     }
@@ -91,7 +91,7 @@ pub fn trigger_optimize_replay_path(
     // Reset backend response status.
     *set_backend_response.write() = ApiResponse::new_incomplete();
 
-    if app_settings.get().replay_path.is_empty() {
+    if !app_settings.get().can_scan() {
         console_log("Replay path is empty.");
         return;
     }

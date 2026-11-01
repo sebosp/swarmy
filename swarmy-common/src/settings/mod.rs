@@ -130,6 +130,22 @@ impl AppSettings {
     pub fn is_remote(&self) -> bool {
         !self.remote_backend_url.trim().is_empty()
     }
+
+    /// Whether Scan and Optimize can run: the remote backend uses the replay path of its own
+    /// Config, this computer needs one.
+    pub fn can_scan(&self) -> bool {
+        self.is_remote() || !self.replay_path.is_empty()
+    }
+
+    /// The replay path of the snapshot: the one of the remote backend when one is set, as its
+    /// snapshot stats tell, empty until they are loaded.
+    pub fn snapshot_replay_path(&self) -> String {
+        if self.is_remote() {
+            self.snapshot_stats.replay_path.clone()
+        } else {
+            self.replay_path.clone()
+        }
+    }
 }
 
 /// The button icons of the units as PNG data URLs, by unit name.

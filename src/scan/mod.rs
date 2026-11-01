@@ -168,7 +168,7 @@ impl From<AppSettings> for ActivityStage {
             Self::DownloadingCachesDone
         } else if source.snapshot_stats.ipc_dir_size > 0 {
             Self::OptimizeDone
-        } else if !source.replay_path.is_empty() {
+        } else if source.can_scan() {
             Self::DirectoryEntered
         } else {
             Self::None

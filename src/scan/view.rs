@@ -53,23 +53,50 @@ pub fn ScanDirectory() -> impl IntoView {
         <div class="grid grid-cols-10">
             <div class="col-span-5 pl-1">
                 // The replay path is changed in Config only, an input here would not be saved.
-                <p class="block text-sm/6 font-medium text-base-content">"Replay Path"</p>
+                <p class="block text-sm/6 font-medium text-base-content">
+                    {move || {
+                        let settings = app_settings.get();
+                        if settings.is_remote() {
+                            format!("Replay Path of {}", settings.remote_backend_url)
+                        } else {
+                            "Replay Path".to_string()
+                        }
+                    }}
+                </p>
                 <p id="scan-directory-path" class="text-sm font-mono text-base-content break-all">
                     {move || {
-                        let replay_path = app_settings.get().replay_path;
-                        if replay_path.is_empty() { "Not set".to_string() } else { replay_path }
+                        let replay_path = app_settings.get().snapshot_replay_path();
+                        if !replay_path.is_empty() {
+                            replay_path
+                        } else if app_settings.get().is_remote() {
+                            "Unknown, the remote backend did not answer".to_string()
+                        } else {
+                            "Not set".to_string()
+                        }
                     }}
                 </p>
                 <a
                     href="#"
                     class="nav-link text-xs"
-                    title="The replay path, the map caches path and the other settings are in Config"
+                    title=move || {
+                        if app_settings.get().is_remote() {
+                            "The replay path, the map caches path and the other settings of the snapshot are in the Config of the computer of the remote backend, this Config only sets the backend"
+                        } else {
+                            "The replay path, the map caches path and the other settings are in Config"
+                        }
+                    }
                     on:click=move |ev: MouseEvent| {
                         ev.prevent_default();
                         navigation.active_page.set("Config".to_string());
                     }
                 >
-                    "Change it in Config"
+                    {move || {
+                        if app_settings.get().is_remote() {
+                            "Set on the remote backend, change the backend in Config"
+                        } else {
+                            "Change it in Config"
+                        }
+                    }}
                 </a>
             </div>
             <div class="col-span-5 justify-start ml-6 mt-6">
@@ -88,7 +115,7 @@ pub fn ScanDirectory() -> impl IntoView {
                         dir_stats_data,
                         set_activity_stage,
                     )
-                    disabled=move || { app_settings.get().replay_path.is_empty() }
+                    disabled=move || { !app_settings.get().can_scan() }
                     title="Initial scan for StarCraft II replays"
                 >
                     <Icon
@@ -100,7 +127,7 @@ pub fn ScanDirectory() -> impl IntoView {
                 </button>
                 <button
                     class=move || {
-                        if !app_settings.get().replay_path.is_empty() {
+                        if app_settings.get().can_scan() {
                             "btn btn-accent btn-sm"
                         } else {
                             "btn btn-disabled btn-sm disabled:cursor-not-allowed disabled:bg-base-300 disabled:text-faint disabled:outline-base-content/20"
@@ -148,7 +175,7 @@ pub fn ScanDirectory() -> impl IntoView {
                     }
                     on:mouseleave=move |_| set_confirm_rebuild.set(false)
                     disabled=move || {
-                        app_settings.get().replay_path.is_empty()
+                        !app_settings.get().can_scan()
                             || activity_stage.get() == ActivityStage::OptimizeInit
                     }
                     title="Deletes the snapshot and generates it again from all the replays"
@@ -204,7 +231,7 @@ pub fn SnapshotStatusHeader(
                 </div>
                 <div class="ml-3">
                     <p class=move || { activity_stage.get().text_class().join(" ") }>
-                        <code>{move || app_settings.get().replay_path}</code>
+                        <code>{move || app_settings.get().snapshot_replay_path()}</code>
                         ": "
                         {move || activity_stage.get().text_content()}
                     </p>

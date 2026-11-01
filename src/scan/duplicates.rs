@@ -34,10 +34,12 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
         spawn_local(async move {
             match invoke_json::<usize>("move_duplicate_replays", &()).await {
                 Ok(moved) => {
-                    status.set(format!(
-                        "Moved {moved} duplicate replays to {}",
-                        app_settings.get_untracked().duplicates_path
-                    ));
+                    let settings = app_settings.get_untracked();
+                    status.set(if settings.is_remote() {
+                        format!("Moved {moved} duplicate replays to the Duplicate Replays Folder of the remote backend")
+                    } else {
+                        format!("Moved {moved} duplicate replays to {}", settings.duplicates_path)
+                    });
                     duplicates.set(Some(vec![]));
                 }
                 Err(err) => status.set(err),
@@ -61,10 +63,17 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
                 <Show when=move || duplicates.get().is_some_and(|found| !found.is_empty())>
                     <button
                         class="btn btn-sm btn-accent"
-                        disabled=move || busy.get() || app_settings.get().duplicates_path.is_empty()
+                        // The remote backend moves them to the folder of its own Config.
+                        disabled=move || {
+                            busy.get()
+                                || (!app_settings.get().is_remote()
+                                    && app_settings.get().duplicates_path.is_empty())
+                        }
                         title=move || {
                             let folder = app_settings.get().duplicates_path;
-                            if folder.is_empty() {
+                            if app_settings.get().is_remote() {
+                                "Moves the duplicates to the Duplicate Replays Folder of the Config of the remote backend, nothing is deleted".to_string()
+                            } else if folder.is_empty() {
                                 "Set the Duplicate Replays Folder in Config first".to_string()
                             } else {
                                 format!("Moves the duplicates to {folder}, with the directories they were found in, nothing is deleted")
@@ -77,7 +86,9 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
                 </Show>
                 <span class="text-sm text-muted">{move || status.get()}</span>
             </div>
-            <Show when=move || app_settings.get().duplicates_path.is_empty()>
+            <Show when=move || {
+                !app_settings.get().is_remote() && app_settings.get().duplicates_path.is_empty()
+            }>
                 <p class="text-xs text-faint">
                     "Set the Duplicate Replays Folder in Config to move the duplicates out of the replay path."
                 </p>
