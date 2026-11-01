@@ -8402,14 +8402,13 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s2protocol"
-version = "4.1.1"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e074a300ef3d04e634b25e993d2da0babb4f01b82039f710631523f0c1d477d"
+checksum = "1e82894e298d887fc0cbf4e01aeb17c787d29d73a117acd6c6acbeeafcefc044"
 dependencies = [
  "arrow 59.3.2",
  "chrono",
  "colored",
- "convert_case 0.12.0",
  "futures",
  "include_dir",
  "nom",
@@ -8420,6 +8419,7 @@ dependencies = [
  "serde-xml-rs",
  "serde_arrow",
  "serde_json",
+ "serde_mpq",
  "sha256",
  "thiserror 2.0.21",
  "tokio",
@@ -8682,6 +8682,31 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "serde_mpq"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7680758b5e96705237b450fe0150e2cf35e7bd2ff01241fc9f655736ac23e418"
+dependencies = [
+ "colored",
+ "nom",
+ "serde",
+ "serde_mpq_derive",
+ "thiserror 2.0.21",
+ "tracing",
+]
+
+[[package]]
+name = "serde_mpq_derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5417c0df7c689426e69eedb27d990a6fd059fa59a9263c77c26b4d60aa57dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -9291,7 +9316,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "swarmy"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -9335,7 +9360,7 @@ dependencies = [
 
 [[package]]
 name = "swarmy-common"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "chrono",
  "polars",
@@ -9352,7 +9377,7 @@ dependencies = [
 
 [[package]]
 name = "swarmy-ui"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "chrono",
  "console_error_panic_hook",
