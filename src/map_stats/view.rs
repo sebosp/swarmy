@@ -131,7 +131,7 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                     <tbody class="divide-y divide-base-content/10 bg-base-100">
                         <For
                             each=move || map_stats_store.data()
-                            key=|row| row.read().map_info_sha256.clone()
+                            key=|row| (row.read().title.clone(), row.read().map_info_sha256.clone())
                             children=|child| {
                                 let cache_ids: String = child.read().cache_handles.clone();
                                 view! {
