@@ -69,7 +69,7 @@ pub fn ScanDirectory() -> impl IntoView {
                         if !replay_path.is_empty() {
                             replay_path
                         } else if app_settings.get().is_remote() {
-                            "Unknown, the remote backend did not answer".to_string()
+                            "Not told by the remote backend, swarmy 0.2.2 and older do not send it".to_string()
                         } else {
                             "Not set".to_string()
                         }
