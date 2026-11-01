@@ -233,26 +233,38 @@ pub async fn pick_folder(
     directory: String,
     title: String,
 ) -> Result<ApiResponse, SwarmyError> {
-    use tauri_plugin_dialog::DialogExt;
-    let mut dialog = app_handle.dialog().file().set_title(title);
-    let start = std::path::Path::new(&directory);
-    if !directory.is_empty() && start.is_dir() {
-        dialog = dialog.set_directory(start);
+    // The dialog plugin has no folder picker on mobile.
+    #[cfg(mobile)]
+    {
+        let _ = (app_handle, directory, title);
+        Ok(ApiResponseBuilder::new()
+            .with_failure()
+            .with_message("The folder dialog is not available here, type the path".to_string())
+            .build())
     }
-    // The dialog waits for the user, it is not shown from a worker of the async runtime.
-    let picked = tokio::task::spawn_blocking(move || dialog.blocking_pick_folder()).await?;
-    let folder = match picked {
-        Some(path) => path
-            .into_path()
-            .map_err(|err| SwarmyError::Other(format!("Unsupported folder: {err}")))?
-            .display()
-            .to_string(),
-        None => String::new(),
-    };
-    Ok(ApiResponseBuilder::new()
-        .with_success()
-        .with_message(folder)
-        .build())
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let mut dialog = app_handle.dialog().file().set_title(title);
+        let start = std::path::Path::new(&directory);
+        if !directory.is_empty() && start.is_dir() {
+            dialog = dialog.set_directory(start);
+        }
+        // The dialog waits for the user, it is not shown from a worker of the async runtime.
+        let picked = tokio::task::spawn_blocking(move || dialog.blocking_pick_folder()).await?;
+        let folder = match picked {
+            Some(path) => path
+                .into_path()
+                .map_err(|err| SwarmyError::Other(format!("Unsupported folder: {err}")))?
+                .display()
+                .to_string(),
+            None => String::new(),
+        };
+        Ok(ApiResponseBuilder::new()
+            .with_success()
+            .with_message(folder)
+            .build())
+    }
 }
 
 #[cfg(test)]
