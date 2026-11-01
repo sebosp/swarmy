@@ -42,7 +42,16 @@ replays of the RSL season:
 | 4:13 | Rerun preview |
 | 4:43 | swarmy-bevy: the units died, born, of one unit type |
 
-More in [Screenshots](docs/Screenshots.md).
+More in [Screenshots](docs/Screenshots.md). The video is from 0.2.1; since then (0.2.2 and 0.2.3):
+
+- A [remote backend](docs/Installation.md#remote-backend): a computer that cannot handle the
+  snapshot uses the swarmy of another one through Config → Remote Backend.
+- [Zoom, themes and accessibility](docs/Installation.md#appearance-and-accessibility) in Config:
+  Ctrl+= and Ctrl+- zoom the interface, the theme can be Swarmy, Light, Dark, High contrast,
+  Catppuccin or Tokyo Night, or follow the desktop; the motion, link underlines and focus outline
+  can be set. All of it is kept on the computer.
+- s2protocol 5.0.0: the replay types are read with the serde_mpq derives, checked against
+  Blizzard's definitions, and Scan tells when the snapshot is being created or was interrupted.
 
 ## Documentation
 

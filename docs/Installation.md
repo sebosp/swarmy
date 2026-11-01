@@ -104,6 +104,31 @@ The backend is plain HTTP, keep it in a private network such as ZeroTier, or beh
 TLS. The desktop app and `--serve` can run at the same time in the same computer, they share the
 personal database.
 
+## Appearance and accessibility
+
+In Config, under the remote backend:
+
+- **Zoom**: the size of the whole interface, text, charts and icons, from 50% to 250% in steps
+  of 10%. `Ctrl+=` (or `Ctrl++`) zooms in, `Ctrl+-` out and `Ctrl+0` resets, in any view (`Cmd` on
+  macOS, the numpad keys work too); the new zoom shows for a moment in the corner and is saved as
+  it changes.
+- **Theme**: Swarmy (the dark gray and indigo look swarmy had), Light, Dark, High contrast, the
+  Catppuccin flavors (Latte, Frappé, Macchiato, Mocha) and the Tokyo Night variants (Day, Storm,
+  Night), or Follow the system, which picks Swarmy or Light from the light or dark preference of
+  the desktop and follows its changes. The theme applies as it is picked and is kept with Save.
+  The charts use one palette for the dark themes and one for the light ones, checked for color
+  vision deficiencies (deutan, protan, tritan) and for contrast with the surface. The light
+  themes darken the accents used as text to the 4.5:1 of WCAG AA; High contrast is the theme for
+  black surfaces, white text and thicker borders.
+- **Motion**: Follow the system uses the Reduce animations preference of the desktop, Reduce
+  stops the animations and transitions, Animate keeps them.
+- **Links and focus**: underline the links always, not only on hover; always show the focus
+  outline, also after a click, to follow the keyboard.
+
+These settings are stored with the others in `settings.json` of the app data directory (see
+[Logs](#logs) for the directories), nothing is sent anywhere; with a remote backend they stay on
+the computer that shows the interface.
+
 ## Building from the sources
 
 See [Development](Development.md).

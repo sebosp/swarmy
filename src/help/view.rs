@@ -13,7 +13,11 @@ const GETTING_STARTED: [Entry; 5] = [
          the map caches (.s2ma files) are downloaded. On Windows the replays are by default in \
          Documents\\StarCraft II\\Accounts and the map caches in swarmy-caches in your home \
          directory. The Duplicate Replays Folder, outside of the replay path, is where Scan moves \
-         the duplicate replays.",
+         the duplicate replays. Remote Backend is the swarmy of another computer, started with \
+         --serve, that runs Scan, Optimize and the queries of its snapshot for this one. Below \
+         it, the zoom (also Ctrl+= and Ctrl+- in any view, Ctrl+0 resets), the theme (Swarmy, \
+         Light, Dark, High contrast, Catppuccin, Tokyo Night or the preference of the desktop), \
+         the motion, the link underlines and the focus outline, all kept on this computer.",
     ),
     (
         "Map caches",
