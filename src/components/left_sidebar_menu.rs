@@ -7,9 +7,10 @@ use phosphor_leptos::{
     SIGNPOST, TREND_UP, USER,
 };
 
-/// The pages of the menu, in order, separated in groups.
+/// The pages of the menu, in order, separated in groups. The last group, the pages read once
+/// (the tour, the help, the changelog), is at the bottom of the menu, dimmed.
 const MENU_GROUPS: [&[&str]; 4] = [
-    &[HOME_PAGE, TOUR_PAGE, "Scan"],
+    &[HOME_PAGE, "Scan", "Config"],
     &[
         MAP_LIST_PAGE,
         MAP_DETAILS_PAGE,
@@ -25,7 +26,7 @@ const MENU_GROUPS: [&[&str]; 4] = [
         PATCH_EVOLUTION_PAGE,
         RACE_DETAIL_PAGE,
     ],
-    &[HELP_PAGE, CHANGELOG_PAGE, "Config"],
+    &[TOUR_PAGE, HELP_PAGE, CHANGELOG_PAGE],
 ];
 
 #[component]
@@ -39,7 +40,13 @@ pub fn LeftSideBarMenu(active_page: RwSignal<String>) -> impl IntoView {
                 .iter()
                 .enumerate()
                 .map(|(idx, pages)| {
-                    let separator = if idx == 0 { "" } else { "mt-1 pt-1 border-t border-secondary" };
+                    let separator = if idx == 0 {
+                        ""
+                    } else if idx == MENU_GROUPS.len() - 1 {
+                        "mt-auto pt-1 border-t border-base-content/15 opacity-70"
+                    } else {
+                        "mt-1 pt-1 border-t border-secondary"
+                    };
                     view! {
                         <div class=format!("flex flex-col items-center gap-0.5 {separator}")>
                             {pages
