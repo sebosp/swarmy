@@ -89,8 +89,8 @@ pub fn try_query_patch_evolution(
     series: &[EvolutionSeries],
 ) -> Result<PatchEvolution, SwarmyError> {
     let all_units = balance_units()?;
-    let mut versions: Vec<u32> = all_units.keys().copied().collect();
-    versions.sort();
+    // The derived balance data are not patches.
+    let versions = crate::replay_rerun::decisions::patch_balance_versions()?;
     let values = series
         .iter()
         .map(|series| {

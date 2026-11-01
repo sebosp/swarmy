@@ -5,7 +5,7 @@ use crate::components::unit_icon::UnitIcon;
 use crate::navigation::use_navigation;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
-use swarmy_common::clean_player_name_clan_escapes;
+use swarmy_common::{clean_player_name_clan_escapes, RACE_NAMES};
 
 /// A green up triangle for a win, a red down triangle for a loss, like stock prices.
 #[component]
@@ -136,10 +136,14 @@ pub fn RaceLink(
         <a
             href="#"
             class="nav-link"
-            title="Open the patch changes of the race"
+            title="Open the race: its matchups, maps, units and abilities"
             on:click=move |ev: MouseEvent| {
                 ev.prevent_default();
-                navigation.open_race(&target);
+                if RACE_NAMES.contains(&target.as_str()) {
+                    navigation.open_race_detail(&target);
+                } else {
+                    navigation.open_race(&target);
+                }
             }
         >
             {label}

@@ -51,12 +51,46 @@ fn bench_queries() {
             None,
         )
     });
-    let ext_fs_id = list
-        .and_then(|list| list.replays.first().map(|replay| replay.ext_fs_id))
+    // SWARMY_TEST_EXT_FS_ID picks the replay, i.e. one with abilities, the newest one by default.
+    let ext_fs_id = std::env::var("SWARMY_TEST_EXT_FS_ID")
+        .ok()
+        .and_then(|id| id.parse().ok())
+        .or_else(|| list.and_then(|list| list.replays.first().map(|replay| replay.ext_fs_id)))
         .unwrap_or_default();
-    timed("replay_detail", || {
+    let detail = timed("replay_detail", || {
         crate::replay_detail::data::try_query_replay_detail(replays.clone(), ext_fs_id)
     });
+    for summary in detail.iter().flat_map(|detail| detail.players.iter()) {
+        let abilities: Vec<String> = summary
+            .abilities
+            .iter()
+            .map(|ability| {
+                format!(
+                    "{} {} (avg {:.1}, game {:?}, player {:?})",
+                    ability.ability,
+                    ability.uses,
+                    ability
+                        .patch
+                        .as_ref()
+                        .map(|patch| patch.per_game())
+                        .unwrap_or_default(),
+                    ability.game_rank.map(|rank| (rank.rank, rank.of)),
+                    ability.player_rank.map(|rank| (rank.rank, rank.of)),
+                )
+            })
+            .collect();
+        println!(
+            "  {} {} commands {} chrono {}: {abilities:?}",
+            summary.player.name,
+            summary.player.race,
+            summary
+                .macro_summary
+                .commands_per_minute
+                .iter()
+                .sum::<u32>(),
+            summary.macro_summary.chrono_boosts
+        );
+    }
     timed("replay_detail cached", || {
         crate::replay_detail::data::try_query_replay_detail(replays.clone(), ext_fs_id)
     });

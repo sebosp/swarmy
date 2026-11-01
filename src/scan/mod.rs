@@ -112,7 +112,7 @@ impl ActivityStage {
             Self::ScanDone => "Scan has finished, proceed to Optimize.".to_string(),
             Self::OptimizeInit=> "Data Optimization for analysis in progress.".to_string(),
             Self::OptimizeFailure=> "Scan has finished with failure, please check the directory and permissions or the logs.".to_string(),
-            Self::OptimizeDone => "Data Optimization for analysis completed, proceed to Download Caches.".to_string(),
+            Self::OptimizeDone => "The snapshot and the map caches are ready.".to_string(),
             Self::DownloadingCachesInit => "Downloading Caches.".to_string(),
             Self::DownloadingCachesFailure=> "Download Cache has finished with failure, please check the directory and permissions or the logs.".to_string(),
             Self::DownloadingCachesDone => "Snapshot setup is complete.".to_string()

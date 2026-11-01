@@ -5,6 +5,42 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-10-30",
+        &[
+            "s2protocol 4.1.0: the commands of the 5.0 patches without balance data (92% of the games of a large snapshot) and of 4.10 (AI Arena) are named, the abilities, injects and chrono boosts of these games are counted. The seconds are at the Faster speed, the snapshot is about ten times smaller (zstd), the replays that could not be read before are read. Optimize parses the replays again.",
+            "Scan: Optimize and Download Caches, the map caches are downloaded into the Map Caches Path, created when it does not exist (on Windows the caches were not downloaded when the directory did not exist), and the replays added while their caches could not be downloaded are parsed again with the digest of their map once the caches can be read (s2protocol 4.1.1).",
+        ],
+    ),
+    (
+        "2026-10-29",
+        &[
+            "Replay Detail: Export report saves the game as a single HTML page to share, with the win chance and its turning points, the three things to fix, the economy against the winners, the build orders and the biggest fights.",
+            "The message of a new replay shows the most costly thing to fix of the Main Player Name of Config in that game.",
+            "Replay Detail: Three things to fix, what cost each player the most in the game (supply blocks, idle production, floating, missed injects, chrono boosts and MULEs, the worst fight), with an estimate in resources to compare them.",
+            "Map Details: Map lessons, where the fights happen, the proxies of the first 04:00, the creep tumors and the buildings of the first 03:00 near the start (the walls), in the games of the map, and Show in swarmy-bevy draws them as bars, the keys F1 to F4 show or hide each layer.",
+            "Replay Detail: Against the opponent's opening, the openings of your race that won the most against the opening of the opponent in the 1v1 games of the snapshot, with yours highlighted.",
+            "Progress: with the Main Player Name of Config, the workers at 06:00, income at 08:00, seconds supply blocked and army at 10:00 of your last 200 games, against humans, computers or both, with the win rate of the last 20 games and goals drawn on the charts.",
+            "Replay Detail: Economy shows next to the workers, supply, income and army of 04:00 to 10:00 the median of the players who won the same 1v1 matchup in the patch.",
+            "Replay Detail: the turning points of the win chance, the minutes it changed the most with the fight behind them, and a button that opens swarmy-bevy at that moment.",
+            "Replay Detail: Energy used, the injects, chrono boosts and MULEs compared to what the energy of the Queens, Nexuses and Orbital Commands allowed. Control groups and camera, the groups used, recalls and camera moves per minute.",
+            "Replay Detail: a Win chance chart, who the game favors every 30 seconds from the army value, income, workers and resources killed of each side, fitted on 27,441 games. The tooltip says what each side is ahead in. It does not see the mistakes, a side ahead can still lose.",
+            "Config: Browse buttons pick the Replay Path, the Map Caches Path and the Duplicate Replays Folder with the folder dialog of the system.",
+        ],
+    ),
+    (
+        "2026-10-28",
+        &[
+            "Replay Detail: an Abilities section with the uses of the abilities with energy or a cooldown, i.e. Abduct, Fungal Growth, Neural Parasite, Transfuse, Inject Larva or Yamato Cannon, compared to the average of the patch, with the rank of the game and of the player and a top 10 badge.",
+            "Replay Detail: the injects, chrono boosts and MULEs of Macro were always 0.",
+            "Patch Overview: the abilities commanded in the games of the patch, per game, in how many games and the top players. Patch Evolution: the ability use per game of a race over the patches.",
+            "Race Detail: the matchups and patches of a race, the maps it wins the most on, the units it makes, its abilities and its players with the most games. The race links open it.",
+            "Map Details: the Siege Tank spots, where the tanks sieged and the enemy units they killed there, Show in swarmy-bevy draws them as bars on the terrain.",
+            "Tour: a guided tour of the configuration and of every view. Home shows the replay and map caches directories, or that the replay directory is not set yet.",
+            "Scan shows the Replay Path of Config, it is no longer an input that was not saved.",
+            "Config: the map caches go to swarmy-caches in the home directory by default, the replays are in Documents\\StarCraft II\\Accounts by default on Windows. With the watcher on, a message can announce each new replay.",
+        ],
+    ),
+    (
         "2026-10-27",
         &[
             "s2protocol 4.0.0: the units selected and in control groups are tracked when they die or are removed from a selection, the commands of a selection go to the right units. Optimize parses the replays again, the snapshot of another s2protocol version is rebuilt.",

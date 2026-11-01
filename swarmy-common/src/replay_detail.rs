@@ -105,6 +105,9 @@ pub struct ReplayPlayer {
     /// Win, Loss, Tie or Undecided.
     pub result: String,
     pub team_id: u8,
+    /// A computer player, i.e. Cheater 3 (Insane).
+    #[serde(default)]
+    pub is_computer: bool,
     /// RGBA
     pub color: [u8; 4],
 }
@@ -220,6 +223,9 @@ pub struct MacroSummary {
     pub injects: u32,
     pub chrono_boosts: u32,
     pub mules: u32,
+    /// The minerals and vespene collected per minute, on average.
+    #[serde(default)]
+    pub avg_income: u32,
     /// The commands issued in each minute of the game.
     pub commands_per_minute: Vec<u32>,
 }
@@ -268,6 +274,12 @@ pub struct ReplayPlayerSummary {
     pub macro_summary: MacroSummary,
     pub focus: PlayerFocus,
     pub benchmarks: Vec<Benchmark>,
+    /// The median benchmarks of the players who won the same matchup in the patch, in a 1v1.
+    #[serde(default)]
+    pub winner_benchmarks: Vec<Benchmark>,
+    /// The games of [`Self::winner_benchmarks`].
+    #[serde(default)]
+    pub winner_games: u32,
     /// The army units alive at 10:00, or at the end of shorter games.
     pub army_at_10: Vec<UnitCount>,
     /// The townhalls alive at 10:00, or at the end of shorter games.
@@ -283,6 +295,96 @@ pub struct ReplayPlayerSummary {
     pub good_decisions: usize,
     pub even_decisions: usize,
     pub bad_decisions: Vec<UnitDecision>,
+    /// The abilities with energy or a cooldown used, and the common ones of the race not used, in
+    /// the order of [`crate::TRACKED_ABILITIES`].
+    #[serde(default)]
+    pub abilities: Vec<crate::AbilityUse>,
+    /// The injects, chrono boosts and MULEs compared to what the casters could have done.
+    #[serde(default)]
+    pub ability_efficiency: Vec<AbilityEfficiency>,
+    #[serde(default)]
+    pub control: ControlSummary,
+    /// The openings of the race that won the most against the opening of the enemy, in the 1v1
+    /// games of the snapshot.
+    #[serde(default)]
+    pub opening_answers: OpeningAnswers,
+    /// What cost the player the most in the game, the most costly first, at most
+    /// [`MAX_LESSONS`].
+    #[serde(default)]
+    pub lessons: Vec<Lesson>,
+}
+
+/// An opening and how it did against an enemy opening.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct OpeningAnswer {
+    /// i.e. `Barracks → Factory → Starport`
+    pub opening: String,
+    pub games: u32,
+    pub wins: u32,
+}
+
+impl OpeningAnswer {
+    pub fn win_rate(&self) -> f64 {
+        self.wins as f64 / self.games.max(1) as f64
+    }
+
+    /// The win rate with 5 wins and 5 losses added, so that 4 wins of 5 games do not rank above
+    /// 140 of 260.
+    pub fn ranking(&self) -> f64 {
+        (self.wins as f64 + 5.) / (self.games as f64 + 10.)
+    }
+}
+
+/// The openings that won the most against the opening of the enemy.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct OpeningAnswers {
+    pub enemy_opening: String,
+    pub answers: Vec<OpeningAnswer>,
+    /// The player's own opening against it, when it was played enough.
+    pub own: Option<OpeningAnswer>,
+}
+
+/// The lessons of a player in a game.
+pub const MAX_LESSONS: usize = 3;
+
+/// Something that cost a player resources in a game, i.e. being supply blocked or idle
+/// production, with an estimate of the resources it cost.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Lesson {
+    pub title: String,
+    pub detail: String,
+    /// The minerals and vespene it cost, estimated, to compare the lessons.
+    pub cost: u32,
+    /// When it happened, if it happened at a moment.
+    pub seconds: Option<u32>,
+}
+
+/// The uses of an ability with energy by the casters of a player until 10:00, compared to the uses
+/// their energy allowed: the energy regenerates at 0.7875 per second.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AbilityEfficiency {
+    /// i.e. Inject Larva
+    pub ability: String,
+    /// i.e. Queen
+    pub caster: String,
+    pub uses: u32,
+    /// The minutes the casters were alive, added.
+    pub caster_minutes: f32,
+    /// The uses that the energy of the casters allowed.
+    pub possible: f32,
+}
+
+/// The control groups and the camera of a player.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ControlSummary {
+    /// The control groups the player assigned units to, 0 to 9.
+    pub groups: Vec<u8>,
+    /// Assigning units to a control group, setting or adding.
+    pub assigns: u32,
+    /// Selecting a control group.
+    pub recalls_per_minute: f32,
+    /// Moving the camera, with the minimap, the screen edges or a camera hotkey.
+    pub camera_moves_per_minute: f32,
 }
 
 /// What a player lost in an engagement.
@@ -305,6 +407,45 @@ pub struct Engagement {
     pub losses: Vec<EngagementLoss>,
 }
 
+/// The chance of the first team to win at a moment of the game, from the economy and the armies
+/// of the teams. The players' mistakes are not in it, it is who the game favors at that moment.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct WinChancePoint {
+    pub seconds: u32,
+    /// From 0 to 1, the chance of the second team is `1 - chance`.
+    pub chance: f32,
+    /// What favors the first team (positive) or the second one (negative), in log-odds: the army
+    /// value, the income, the workers and the resources killed compared to the lost ones.
+    pub army: f32,
+    pub income: f32,
+    pub workers: f32,
+    pub trades: f32,
+}
+
+/// The win chance over a game of two teams.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct WinChances {
+    /// The players of the first and the second team, as in [`ReplayPlayer::name`].
+    pub first_team: Vec<String>,
+    pub second_team: Vec<String>,
+    pub points: Vec<WinChancePoint>,
+    /// The moments the chance changed the most, in time order.
+    #[serde(default)]
+    pub turning_points: Vec<TurningPoint>,
+}
+
+/// A moment the chance of the first team changed the most, i.e. a lost fight.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct TurningPoint {
+    pub start_seconds: u32,
+    pub end_seconds: u32,
+    /// The change of the chance of the first team, from -1 to 1.
+    pub change: f32,
+    /// What each team lost in the biggest engagement of the moment, i.e.
+    /// `Sazed lost 2,400 (12xRoach), Cheater 1 lost 600 (4xMarine)`.
+    pub engagement: Option<String>,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ReplayDetail {
     pub ext_fs_id: u64,
@@ -323,4 +464,7 @@ pub struct ReplayDetail {
     pub engagements: Vec<Engagement>,
     /// The chat messages, the player is the sender.
     pub messages: Vec<TimedEvent>,
+    /// None for games that are not between two teams.
+    #[serde(default)]
+    pub win_chances: Option<WinChances>,
 }

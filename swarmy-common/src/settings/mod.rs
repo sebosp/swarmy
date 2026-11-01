@@ -41,6 +41,13 @@ pub struct AppSettings {
     /// directories they were found in. Nothing is deleted.
     #[serde(default)]
     pub duplicates_path: String,
+    /// Shows a message when the watcher finds a new replay, with `watch_new_replays`.
+    #[serde(default)]
+    pub notify_new_replays: bool,
+    /// The name of the user in their games, without the clan tag, i.e. `Sazed`: the player the
+    /// analyses of one's own games are about.
+    #[serde(default)]
+    pub main_player_name: String,
 }
 
 /// The button icons of the units as PNG data URLs, by unit name.

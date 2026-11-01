@@ -22,6 +22,12 @@ pub mod map_scout;
 pub use map_scout::*;
 pub mod patch_overview;
 pub use patch_overview::*;
+pub mod abilities;
+pub use abilities::*;
+pub mod race_detail;
+pub use race_detail::*;
+pub mod progress;
+pub use progress::*;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::oneshot;
 
@@ -36,6 +42,7 @@ pub const STATS_IPC: &str = "stats.arrow";
 pub const UNIT_DIED_IPC: &str = "unit_died.arrow";
 pub const UPGRADES_IPC: &str = "upgrades.arrow";
 pub const CMD_TARGET_POINT_IPC: &str = "cmd_target_point.arrow";
+pub const CMD_TARGET_UNIT_IPC: &str = "cmd_target_unit.arrow";
 
 pub const IPC_DIR: &str = "ipcs";
 

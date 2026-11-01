@@ -23,6 +23,10 @@ struct WatchedDir {
     /// The replays not in the snapshot, by path.
     new_replays: HashSet<PathBuf>,
     outdated_days: usize,
+    /// The last replay found by the watcher.
+    latest_replay: Option<PathBuf>,
+    /// The `notify_new_replays` setting.
+    notify: bool,
 }
 
 impl WatchedDir {
@@ -31,6 +35,11 @@ impl WatchedDir {
             watching: true,
             new_replays: self.new_replays.len(),
             outdated_days: self.outdated_days,
+            latest_replay: self
+                .latest_replay
+                .as_ref()
+                .map(|path| path.display().to_string()),
+            notify: self.notify,
         }
     }
 }
@@ -151,10 +160,12 @@ pub fn configure(app_handle: &AppHandle) {
         return;
     }
     if watcher.is_some() && state.dir.lock().unwrap().replay_path == replay_path {
+        state.dir.lock().unwrap().notify = settings.notify_new_replays;
         return;
     }
     *state.dir.lock().unwrap() = WatchedDir {
         replay_path: replay_path.clone(),
+        notify: settings.notify_new_replays,
         ..Default::default()
     };
     let dir = state.dir.clone();
@@ -185,6 +196,7 @@ pub fn configure(app_handle: &AppHandle) {
         let status = {
             let mut dir = dir.lock().unwrap();
             let before = dir.new_replays.len();
+            dir.latest_replay = replays.last().cloned();
             dir.new_replays.extend(replays);
             if dir.new_replays.len() == before {
                 return;
