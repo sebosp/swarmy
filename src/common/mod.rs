@@ -4,6 +4,10 @@ use phosphor_leptos::{Icon, IconWeight, X_CIRCLE};
 use swarmy_common::{ApiResponse, ResponseMeta};
 use wasm_bindgen::JsValue;
 
+/// The `<select>` of the views, i.e. the matchup of Replays, the theme of Config.
+pub const SELECT_CLASS: &str =
+    "select select-sm w-full bg-base-200 text-base-content border border-base-content/20";
+
 pub fn text_input_tailwind_classes() -> Vec<&'static str> {
     vec![
         "block",
@@ -15,15 +19,15 @@ pub fn text_input_tailwind_classes() -> Vec<&'static str> {
         "-outline-offset-1",
         "sm:text-sm/6",
         "bg-base-content/5",
-        "text-base-content/80",
+        "text-muted",
         "outline-base-content/10",
-        "placeholder:text-base-content/45",
+        "placeholder:text-faint",
         "focus:outline-2",
         "focus:-outline-offset-2",
         "focus:outline-primary",
         "disabled:cursor-not-allowed",
         "disabled:bg-base-300",
-        "disabled:text-base-content/45",
+        "disabled:text-faint",
         "disabled:outline-base-content/20",
     ]
 }

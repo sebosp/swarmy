@@ -139,13 +139,13 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                         <td class="py-2 pr-3 text-xs text-base-content">
                                             <MapLink map_title=child.read().title.clone() />
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-muted">
                                             {child.read().num_games}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-muted">
                                             {format!("{}", child.read().min_date)}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-muted">
                                             {format!("{}", child.read().max_date)}
                                         </td>
                                         <td class="px-2 py-2">

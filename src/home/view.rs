@@ -48,15 +48,15 @@ fn SetupStatus() -> impl IntoView {
                 <table class="text-sm">
                     <tbody>
                         <tr>
-                            <td class="pr-4 text-base-content/60">"Replays directory"</td>
+                            <td class="pr-4 text-muted">"Replays directory"</td>
                             <td class="text-base-content font-mono break-all">{path_or_unset(&settings.replay_path)}</td>
                         </tr>
                         <tr>
-                            <td class="pr-4 text-base-content/60">"Map caches directory"</td>
+                            <td class="pr-4 text-muted">"Map caches directory"</td>
                             <td class="text-base-content font-mono break-all">{path_or_unset(&settings.cache_path)}</td>
                         </tr>
                         <tr>
-                            <td class="pr-4 text-base-content/60">"Snapshot"</td>
+                            <td class="pr-4 text-muted">"Snapshot"</td>
                             <td class="text-base-content">
                                 {if settings.snapshot_stats.num_games > 0 {
                                     format!("{} games", settings.snapshot_stats.num_games)
@@ -97,7 +97,7 @@ pub fn Home() -> impl IntoView {
     let version_row = |name: &'static str, version: Signal<String>| {
         view! {
             <tr>
-                <td class="pr-4 text-base-content/60">{name}</td>
+                <td class="pr-4 text-muted">{name}</td>
                 <td class="text-base-content"><code>{move || version.get()}</code></td>
             </tr>
         }
@@ -108,13 +108,13 @@ pub fn Home() -> impl IntoView {
                 <h1 class="text-2xl font-semibold text-base-content">
                     "Welcome to Swarmy, a StarCraft II Replay Batch Analyser"
                 </h1>
-                <p class="mt-2 text-sm text-base-content/60">
+                <p class="mt-2 text-sm text-muted">
                     "Swarmy reads a whole directory of replays at once to help you identify trends: \
                     which units, openings and timings are played on each patch and how they change \
                     over time. Casters can collect statistics about players, maps, race balance \
                     (PvT, TvZ, ZvP...) and player vs player records before a match."
                 </p>
-                <p class="mt-2 text-sm text-base-content/60">
+                <p class="mt-2 text-sm text-muted">
                     "Set the replay directory in Config, then Optimize it into a snapshot in Scan. The \
                     Tour walks through every view, the Changelog has what is new and Help describes \
                     how the statistics are calculated."
@@ -123,7 +123,7 @@ pub fn Home() -> impl IntoView {
             <SetupStatus />
             <div>
                 <h2 class="text-base/7 font-semibold text-base-content">"Where the data comes from"</h2>
-                <ul class="mt-1 list-disc list-inside text-sm text-base-content/60 space-y-1">
+                <ul class="mt-1 list-disc list-inside text-sm text-muted space-y-1">
                     <li>
                         "The replays (.SC2Replay) and the map caches of Blizzard's StarCraft II, the \
                         unit costs and button icons from the balance data exported with the \
@@ -163,7 +163,7 @@ pub fn Home() -> impl IntoView {
                     </tbody>
                 </table>
             </div>
-            <div class="text-sm text-base-content/60">
+            <div class="text-sm text-muted">
                 <p>"Comments and suggestions are welcome, as well as bug reports."</p>
                 <button
                     class="btn btn-primary btn-sm mt-2"

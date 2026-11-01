@@ -41,7 +41,7 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
         return match details.terrain.clone() {
             Some(terrain) => view! { <MapMinimap terrain /> }.into_any(),
             None => view! {
-                <p class="text-xs text-base-content/45">"The map cache is not downloaded, no minimap."</p>
+                <p class="text-xs text-faint">"The map cache is not downloaded, no minimap."</p>
             }
             .into_any(),
         };
@@ -113,7 +113,7 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
                 />
                 <g class:hidden=move || !show_resources.get()>{resource_marks} {start_marks}</g>
             </svg>
-            <label class="flex items-center gap-2 text-xs text-base-content/60">
+            <label class="flex items-center gap-2 text-xs text-muted">
                 <input
                     type="checkbox"
                     class="checkbox checkbox-xs"
@@ -122,7 +122,7 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
                 />
                 "Show resources and start locations"
             </label>
-            <p class="flex flex-wrap gap-x-3 text-xs text-base-content/45">
+            <p class="flex flex-wrap gap-x-3 text-xs text-faint">
                 <span style=format!("color: {MINERAL_COLOR}")>"■ Minerals"</span>
                 <span style=format!("color: {RICH_MINERAL_COLOR}")>"■ Gold minerals"</span>
                 <span style=format!("color: {GEYSER_COLOR}")>"● Vespene"</span>
@@ -176,13 +176,13 @@ pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
     view! {
         <div class="space-y-2">
             <h2 class="text-base/7 font-semibold text-base-content">"Resources"</h2>
-            <table class="text-xs text-base-content/60">
+            <table class="text-xs text-muted">
                 <tbody>
                     {rows
                         .into_iter()
                         .map(|(label, value)| view! {
                             <tr>
-                                <td class="pr-4 text-base-content/80">{label}</td>
+                                <td class="pr-4 text-muted">{label}</td>
                                 <td class="text-base-content">{value}</td>
                             </tr>
                         })
@@ -190,16 +190,16 @@ pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
                 </tbody>
             </table>
             <Show when=move || { default_amounts > 0 }>
-                <p class="text-xs text-base-content/45">
+                <p class="text-xs text-faint">
                     {format!(
                         "{default_amounts} resources use the default amount of their type (1,800 minerals per large field, 900 per small field, 2,250 vespene per geyser), the map does not set them.",
                     )}
                 </p>
             </Show>
             <h2 class="text-base/7 font-semibold text-base-content">"Start locations"</h2>
-            <table class="text-xs text-base-content/60">
+            <table class="text-xs text-muted">
                 <thead>
-                    <tr class="text-left text-base-content/80">
+                    <tr class="text-left text-muted">
                         <th class="pr-3">"Start location"</th>
                         <th class="pr-3">"Position"</th>
                         <th class="pr-3" title="The mineral fields of the main base">"Fields"</th>

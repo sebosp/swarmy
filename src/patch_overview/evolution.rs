@@ -22,9 +22,6 @@ const SERIES_COLORS: [&str; 8] = [
     "var(--chart-8)",
 ];
 
-const SELECT_CLASS: &str =
-    "select select-sm bg-base-200 text-base-content/90 border border-base-content/20";
-
 #[derive(serde::Serialize)]
 struct UnitArgs {
     unit_name: String,
@@ -254,7 +251,7 @@ pub fn PatchEvolutionView() -> impl IntoView {
     view! {
         <div class="p-2 space-y-3">
             <h1 class="text-xl font-semibold text-base-content">"Patch Evolution"</h1>
-            <p class="text-sm text-base-content/60">
+            <p class="text-sm text-muted">
                 "The costs of units, and of what they train, build, research and upgrade, over the patches of the balance data. A line per unit, item and measure: minerals, vespene, supply, time, whether it exists and its number of requirements."
             </p>
             <div class="flex flex-wrap items-center gap-2">
@@ -274,7 +271,7 @@ pub fn PatchEvolutionView() -> impl IntoView {
                     }).collect_view()}
                 </select>
                 <input
-                    class="input input-sm bg-base-200 text-base-content/90 border border-base-content/20"
+                    class="input input-sm bg-base-200 text-base-content border border-base-content/20"
                     placeholder="Name of the query"
                     prop:value=move || name.get()
                     on:input=move |ev| name.set(event_target_value(&ev))
@@ -295,7 +292,7 @@ pub fn PatchEvolutionView() -> impl IntoView {
                 >
                     "Remove"
                 </button>
-                <span class="text-sm text-base-content/45">{move || status.get()}</span>
+                <span class="text-sm text-faint">{move || status.get()}</span>
             </div>
             <div class="space-y-1">
                 {move || (0..series.read().len()).map(|idx| view! { <SeriesEditor idx series units /> }).collect_view()}
@@ -336,7 +333,7 @@ fn AbilityEvolution() -> impl IntoView {
             Err(err) => {
                 return Some(
                     view! {
-                        <p class="text-xs text-base-content/60">{format!("No snapshot to count the abilities: {err}")}</p>
+                        <p class="text-xs text-muted">{format!("No snapshot to count the abilities: {err}")}</p>
                     }
                     .into_any(),
                 )
@@ -365,7 +362,7 @@ fn AbilityEvolution() -> impl IntoView {
     view! {
         <div class="space-y-1 pt-2">
             <h2 class="text-base font-semibold text-base-content">"Ability use per game"</h2>
-            <p class="text-sm text-base-content/60">
+            <p class="text-sm text-muted">
                 "The abilities with energy or a cooldown commanded per game by the players of the race, in the games of the snapshot by patch. A patch without a point has no game in which the ability was used."
             </p>
             <select class=SELECT_CLASS on:change=move |ev| race.set(event_target_value(&ev))>

@@ -37,17 +37,17 @@ pub fn UnitsTable(
     let most_effective = most_effective_unit(&units, min_produced);
     let best_trading = best_trading_unit(&units, min_produced);
     view! {
-        <p class="text-xs text-base-content/80">
+        <p class="text-xs text-muted">
             "Most kills per unit: "
             <span class="text-success">{most_effective.unwrap_or_else(|| "-".to_string())}</span>
         </p>
-        <p class="text-xs text-base-content/80" title="The minerals and vespene of the enemy units killed, divided by the minerals and vespene spent on the unit">
+        <p class="text-xs text-muted" title="The minerals and vespene of the enemy units killed, divided by the minerals and vespene spent on the unit">
             "Best trade: "
             <span class="text-success">{best_trading.unwrap_or_else(|| "-".to_string())}</span>
         </p>
-        <table class="min-w-full text-xs text-base-content/60">
+        <table class="min-w-full text-xs text-muted">
             <thead>
-                <tr class="text-left text-base-content/80">
+                <tr class="text-left text-muted">
                     <th class="pr-2">"Unit"</th>
                     <th class="pr-2">"Produced"</th>
                     <th class="pr-2">"Kills"</th>

@@ -13,7 +13,7 @@ pub fn ResultMarker(result: String) -> impl IntoView {
     match result.as_str() {
         "Win" => view! { <span class="text-success" title="Win">"▲ "</span> }.into_any(),
         "Loss" => view! { <span class="text-error" title="Loss">"▼ "</span> }.into_any(),
-        _ => view! { <span class="text-base-content/45" title=result>"■ "</span> }.into_any(),
+        _ => view! { <span class="text-faint" title=result>"■ "</span> }.into_any(),
     }
 }
 

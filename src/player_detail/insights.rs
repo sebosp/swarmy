@@ -7,7 +7,7 @@ use crate::*;
 use leptos::prelude::*;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 /// The rows shown in the units and upgrades tables.
 const TOP_ROWS: usize = 10;
@@ -30,14 +30,14 @@ fn compared(value: f32, snapshot: f32) -> impl IntoView {
     let better = value >= snapshot;
     view! {
         <span class:text-success=better class:text-error=!better>{format!("{value:.0}")}</span>
-        <span class="text-base-content/45">{format!(" / {snapshot:.0}")}</span>
+        <span class="text-faint">{format!(" / {snapshot:.0}")}</span>
     }
 }
 
 #[component]
 pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
     view! {
-        <p class="text-xs text-base-content/45">
+        <p class="text-xs text-faint">
             {format!("From the analysis of {} games, each replay is read once and kept in memory.", insights.analyzed_games)}
         </p>
         <div class="grid grid-cols-3 gap-4">
@@ -122,7 +122,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
         <Section title="Economy against the snapshot, same matchup (player / snapshot average)" height="h-48">
             <table class=TABLE_CLASS>
                 <thead class="sticky top-0 bg-base-200">
-                    <tr class="text-left text-base-content/80">
+                    <tr class="text-left text-muted">
                         <th class="pr-2">"Matchup"</th>
                         <th class="pr-2">"Time"</th>
                         <th class="pr-2">"Games"</th>
@@ -202,7 +202,7 @@ fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
     view! {
         <table class=format!("{TABLE_CLASS} mb-2")>
             <thead>
-                <tr class="text-left text-base-content/80">
+                <tr class="text-left text-muted">
                     <th class="pr-2">{title}</th>
                     <th class="pr-2">"Games"</th>
                     <th>"Win rate"</th>
@@ -230,7 +230,7 @@ fn ChoiceTable(shares: Vec<ChoiceShare>, units: bool) -> impl IntoView {
     view! {
         <table class=TABLE_CLASS>
             <thead class="sticky top-0 bg-base-200">
-                <tr class="text-left text-base-content/80">
+                <tr class="text-left text-muted">
                     <th class="pr-2">"Context"</th>
                     <th class="pr-2">"Choice"</th>
                     <th class="pr-2">"Share"</th>
@@ -310,7 +310,7 @@ fn RatingChart(ratings: Vec<RatingPoint>) -> impl IntoView {
         );
     view! {
         <Section title="Rating" height="h-40">
-            <p class="text-xs text-base-content/60">
+            <p class="text-xs text-muted">
                 {format!("From {} to {}, between {min} and {max}", ratings[0].date, ratings[ratings.len() - 1].date)}
             </p>
             <LineChart data=chart class="h-28" />

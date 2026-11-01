@@ -6,7 +6,7 @@ use leptos::prelude::*;
 #[component]
 pub fn Loading(#[prop(into)] message: String) -> impl IntoView {
     view! {
-        <div class="flex items-center gap-2 py-4 text-sm text-base-content/80">
+        <div class="flex items-center gap-2 py-4 text-sm text-muted">
             <span class="loading loading-spinner loading-sm text-primary"></span>
             {message}
         </div>

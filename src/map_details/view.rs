@@ -14,7 +14,7 @@ use phosphor_leptos::{Icon, IconWeight, BINOCULARS, CUBE};
 use swarmy_common::*;
 
 const HEADING_CLASS: &str = "text-base/7 font-semibold text-base-content";
-const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 fn win_rate(wins: usize, games: usize) -> String {
     if games == 0 {
@@ -80,7 +80,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
         <div class="flex items-start justify-between">
             <div>
                 <h1 class="text-xl font-semibold text-base-content">{details.title.clone()}</h1>
-                <p class="text-sm text-base-content/60">
+                <p class="text-sm text-muted">
                     {format!(
                         "{} games from {} to {} · {} on average",
                         details.num_games,
@@ -113,7 +113,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
         </div>
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <p class="text-xs text-base-content/60 whitespace-pre-line">
+                <p class="text-xs text-muted whitespace-pre-line">
                     {details.description.clone()}
                 </p>
                 <MapPicture details=details.clone() />
@@ -127,7 +127,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                     <h2 class=HEADING_CLASS>"Race vs race"</h2>
                     <table class=TABLE_CLASS>
                         <thead>
-                            <tr class="text-left text-base-content/80">
+                            <tr class="text-left text-muted">
                                 <th class="pr-2">"Matchup"</th>
                                 <th class="pr-2">"Games"</th>
                                 <th title="The win rate of the first race of the matchup">
@@ -174,7 +174,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                     <h2 class=HEADING_CLASS>"Top players"</h2>
                     <table class=TABLE_CLASS>
                         <thead>
-                            <tr class="text-left text-base-content/80">
+                            <tr class="text-left text-muted">
                                 <th class="pr-2">"Player"</th>
                                 <th class="pr-2">"Games"</th>
                                 <th>"Win rate"</th>
@@ -213,7 +213,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
             <h2 class=HEADING_CLASS>"Recent games"</h2>
             <table class=TABLE_CLASS>
                 <thead>
-                    <tr class="text-left text-base-content/80">
+                    <tr class="text-left text-muted">
                         <th class="pr-2">"ID"</th>
                         <th class="pr-2">"Date"</th>
                         <th>"Players"</th>
@@ -310,13 +310,13 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
                     <Icon icon=CUBE weight=IconWeight::Light />
                     "Show in swarmy-bevy"
                 </button>
-                <span class="text-xs text-base-content/60">{move || status.get()}</span>
+                <span class="text-xs text-muted">{move || status.get()}</span>
             </div>
             {move || match layers.get() {
                 None => {
                     view! { <Loading message="Finding the fights, proxies and creep" /> }.into_any()
                 }
-                Some(Err(err)) => view! { <p class="text-xs text-base-content/60">{err}</p> }.into_any(),
+                Some(Err(err)) => view! { <p class="text-xs text-muted">{err}</p> }.into_any(),
                 Some(Ok(layers)) => {
                     view! {
                         <table class=TABLE_CLASS>
@@ -345,7 +345,7 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
                                             .unwrap_or_else(|| "none".to_string());
                                         view! {
                                             <tr title=layer.description.clone()>
-                                                <td class="pr-3 text-base-content/80">{layer.label.clone()}</td>
+                                                <td class="pr-3 text-muted">{layer.label.clone()}</td>
                                                 <td class="pr-3 text-right font-mono">{total}</td>
                                                 <td>{top}</td>
                                             </tr>
@@ -414,19 +414,19 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
                     <Icon icon=CUBE weight=IconWeight::Light />
                     "Show in swarmy-bevy"
                 </button>
-                <span class="text-xs text-base-content/60">{move || status.get()}</span>
+                <span class="text-xs text-muted">{move || status.get()}</span>
             </div>
-            <p class="text-xs text-base-content/45">
+            <p class="text-xs text-faint">
                 {format!(
                     "Where the Siege Tanks sieged, in squares of {SIEGE_SPOT_CELLS}x{SIEGE_SPOT_CELLS} cells, and the enemy units that cost resources they killed until they unsieged.",
                 )}
             </p>
             {move || match spots.get() {
                 None => view! { <Loading message="Finding the sieges" /> }.into_any(),
-                Some(Err(err)) => view! { <p class="text-xs text-base-content/60">{err}</p> }.into_any(),
+                Some(Err(err)) => view! { <p class="text-xs text-muted">{err}</p> }.into_any(),
                 Some(Ok(spots)) if spots.spots.is_empty() => {
                     view! {
-                        <p class="text-xs text-base-content/60">
+                        <p class="text-xs text-muted">
                             "No Siege Tank sieged in the games of this map."
                         </p>
                     }
@@ -434,7 +434,7 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
                 }
                 Some(Ok(spots)) => {
                     view! {
-                        <p class="text-xs text-base-content/80">
+                        <p class="text-xs text-muted">
                             {format!(
                                 "{} sieges in {} games, {} kills.",
                                 spots.sieges,
@@ -444,7 +444,7 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
                         </p>
                         <table class=TABLE_CLASS>
                             <thead>
-                                <tr class="text-left text-base-content/80">
+                                <tr class="text-left text-muted">
                                     <th class="pr-3">"Cells"</th>
                                     <th class="pr-3 text-right">"Kills"</th>
                                     <th class="pr-3 text-right">"Sieges"</th>

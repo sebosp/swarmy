@@ -125,17 +125,6 @@ pub fn clamp_zoom_percent(percent: i64) -> u32 {
     percent / ZOOM_STEP_PERCENT * ZOOM_STEP_PERCENT
 }
 
-/// The settings of the interface only, read without the snapshot: the theme and the zoom are
-/// applied as soon as the window opens.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UiSettings {
-    pub zoom_percent: u32,
-    pub theme: String,
-    pub reduce_motion: String,
-    pub underline_links: bool,
-    pub focus_outline: bool,
-}
-
 impl AppSettings {
     /// Whether the queries of the snapshot run in a remote backend.
     pub fn is_remote(&self) -> bool {

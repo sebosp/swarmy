@@ -12,7 +12,7 @@ use leptos::task::spawn_local;
 use std::collections::BTreeMap;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 /// The games averaged by the rolling average of the charts.
 const ROLLING_GAMES: usize = 10;
@@ -105,7 +105,7 @@ pub fn ProgressView() -> impl IntoView {
                     .map(|report| {
                         if report.player.is_empty() {
                             return view! {
-                                <p class="text-sm text-base-content/80">
+                                <p class="text-sm text-muted">
                                     "Set your name in "
                                     <a
                                         href="#"
@@ -125,13 +125,13 @@ pub fn ProgressView() -> impl IntoView {
                         let player = report.player.clone();
                         let all_games = report.games.clone();
                         view! {
-                            <p class="text-xs text-base-content/60">
+                            <p class="text-xs text-muted">
                                 {format!(
                                     "The last {} games of {player} in the snapshot, the oldest on the left. Set a goal for each number and work on one at a time.",
                                     all_games.len(),
                                 )}
                             </p>
-                            <div class="flex items-center gap-2 text-xs text-base-content/80">
+                            <div class="flex items-center gap-2 text-xs text-muted">
                                 "Opponents"
                                 <select
                                     class="select select-xs"
@@ -152,7 +152,7 @@ pub fn ProgressView() -> impl IntoView {
                                 </select>
                                 <button class="btn btn-primary btn-xs" on:click=save_goals>
                                     "Save goals"
-                                </button> <span class="text-base-content/45">{move || saved.get()}</span>
+                                </button> <span class="text-faint">{move || saved.get()}</span>
                             </div>
                             {move || {
                                 let filter = opponents.get();
@@ -166,7 +166,7 @@ pub fn ProgressView() -> impl IntoView {
                                 view! {
                                     <table class=TABLE_CLASS>
                                         <thead>
-                                            <tr class="text-left text-base-content/80">
+                                            <tr class="text-left text-muted">
                                                 <th class="pr-2"></th>
                                                 <th class="pr-2">"Goal"</th>
                                                 <th class="pr-2">
@@ -316,7 +316,7 @@ fn GamesTable(games: Vec<ProgressGame>) -> impl IntoView {
         <div class="rounded-md border border-base-content/15 bg-base-200/40 scroll-section max-h-96 p-2">
             <table class=TABLE_CLASS>
                 <thead class="sticky top-0 bg-base-200">
-                    <tr class="text-left text-base-content/80">
+                    <tr class="text-left text-muted">
                         <th class="pr-2">"Date"</th>
                         <th class="pr-2">"Map"</th>
                         <th class="pr-2">"Opponents"</th>

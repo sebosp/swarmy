@@ -38,7 +38,7 @@ pub fn Main() -> impl IntoView {
             <NewReplaysBanner />
             <div
                 id="swarmy-tauri-content"
-                class="flex grow w-full min-h-0 overflow-auto text-base-content/60 bg-base-100 rounded"
+                class="flex grow w-full min-h-0 overflow-auto text-muted bg-base-100 rounded"
             >
                 <Show when=move || active_page.get() == HOME_PAGE>
                     <div id="swarmy-tauri-home-content" class="flex flex-col grow min-w-0 p-2 rounded">

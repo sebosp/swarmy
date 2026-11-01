@@ -111,7 +111,7 @@ pub fn OptimizeProgress() -> impl IntoView {
                             .map(|(idx, (index, total, name))| {
                                 let finished = is_done || idx + 1 < last_step;
                                 view! {
-                                    <li class=move || if finished { "text-base-content/60" } else { "text-base-content" }>
+                                    <li class=move || if finished { "text-muted" } else { "text-base-content" }>
                                         {if finished { "✓ " } else { "⏳ " }}
                                         {format!("{index}/{total} {name}")}
                                     </li>
@@ -123,7 +123,7 @@ pub fn OptimizeProgress() -> impl IntoView {
                             .map(|(done, total)| {
                                 let percent = done * 100 / total.max(1);
                                 view! {
-                                    <div class="mt-1 text-xs text-base-content/80">
+                                    <div class="mt-1 text-xs text-muted">
                                         {format!("{done} of {total} replays processed ({percent}%)")}
                                     </div>
                                     <div class="h-2 w-full rounded bg-base-300">
@@ -150,7 +150,7 @@ pub fn OptimizeProgress() -> impl IntoView {
                             })
                             .collect_view();
                         view! {
-                            <div class="grid grid-cols-2 gap-4 text-sm text-base-content/80">
+                            <div class="grid grid-cols-2 gap-4 text-sm text-muted">
                                 <div>
                                     <p>
                                         "Files found: "
@@ -184,9 +184,9 @@ pub fn OptimizeProgress() -> impl IntoView {
                                         })}
                                 </div>
                                 <div>
-                                    <table class="text-xs text-base-content/60">
+                                    <table class="text-xs text-muted">
                                         <thead>
-                                            <tr class="text-left text-base-content/80">
+                                            <tr class="text-left text-muted">
                                                 <th class="pr-4">"File"</th>
                                                 <th class="pr-4 text-right">"Size"</th>
                                                 <th class="text-right">"Records"</th>

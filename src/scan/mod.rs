@@ -82,7 +82,7 @@ impl ActivityStage {
         // TODO: For some reason I can't use format!("ext-{}-500", self.color(), it doesn't seem to
         // have effect...
         match self {
-            Self::None => "shrink-0 size-5 text-base-content/45 bg/text-base-content/10",
+            Self::None => "shrink-0 size-5 text-faint bg/text-base-content/10",
             Self::DirectoryEntered => "shrink-0 size-5 text-info bg/text-info/10",
             Self::ScanFailure
             | ActivityStage::OptimizeFailure

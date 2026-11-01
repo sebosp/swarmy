@@ -9,10 +9,10 @@ use leptos::task::spawn_local;
 use std::collections::BTreeMap;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 /// The strategy tables, the columns keep their width and the text wraps inside them.
-const FIXED_TABLE_CLASS: &str = "w-full table-fixed text-xs text-base-content/60";
+const FIXED_TABLE_CLASS: &str = "w-full table-fixed text-xs text-muted";
 
 /// The choices shown for each strategy.
 const TOP_CHOICES: usize = 3;
@@ -94,7 +94,7 @@ fn choice_list(choices: Vec<Choice>, total: usize, units: bool) -> impl IntoView
                                 choice.name.into_any()
                             }}
                         </span>
-                        <span class="text-base-content/45">
+                        <span class="text-faint">
                             {format!(
                                 " · {} of games, {} won",
                                 percent(choice.games, total),
@@ -176,7 +176,7 @@ fn ComparisonContent(
     let strategy_row = |label: &'static str, detail: &dyn Fn(&PlayerDetail) -> AnyView| {
         view! {
             <tr class="align-top">
-                <td class="pr-3 py-1 text-base-content/80">{label}</td>
+                <td class="pr-3 py-1 text-muted">{label}</td>
                 <td class="pr-3 py-1 break-words">{detail(&player)}</td>
                 <td class="py-1 break-words">{detail(&opponent)}</td>
             </tr>
@@ -189,7 +189,7 @@ fn ComparisonContent(
         let total = games.len();
         view! {
             <tr class="align-top">
-                <td class="pr-3 py-1 text-base-content/80">{label}</td>
+                <td class="pr-3 py-1 text-muted">{label}</td>
                 <td class="pr-3 py-1 break-words">
                     {choice_list(head_to_head_choices(&games, |game| &game.player, choice), total, units)}
                 </td>
@@ -343,12 +343,12 @@ fn HeadToHeadGames(
     view! {
         <table class=TABLE_CLASS>
             <thead class="sticky top-0 bg-base-200">
-                <tr class="text-left text-base-content/80">
+                <tr class="text-left text-muted">
                     <th class="pr-2" colspan="4"></th>
                     <th class="pr-2 text-base-content" colspan="4">{clean_player_name_clan_escapes(&player_name)}</th>
                     <th class="pr-2 text-base-content" colspan="4">{clean_player_name_clan_escapes(&opponent_name)}</th>
                 </tr>
-                <tr class="text-left text-base-content/80">
+                <tr class="text-left text-muted">
                     <th class="pr-2">"Replay"</th>
                     <th class="pr-2">"Date"</th>
                     <th class="pr-2">"Map"</th>

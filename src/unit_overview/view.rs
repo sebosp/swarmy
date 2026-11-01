@@ -76,7 +76,7 @@ pub fn UnitOverviewView() -> impl IntoView {
     view! {
         <div class="p-2 space-y-2">
             <h1 class="text-xl font-semibold text-base-content">"Unit overview"</h1>
-            <p class="text-xs text-base-content/45">
+            <p class="text-xs text-faint">
                 <span class="text-error">"▲"</span>
                 " the unit costs more or got worse than in the previous patch, "
                 <span class="text-success">"▼"</span>
@@ -92,7 +92,7 @@ pub fn UnitOverviewView() -> impl IntoView {
                 <div class="col-span-3">
                     <label class="block text-sm/6 font-medium text-base-content">"Unit"</label>
                     <select
-                        class="select select-sm w-full bg-base-200 text-base-content/90 border border-base-content/20"
+                        class="select select-sm w-full bg-base-200 text-base-content border border-base-content/20"
                         on:change=move |ev| navigation.unit_name.set(event_target_value(&ev))
                     >
                         {options}
@@ -168,7 +168,7 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
                     // unchanged.
                     if previous.is_some() && value.change == PatchChange::Same {
                         return view! {
-                            <td class="pr-3 py-1 text-base-content/35" title=format!("Unchanged: {}", value.value)>
+                            <td class="pr-3 py-1 text-faint" title=format!("Unchanged: {}", value.value)>
                                 "〃"
                             </td>
                         }
@@ -225,14 +225,14 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
             <RaceLink race=unit.race.clone() />
             ")"
         </h2>
-        <p class="text-xs text-base-content/45">
+        <p class="text-xs text-faint">
             "〃 the value did not change from the previous column, hover to see it. Patches without \
             any change of the unit are merged into one column."
         </p>
         <div class="overflow-x-auto">
-            <table class="min-w-full text-xs text-base-content/60">
+            <table class="min-w-full text-xs text-muted">
                 <thead>
-                    <tr class="text-left text-base-content/80">
+                    <tr class="text-left text-muted">
                         <th class="pr-3">"Patch"</th>
                         <th></th>
                         {headers}
@@ -248,7 +248,7 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
 fn stat(label: &'static str, value: String, title: &'static str) -> impl IntoView {
     view! {
         <div class="rounded-md border border-base-content/10 px-3 py-2" title=title>
-            <div class="text-xs text-base-content/60">{label}</div>
+            <div class="text-xs text-muted">{label}</div>
             <div class="text-lg font-semibold text-base-content">{value}</div>
         </div>
     }
@@ -312,13 +312,13 @@ fn UnitSnapshotStatsView(stats: UnitSnapshotStats) -> impl IntoView {
             )}
         </div>
         <h3 class="text-sm font-semibold text-base-content">"Use over time"</h3>
-        <p class="text-xs text-base-content/45">
+        <p class="text-xs text-faint">
             "The games of each month in which at least one player made the unit, hover a month to \
             see the units made per game."
         </p>
         <UnitUsageChart data=stats.by_month.clone() />
         <h3 class="text-sm font-semibold text-base-content">"Exceptional games"</h3>
-        <p class="text-xs text-base-content/45">
+        <p class="text-xs text-faint">
             {format!(
                 "The players that made at least {EXCEPTIONAL_MIN_BORN} and killed at least {:.2} \
                  enemy units per unit, two standard deviations above the average of {:.2}.",
@@ -333,8 +333,7 @@ fn UnitSnapshotStatsView(stats: UnitSnapshotStats) -> impl IntoView {
 #[component]
 fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
     if games.is_empty() {
-        return view! { <p class="text-xs text-base-content/45">"No exceptional games."</p> }
-            .into_any();
+        return view! { <p class="text-xs text-faint">"No exceptional games."</p> }.into_any();
     }
     let rows = games
         .into_iter()
@@ -374,9 +373,9 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
         .collect_view();
     view! {
         <div class="overflow-x-auto">
-            <table class="min-w-full text-xs text-base-content/60">
+            <table class="min-w-full text-xs text-muted">
                 <thead>
-                    <tr class="text-left text-base-content/80">
+                    <tr class="text-left text-muted">
                         <th class="pr-3">"Replay"</th>
                         <th class="pr-3">"Date"</th>
                         <th class="pr-3">"Map"</th>

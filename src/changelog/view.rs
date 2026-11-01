@@ -162,7 +162,7 @@ pub fn Changelog() -> impl IntoView {
                 .map(|(date, changes)| view! {
                     <div>
                         <h2 class="text-base/7 font-semibold text-base-content">{*date}</h2>
-                        <ul class="mt-1 list-disc list-inside text-sm text-base-content/60">
+                        <ul class="mt-1 list-disc list-inside text-sm text-muted">
                             {changes.iter().map(|change| view! { <li>{*change}</li> }).collect_view()}
                         </ul>
                     </div>

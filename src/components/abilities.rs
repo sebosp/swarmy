@@ -6,7 +6,7 @@ use crate::*;
 use leptos::prelude::*;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 /// The use of the tracked abilities by patch, it does not change until the snapshot is optimized
 /// again.
@@ -38,14 +38,14 @@ pub fn AbilityUsageRows(
 ) -> impl IntoView {
     if rows.is_empty() {
         return view! {
-            <p class="text-xs text-base-content/60">"No games of the snapshot used these abilities."</p>
+            <p class="text-xs text-muted">"No games of the snapshot used these abilities."</p>
         }
         .into_any();
     }
     view! {
         <table class=TABLE_CLASS>
             <thead>
-                <tr class="text-left text-base-content/80">
+                <tr class="text-left text-muted">
                     {show_race.then(|| view! { <th class="pr-3">"Race"</th> })}
                     <th class="pr-3">"Ability"</th>
                     <th class="pr-3">"Unit"</th>
@@ -100,14 +100,14 @@ pub fn AbilityUsageRows(
 pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
     if abilities.is_empty() {
         return view! {
-            <p class="text-xs text-base-content/60">"No ability with energy or a cooldown used."</p>
+            <p class="text-xs text-muted">"No ability with energy or a cooldown used."</p>
         }
         .into_any();
     }
     view! {
         <table class=TABLE_CLASS>
             <thead>
-                <tr class="text-left text-base-content/80">
+                <tr class="text-left text-muted">
                     <th class="pr-2">"Ability"</th>
                     <th class="pr-2 text-right">"Uses"</th>
                     <th class="pr-2 text-right" title="The uses per game of the players of the race in the games of the patch">"Patch avg"</th>

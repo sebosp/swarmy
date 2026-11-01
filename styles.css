@@ -1,14 +1,31 @@
 @import "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 /* The themes, picked in Config: `data-theme` on <html>, set by src/components/appearance.rs
    (index.html starts with swarmy, Follow the system picks swarmy or light from the preference
    of the desktop). The views use the daisyUI semantic colors (base-100/200/300, base-content,
-   primary, ...): light and dark are daisyUI's, the other themes set the same variables below,
-   and every theme sets the --chart-* colors read by public/charts/chart_init.js. */
+   primary, ...): light and dark are daisyUI's, the other themes set the same variables below.
+   The de-emphasized text is text-muted and text-faint, and the charts read the --chart-*
+   colors, both defined once from the colors of the theme further down. */
 @plugin "daisyui" {
-  themes: light --default, dark;
+  themes: light, dark;
+}
+
+/* The de-emphasized text: the body text with an opacity, the light themes with a tinted base
+   (Catppuccin Latte, Tokyo Night Day) set a color of their palette instead, the opacity fails the
+   4.5:1 contrast there. */
+@theme inline {
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+}
+:root {
+  --muted: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+  --faint: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+}
+
+/* The shape of the custom themes, daisyUI's variables, High contrast overrides the borders. */
+[data-theme="swarmy"],
+[data-theme="high-contrast"],
+[data-theme^="catppuccin-"],
+[data-theme^="tokyonight-"] {
 }
 
 /* Swarmy, the look it had before the themes: Tailwind gray-900/800/700 and indigo-500. */
@@ -34,14 +51,6 @@
   --color-warning-content: #1f1300;
   --color-error: #f87171;
   --color-error-content: #1f0a0a;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.375rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
 }
 
 /* High contrast, dark: black surfaces, white text, the lighter accents, thicker borders. */
@@ -70,11 +79,7 @@
   --radius-selector: 0.25rem;
   --radius-field: 0.25rem;
   --radius-box: 0.25rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
   --border: 2px;
-  --depth: 0;
-  --noise: 0;
 }
 
 /* Catppuccin, the palette of github.com/catppuccin (v1.8.0) with the roles of catppuccin/daisyui:
@@ -104,19 +109,8 @@
   --color-warning-content: #ffffff;
   --color-error: #d20f39;
   --color-error-content: #ffffff;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.375rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
-  --muted-90: #4c4f69;
-  --muted-80: #5c5f77;
-  --muted-60: #5c5f77;
-  --muted-45: #6c6f85;
-  --muted-35: #6c6f85;
+  --muted: #5c5f77;
+  --faint: #6c6f85;
 }
 
 [data-theme="catppuccin-frappe"] {
@@ -141,14 +135,6 @@
   --color-warning-content: #303446;
   --color-error: #e78284;
   --color-error-content: #303446;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.375rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
 }
 
 [data-theme="catppuccin-macchiato"] {
@@ -173,14 +159,6 @@
   --color-warning-content: #24273a;
   --color-error: #ed8796;
   --color-error-content: #24273a;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.375rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
 }
 
 [data-theme="catppuccin-mocha"] {
@@ -205,14 +183,6 @@
   --color-warning-content: #1e1e2e;
   --color-error: #f38ba8;
   --color-error-content: #1e1e2e;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.375rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
 }
 
 /* Tokyo Night, the palette of folke/tokyonight.nvim: bg/bg_dark/bg_highlight, fg, blue as primary,
@@ -241,14 +211,6 @@
   --color-warning-content: #1a1b26;
   --color-error: #f7768e;
   --color-error-content: #1a1b26;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.375rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
 }
 
 [data-theme="tokyonight-storm"] {
@@ -273,14 +235,6 @@
   --color-warning-content: #24283b;
   --color-error: #f7768e;
   --color-error-content: #24283b;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.375rem;
-  --radius-box: 0.5rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
 }
 
 [data-theme="tokyonight-day"] {
@@ -313,67 +267,8 @@
   --border: 1px;
   --depth: 0;
   --noise: 0;
-  --muted-90: #28458a;
-  --muted-80: #3760bf;
-  --muted-60: #3760bf;
-  --muted-45: #6172b0;
-  --muted-35: #848cb5;
-}
-
-/* The light themes: the de-emphasized text is a color of the palette, not the body text with an
-   opacity, which fails the AA contrast there (the dark themes keep the opacities of the Swarmy look). */
-[data-theme="catppuccin-latte"] .text-base-content\/90,
-[data-theme="tokyonight-day"] .text-base-content\/90 {
-  color: var(--muted-90);
-}
-[data-theme="catppuccin-latte"] .text-base-content\/80,
-[data-theme="tokyonight-day"] .text-base-content\/80 {
-  color: var(--muted-80);
-}
-[data-theme="catppuccin-latte"] .text-base-content\/60,
-[data-theme="tokyonight-day"] .text-base-content\/60 {
-  color: var(--muted-60);
-}
-[data-theme="catppuccin-latte"] .text-base-content\/45,
-[data-theme="tokyonight-day"] .text-base-content\/45 {
-  color: var(--muted-45);
-}
-[data-theme="catppuccin-latte"] .text-base-content\/35,
-[data-theme="tokyonight-day"] .text-base-content\/35 {
-  color: var(--muted-35);
-}
-
-/* The chart colors of the themes, the dark and the light series of the validated palette. */
-[data-theme="catppuccin-frappe"],
-[data-theme="catppuccin-macchiato"],
-[data-theme="catppuccin-mocha"],
-[data-theme="tokyonight-night"],
-[data-theme="tokyonight-storm"] {
-  --chart-fg: var(--color-base-content);
-  --chart-muted: color-mix(in oklab, var(--color-base-content) 65%, transparent);
-  --chart-grid: var(--color-base-300);
-  --chart-1: #3987e5;
-  --chart-2: #d95926;
-  --chart-3: #199e70;
-  --chart-4: #c98500;
-  --chart-5: #d55181;
-  --chart-6: #008300;
-  --chart-7: #9085e9;
-  --chart-8: #e66767;
-}
-[data-theme="catppuccin-latte"],
-[data-theme="tokyonight-day"] {
-  --chart-fg: var(--color-base-content);
-  --chart-muted: var(--muted-60);
-  --chart-grid: var(--color-base-300);
-  --chart-1: #2a78d6;
-  --chart-2: #eb6834;
-  --chart-3: #1baf7a;
-  --chart-4: #eda100;
-  --chart-5: #e87ba4;
-  --chart-6: #008300;
-  --chart-7: #6250d6;
-  --chart-8: #e34948;
+  --muted: #3760bf;
+  --faint: #6172b0;
 }
 
 /* The accessibility options of Config, data-a11y-* on <html>, see src/components/appearance.rs.
@@ -407,15 +302,14 @@
   outline-offset: 2px;
 }
 
-/* The colors of the charts: eight series in a fixed order (a series keeps its color when the
-   others are filtered out), checked for color vision deficiencies and contrast on the dark and
-   the light surfaces with the dataviz palette validator; the text and the grid. */
-[data-theme="swarmy"],
-[data-theme="dark"],
-[data-theme="high-contrast"] {
-  --chart-fg: #d1d5db;
-  --chart-muted: #9ca3af;
-  --chart-grid: #374151;
+/* The colors of the charts, read by public/charts/chart_init.js: the text and the grid from
+   the theme, and eight series in a fixed order (a series keeps its color when the others are
+   filtered out), one palette for the dark themes and one for the light ones, checked for color
+   vision deficiencies and for contrast on their surfaces with the dataviz palette validator. */
+:root {
+  --chart-fg: var(--color-base-content);
+  --chart-muted: var(--muted);
+  --chart-grid: var(--color-base-300);
   --chart-1: #3987e5;
   --chart-2: #d95926;
   --chart-3: #199e70;
@@ -425,10 +319,9 @@
   --chart-7: #9085e9;
   --chart-8: #e66767;
 }
-[data-theme="light"] {
-  --chart-fg: #374151;
-  --chart-muted: #6b7280;
-  --chart-grid: #e5e7eb;
+[data-theme="light"],
+[data-theme="catppuccin-latte"],
+[data-theme="tokyonight-day"] {
   --chart-1: #2a78d6;
   --chart-2: #eb6834;
   --chart-3: #1baf7a;

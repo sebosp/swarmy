@@ -60,8 +60,9 @@
 
   function commonOptions(container, type) {
     const { series, showLegend } = chartSeries(container);
+    const t = theme();
     const labels = parse(container.dataset.chartLabels, []);
-    const colors = (parse(container.dataset.chartColors, null) || theme().palette).map(resolveColor);
+    const colors = (parse(container.dataset.chartColors, null) || t.palette).map(resolveColor);
     const tooltips = parse(container.dataset.chartTooltips, null);
     const suffix = container.dataset.chartValueSuffix || "";
     const yMax = container.dataset.chartYMax ? Number(container.dataset.chartYMax) : undefined;
@@ -78,7 +79,7 @@
         animations: { enabled: true, speed: 400 },
         parentHeightOffset: 0,
       },
-      theme: { mode: theme().mode },
+      theme: { mode: t.mode },
       colors,
       dataLabels: { enabled: false },
       legend: {
@@ -87,14 +88,14 @@
         horizontalAlign: "left",
         fontSize: "11px",
         fontFamily: "inherit",
-        labels: { colors: theme().foreground },
+        labels: { colors: t.foreground },
         markers: { size: 4 },
         itemMargin: { horizontal: 8 },
       },
       xaxis: {
         categories: labels,
-        labels: { style: { colors: theme().muted, fontSize: "10px" }, hideOverlappingLabels: true, rotate: 0 },
-        axisBorder: { color: theme().grid },
+        labels: { style: { colors: t.muted, fontSize: "10px" }, hideOverlappingLabels: true, rotate: 0 },
+        axisBorder: { color: t.grid },
         axisTicks: { show: false },
         tickAmount: labels.length > 24 ? 12 : undefined,
       },
@@ -102,11 +103,11 @@
         max: yMax,
         min: 0,
         forceNiceScale: true,
-        labels: { style: { colors: theme().muted, fontSize: "10px" }, formatter: (value) => `${Math.round(value)}${suffix}` },
+        labels: { style: { colors: t.muted, fontSize: "10px" }, formatter: (value) => `${Math.round(value)}${suffix}` },
       },
-      grid: { borderColor: theme().grid, strokeDashArray: 2, padding: { top: -10, bottom: 0 } },
+      grid: { borderColor: t.grid, strokeDashArray: 2, padding: { top: -10, bottom: 0 } },
       tooltip: {
-        theme: theme().mode,
+        theme: t.mode,
         shared: true,
         intersect: false,
         custom: tooltips
@@ -205,23 +206,23 @@
     startObserver();
   }
 
-  // The theme changed, in Config or in the system: the charts take its colors.
+  // The charts are drawn again with the colors of a new theme (the app sets data-theme, also
+  // when the preference of the desktop changes with Follow the system) and for a new size.
   const rerender = () => {
     chartMetadata.clear();
     checkAndInitCharts();
   };
-  new MutationObserver(rerender).observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-theme"],
-  });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender);
+  let renderedTheme = document.documentElement.dataset.theme;
+  new MutationObserver(() => {
+    const current = document.documentElement.dataset.theme;
+    if (current === renderedTheme) return;
+    renderedTheme = current;
+    rerender();
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   let resizeTimeout;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-      chartMetadata.clear();
-      checkAndInitCharts();
-    }, 250);
+    resizeTimeout = setTimeout(rerender, 250);
   });
 })();

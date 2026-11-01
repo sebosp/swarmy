@@ -12,8 +12,8 @@ pub fn sanitize_replay_path(replay_path: &str) -> Result<String, SwarmyError> {
     Ok(replay_path.trim_end_matches('/').to_string())
 }
 
-/// Builds the IPC path for the given replay path, the path must exist, done via the Optimize
-/// functionality in the Scan tab.
+/// The path of the snapshot of a replay path, for the queries: an error tells when there is no
+/// snapshot to query, it is being created or it was interrupted.
 pub fn build_ipc_path(replay_path: &str) -> Result<String, SwarmyError> {
     let replay_path = format!("{}/{}", replay_path, IPC_DIR);
     let ipc_path = std::path::Path::new(&replay_path);
@@ -22,6 +22,9 @@ pub fn build_ipc_path(replay_path: &str) -> Result<String, SwarmyError> {
             "Directory {} not Optimized yet, go to Scan first.",
             replay_path
         )));
+    }
+    if let Some(message) = crate::snapshot_stats::snapshot_unavailable(ipc_path) {
+        return Err(SwarmyError::Other(message));
     }
     Ok(replay_path)
 }

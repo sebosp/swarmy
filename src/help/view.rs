@@ -339,7 +339,7 @@ fn entries(entries: &[Entry]) -> impl IntoView + use<> {
         })
         .collect_view();
     view! {
-        <table class="min-w-full text-sm text-base-content/60">
+        <table class="min-w-full text-sm text-muted">
             <tbody class="divide-y divide-base-content/5">{rows}</tbody>
         </table>
     }

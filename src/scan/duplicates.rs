@@ -75,19 +75,19 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
                         "Move to the duplicates folder"
                     </button>
                 </Show>
-                <span class="text-sm text-base-content/60">{move || status.get()}</span>
+                <span class="text-sm text-muted">{move || status.get()}</span>
             </div>
             <Show when=move || app_settings.get().duplicates_path.is_empty()>
-                <p class="text-xs text-base-content/45">
+                <p class="text-xs text-faint">
                     "Set the Duplicate Replays Folder in Config to move the duplicates out of the replay path."
                 </p>
             </Show>
             {move || duplicates.get().filter(|found| !found.is_empty()).map(|found| {
                 let more = found.len().saturating_sub(MAX_LISTED);
                 view! {
-                    <table class="min-w-full text-xs text-base-content/60">
+                    <table class="min-w-full text-xs text-muted">
                         <thead>
-                            <tr class="text-left text-base-content/80">
+                            <tr class="text-left text-muted">
                                 <th class="pr-2">"Duplicate"</th>
                                 <th>"Same contents as"</th>
                             </tr>

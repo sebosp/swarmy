@@ -27,7 +27,7 @@ pub fn RatingStars(rating: RwSignal<Option<u8>>) -> impl IntoView {
                         if rating.get().is_some_and(|rating| rating >= stars) {
                             "text-warning text-xl leading-none"
                         } else {
-                            "text-base-content/35 text-xl leading-none hover:text-warning"
+                            "text-faint text-xl leading-none hover:text-warning"
                         }
                     }
                     title=format!("{stars} stars, click again to remove the rating")
@@ -101,10 +101,10 @@ pub fn ReplayNotesPanel(sha256: String) -> impl IntoView {
             <div class="flex items-center gap-3">
                 <h2 class="text-base/7 font-semibold text-base-content">"Notes"</h2>
                 <RatingStars rating />
-                <span class="text-xs text-base-content/45">{move || status.get()}</span>
+                <span class="text-xs text-faint">{move || status.get()}</span>
             </div>
             <textarea
-                class="textarea textarea-sm w-full bg-base-100 text-base-content/90 border border-base-content/20"
+                class="textarea textarea-sm w-full bg-base-100 text-base-content border border-base-content/20"
                 rows="3"
                 placeholder="Notes about the replay, i.e. what to show when casting it"
                 prop:value=move || note.get()
@@ -112,7 +112,7 @@ pub fn ReplayNotesPanel(sha256: String) -> impl IntoView {
             ></textarea>
             <div class="flex items-center gap-2">
                 <input
-                    class="input input-sm grow bg-base-100 text-base-content/90 border border-base-content/20"
+                    class="input input-sm grow bg-base-100 text-base-content border border-base-content/20"
                     list="replay-tags"
                     placeholder="Tags separated by commas, i.e. finals, comeback"
                     prop:value=move || tags.get()

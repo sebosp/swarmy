@@ -16,8 +16,6 @@ use swarmy_common::*;
 /// The 1v1 matchups, the races sorted as in Map Details.
 const MATCHUPS: [&str; 6] = ["PvP", "PvT", "PvZ", "TvT", "TvZ", "ZvZ"];
 
-const SELECT_CLASS: &str =
-    "select select-sm w-full bg-base-200 text-base-content/90 border border-base-content/20";
 const LABEL_CLASS: &str = "block text-sm/6 font-medium text-base-content";
 
 /// A dropdown of the replay list filters, `options` are the values and their labels, the first
@@ -387,7 +385,7 @@ pub fn ReplayListDataTable(
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="px-0 py-0 text-xs text-base-content/60">
+                                            <span class="px-0 py-0 text-xs text-muted">
                                                 <MapLink map_title=child.read().map_title.clone() />
                                             </span>
                                         </td>
@@ -459,7 +457,7 @@ pub fn ReplayListDataTable(
                                                 />
                                             </button>
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-muted">
                                         <ul>
                                         { players
                                                 .into_iter()
@@ -475,7 +473,7 @@ pub fn ReplayListDataTable(
                                         }
                                         </ul>
                                         </td>
-                                        <td class="px-2 py-2 text-xs font-mono text-base-content/60">
+                                        <td class="px-2 py-2 text-xs font-mono text-muted">
                                             {format_game_time(child.read().duration.max(0) as u32)}
                                         </td>
                                         <td>
@@ -493,10 +491,10 @@ pub fn ReplayListDataTable(
                                                 })
                                                 .collect_view()}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-muted">
                                             {format!("{}", child.read().replay_date)}
                                         </td>
-                                        <td class="px-2 py-2 text-xs text-base-content/60">
+                                        <td class="px-2 py-2 text-xs text-muted">
                                             <span class="text-warning">
                                                 {rating_text(child.read().rating)}
                                             </span>

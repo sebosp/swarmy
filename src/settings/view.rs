@@ -4,7 +4,9 @@ use leptos::{ev::MouseEvent, prelude::*};
 use phosphor_leptos::{Icon, IconWeight, FOLDER_OPEN, QUESTION};
 use swarmy_common::*;
 
-use crate::{settings::actions::trigger_set_current_app_config, DisplayBackendStatus};
+use crate::{
+    settings::actions::trigger_set_current_app_config, DisplayBackendStatus, SELECT_CLASS,
+};
 
 #[component]
 pub fn Config() -> impl IntoView {
@@ -23,8 +25,7 @@ pub fn Config() -> impl IntoView {
     let notify_new_replays = RwSignal::new(false);
     let remote_backend_url = RwSignal::new("".to_string());
     let remote_backend_token = RwSignal::new("".to_string());
-    let zoom_percent = RwSignal::new(default_zoom_percent());
-    let theme = RwSignal::new(default_theme());
+    let appearance = expect_context::<crate::components::appearance::Appearance>();
     let reduce_motion = RwSignal::new(default_reduce_motion());
     let underline_links = RwSignal::new(false);
     let focus_outline = RwSignal::new(false);
@@ -49,8 +50,8 @@ pub fn Config() -> impl IntoView {
             *notify_new_replays.write() = settings.notify_new_replays;
             *remote_backend_url.write() = settings.remote_backend_url.clone();
             *remote_backend_token.write() = settings.remote_backend_token.clone();
-            *zoom_percent.write() = settings.zoom_percent;
-            *theme.write() = settings.theme.clone();
+            appearance.theme.set(settings.theme.clone());
+            appearance.zoom_percent.set(settings.zoom_percent);
             *reduce_motion.write() = settings.reduce_motion.clone();
             *underline_links.write() = settings.underline_links;
             *focus_outline.write() = settings.focus_outline;
@@ -244,7 +245,7 @@ pub fn Config() -> impl IntoView {
                     optional=true
                 />
                 <CheckRemoteBackend remote_backend_url remote_backend_token />
-                <ConfigAppearance zoom_percent theme />
+                <ConfigAppearance />
                 <ConfigAccessibility reduce_motion underline_links focus_outline />
                 <ConfigNumberInput
                     name="scan_max_files"
@@ -298,8 +299,8 @@ pub fn Config() -> impl IntoView {
                                     notify_new_replays: notify_new_replays.get(),
                                     remote_backend_url: remote_backend_url.get(),
                                     remote_backend_token: remote_backend_token.get(),
-                                    zoom_percent: zoom_percent.get(),
-                                    theme: theme.get(),
+                                    zoom_percent: appearance.zoom_percent.get(),
+                                    theme: appearance.theme.get(),
                                     reduce_motion: reduce_motion.get(),
                                     underline_links: underline_links.get(),
                                     focus_outline: focus_outline.get(),
@@ -339,7 +340,7 @@ pub fn ConfigNumberInput(
                     if is_invalid_number.get() {
                         "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-error outline-1 -outline-offset-1 outline-error/50 placeholder:text-error/70 focus:outline-2 focus:-outline-offset-2 focus:outline-error sm:pr-9 sm:max-w-xs sm:text-sm/6"
                     } else {
-                        "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-base-content/45 focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:max-w-xs sm:text-sm/6"
+                        "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-faint focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:max-w-xs sm:text-sm/6"
                     }
                 }
                 on:input=move |ev| {
@@ -360,7 +361,7 @@ pub fn ConfigNumberInput(
                     if is_invalid_number.get() {
                         "mt-2 text-sm text-error"
                     } else {
-                        "mt-2 text-sm/6 text-base-content/60"
+                        "mt-2 text-sm/6 text-muted"
                     }
                 }
             >
@@ -430,7 +431,7 @@ pub fn ConfigStringInput(
                         if is_missing() {
                             "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-error outline-1 -outline-offset-1 outline-error/50 placeholder:text-error/70 focus:outline-2 focus:-outline-offset-2 focus:outline-error sm:pr-9 sm:text-sm/6"
                         } else {
-                            "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-base-content/45 focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:text-sm/6"
+                            "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-faint focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:text-sm/6"
                         }
                     }
                     on:input=move |ev| {
@@ -465,7 +466,7 @@ pub fn ConfigStringInput(
                     if is_missing() {
                         "mt-2 text-sm/6 text-error"
                     } else {
-                        "mt-2 text-sm/6 text-base-content/60"
+                        "mt-2 text-sm/6 text-muted"
                     }
                 }
             >
@@ -507,77 +508,84 @@ pub fn ConfigStringInput(
     }
 }
 
+/// A row of the Config grid: the label, the control and the help icon with its explanation.
+#[component]
+fn ConfigRow(label: &'static str, help: &'static str, children: Children) -> impl IntoView {
+    view! {
+        <div class="col-span-1">
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">{label}</label>
+        </div>
+        <div class="col-span-2">{children()}</div>
+        <div class="col-span-1 text-primary">
+            <span title=help>
+                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+            </span>
+        </div>
+    }
+}
+
+/// A `<select>` of `(id, label)` options bound to the signal of the id, `on_pick` runs with each
+/// change, i.e. to apply the option at once.
+#[component]
+fn OptionSelect(
+    options: &'static [(&'static str, &'static str)],
+    value: RwSignal<String>,
+    on_pick: impl Fn() + 'static,
+) -> impl IntoView {
+    view! {
+        <select
+            class=format!("{SELECT_CLASS} max-w-xs")
+            on:change=move |ev| {
+                value.set(event_target_value(&ev));
+                on_pick();
+            }
+        >
+            {options
+                .iter()
+                .map(|(id, label)| {
+                    view! {
+                        <option value=*id selected=move || value.get() == *id>
+                            {*label}
+                        </option>
+                    }
+                })
+                .collect_view()}
+        </select>
+    }
+}
+
 /// The theme and the zoom: the theme is applied as it is picked and saved with Save, the zoom is
 /// saved as it changes, as Ctrl+= and Ctrl+- do.
 #[component]
-fn ConfigAppearance(zoom_percent: RwSignal<u32>, theme: RwSignal<String>) -> impl IntoView {
-    let toast = use_context::<crate::components::appearance::ZoomToast>();
-    // The zoom saved by the shortcuts or the buttons, read back for the form.
-    if let Some(toast) = toast {
-        Effect::new(move |_| {
-            if let Some(percent) = toast.0.get() {
-                zoom_percent.set(percent);
-            }
-        });
-    }
-    let zoom = move |steps: i32| {
-        if let Some(toast) = toast {
-            crate::components::appearance::zoom_step(steps, toast);
-        }
-    };
+fn ConfigAppearance() -> impl IntoView {
+    let appearance = expect_context::<crate::components::appearance::Appearance>();
+    let zoom = move |steps: i32| crate::components::appearance::zoom_step(steps, appearance);
     view! {
-        <div class="col-span-1">
-            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">"Theme"</label>
-        </div>
-        <div class="col-span-2">
-            <select
-                class="select select-sm w-full max-w-xs"
-                prop:value=move || theme.get()
-                on:change=move |ev| {
-                    let picked = event_target_value(&ev);
-                    crate::components::appearance::apply_theme(&picked);
-                    theme.set(picked);
-                }
-            >
-                {THEMES
-                    .iter()
-                    .map(|(id, label)| {
-                        view! {
-                            <option value=*id selected=move || theme.get() == *id>
-                                {*label}
-                            </option>
-                        }
-                    })
-                    .collect_view()}
-            </select>
-        </div>
-        <div class="col-span-1 text-primary">
-            <span title="The colors of the interface, applied as you pick them and kept with Save. Follow the system picks Swarmy or Light from the light or dark preference of your desktop.">
-                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
-            </span>
-        </div>
-        <div class="col-span-1">
-            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">"Zoom"</label>
-        </div>
-        <div class="col-span-2 flex items-center gap-2">
-            <button type="button" class="btn btn-outline btn-sm" title="Zoom out, Ctrl+-" on:click=move |_| zoom(-1)>
-                "−"
-            </button>
-            <span class="w-14 text-center text-sm text-base-content">
-                {move || format!("{}%", zoom_percent.get())}
-            </span>
-            <button type="button" class="btn btn-outline btn-sm" title="Zoom in, Ctrl+=" on:click=move |_| zoom(1)>
-                "+"
-            </button>
-            <button type="button" class="btn btn-ghost btn-sm" title="Back to 100%, Ctrl+0" on:click=move |_| zoom(0)>
-                "Reset"
-            </button>
-        </div>
-        <div class="col-span-1 text-primary">
-            <span title="The size of the whole interface, text, charts and icons, from 50% to 250%. Ctrl+= and Ctrl+- change it in any view, Ctrl+0 resets it; it is saved as it changes.">
-                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
-            </span>
-        </div>
+        <ConfigRow
+            label="Theme"
+            help="The colors of the interface, applied as you pick them and kept with Save. Follow the system picks Swarmy or Light from the light or dark preference of your desktop."
+        >
+            <OptionSelect options=THEMES value=appearance.theme on_pick=|| () />
+        </ConfigRow>
+        <ConfigRow
+            label="Zoom"
+            help="The size of the whole interface, text, charts and icons, from 50% to 250%. Ctrl+= and Ctrl+- change it in any view, Ctrl+0 resets it; it is saved as it changes."
+        >
+            <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-outline btn-sm" title="Zoom out, Ctrl+-" on:click=move |_| zoom(-1)>
+                    "−"
+                </button>
+                <span class="w-14 text-center text-sm text-base-content">
+                    {move || format!("{}%", appearance.zoom_percent.get())}
+                </span>
+                <button type="button" class="btn btn-outline btn-sm" title="Zoom in, Ctrl+=" on:click=move |_| zoom(1)>
+                    "+"
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" title="Back to 100%, Ctrl+0" on:click=move |_| zoom(0)>
+                    "Reset"
+                </button>
+            </div>
+        </ConfigRow>
     }
 }
 
@@ -596,71 +604,38 @@ fn ConfigAccessibility(
             focus_outline.get_untracked(),
         )
     };
+    let toggle = move |label: &'static str, flag: RwSignal<bool>| {
+        view! {
+            <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content">
+                <input
+                    type="checkbox"
+                    class="toggle toggle-sm"
+                    prop:checked=move || flag.get()
+                    on:change=move |ev| {
+                        flag.set(event_target_checked(&ev));
+                        apply();
+                    }
+                />
+                {label}
+            </label>
+        }
+    };
     view! {
-        <div class="col-span-1">
-            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">"Motion"</label>
-        </div>
-        <div class="col-span-2">
-            <select
-                class="select select-sm w-full max-w-xs"
-                on:change=move |ev| {
-                    reduce_motion.set(event_target_value(&ev));
-                    apply();
-                }
-            >
-                {REDUCE_MOTION_OPTIONS
-                    .iter()
-                    .map(|(id, label)| {
-                        view! {
-                            <option value=*id selected=move || reduce_motion.get() == *id>
-                                {*label}
-                            </option>
-                        }
-                    })
-                    .collect_view()}
-            </select>
-        </div>
-        <div class="col-span-1 text-primary">
-            <span title="Reduce stops the animations and transitions, i.e. the spinners and the sliding panels. Follow the system uses the Reduce animations setting of your desktop.">
-                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
-            </span>
-        </div>
-        <div class="col-span-1">
-            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">
-                "Links and focus"
-            </label>
-        </div>
-        <div class="col-span-2 flex flex-col gap-2">
-            <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content">
-                <input
-                    type="checkbox"
-                    class="toggle toggle-sm"
-                    prop:checked=move || underline_links.get()
-                    on:change=move |ev| {
-                        underline_links.set(event_target_checked(&ev));
-                        apply();
-                    }
-                />
-                "Underline the links, not only on hover"
-            </label>
-            <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content">
-                <input
-                    type="checkbox"
-                    class="toggle toggle-sm"
-                    prop:checked=move || focus_outline.get()
-                    on:change=move |ev| {
-                        focus_outline.set(event_target_checked(&ev));
-                        apply();
-                    }
-                />
-                "Always show the focus outline"
-            </label>
-        </div>
-        <div class="col-span-1 text-primary">
-            <span title="The names that open another view are underlined with dots; underlined links also show them as solid underlines. The focus outline shows which element the keyboard is on, also after a click.">
-                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
-            </span>
-        </div>
+        <ConfigRow
+            label="Motion"
+            help="Reduce stops the animations and transitions, i.e. the spinners and the sliding panels. Follow the system uses the Reduce animations setting of your desktop."
+        >
+            <OptionSelect options=REDUCE_MOTION_OPTIONS value=reduce_motion on_pick=apply />
+        </ConfigRow>
+        <ConfigRow
+            label="Links and focus"
+            help="The names that open another view are underlined with dots; underlined links also show them as solid underlines. The focus outline shows which element the keyboard is on, also after a click."
+        >
+            <div class="flex flex-col gap-2">
+                {toggle("Underline the links, not only on hover", underline_links)}
+                {toggle("Always show the focus outline", focus_outline)}
+            </div>
+        </ConfigRow>
     }
 }
 

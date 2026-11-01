@@ -85,13 +85,13 @@ pub fn ReplayScanTable(dir_stats_data: Store<SC2ReplaysDirStatsTable>) -> impl I
                                         <td class="py-2 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-base-content">
                                             {move || idx.get()}
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-muted">
                                             {move || clan.get()}
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-muted">
                                             {move || name.get()}
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-muted">
                                             {move || count.get()}
                                         </td>
                                     </tr>
@@ -141,10 +141,10 @@ pub fn ReplayScanTable(dir_stats_data: Store<SC2ReplaysDirStatsTable>) -> impl I
                                         <td class="py-2 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-base-content">
                                             {move || idx.get()}
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-muted">
                                             {move || title.get()}
                                         </td>
-                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-base-content/60">
+                                        <td class="px-2 py-2 text-sm whitespace-nowrap text-muted">
                                             {move || count.get()}
                                         </td>
                                     </tr>
