@@ -26,6 +26,14 @@
 [data-theme="high-contrast"],
 [data-theme^="catppuccin-"],
 [data-theme^="tokyonight-"] {
+  --radius-selector: 0.5rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
 }
 
 /* Swarmy, the look it had before the themes: Tailwind gray-900/800/700 and indigo-500. */
