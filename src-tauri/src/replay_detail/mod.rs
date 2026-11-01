@@ -9,17 +9,17 @@ pub mod patch_timings;
 pub mod report;
 pub mod win_chance;
 pub mod winner_benchmarks;
+use crate::host::SwarmyHost;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
 use data::try_query_replay_detail;
 use swarmy_common::*;
 
-#[tauri::command(rename_all = "snake_case")]
 pub async fn query_replay_detail(
-    app_handle: tauri::AppHandle,
+    host: &dyn SwarmyHost,
     ext_fs_id: u64,
 ) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+    let app_config = load_stored_app_settings(host)?;
     run_query(move || {
         ApiResponseBuilder::new()
             .process_result(try_query_replay_detail(app_config.replay_path, ext_fs_id))
@@ -59,6 +59,21 @@ pub async fn query_replay_lesson(
     .await
 }
 
+/// The game as a single HTML page to share, and its map title.
+pub async fn render_replay_report(
+    host: &dyn SwarmyHost,
+    ext_fs_id: u64,
+) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(host)?;
+    run_query(move || {
+        ApiResponseBuilder::new().process_result(
+            try_query_replay_detail(app_config.replay_path, ext_fs_id)
+                .map(|detail| (report::render_report(&detail), detail.map_title.clone())),
+        )
+    })
+    .await
+}
+
 /// Saves the game as a single HTML page to share, the folder and name are chosen in the dialog of
 /// the system. The message is the file written, empty when the dialog was cancelled.
 #[tauri::command(rename_all = "snake_case")]
@@ -68,14 +83,20 @@ pub async fn export_replay_report(
 ) -> Result<ApiResponse, SwarmyError> {
     use tauri_plugin_dialog::DialogExt;
     let app_config = load_stored_app_settings(&app_handle)?;
-    let html = tokio::task::spawn_blocking(move || {
-        try_query_replay_detail(app_config.replay_path, ext_fs_id)
-            .map(|detail| (report::render_report(&detail), detail.map_title.clone()))
-            .map_err(|err| err.to_string())
-    })
-    .await?
-    .map_err(SwarmyError::Other)?;
-    let (html, map_title) = html;
+    let rendered = if app_config.is_remote() {
+        crate::remote::call(
+            &app_config,
+            "render_replay_report",
+            serde_json::json!({ "ext_fs_id": ext_fs_id }),
+        )
+        .await?
+    } else {
+        render_replay_report(&app_handle, ext_fs_id).await?
+    };
+    if !rendered.meta.success {
+        return Ok(rendered);
+    }
+    let (html, map_title): (String, String) = serde_json::from_str(&rendered.message)?;
     let file_name = format!(
         "swarmy {} {ext_fs_id}.html",
         map_title.replace(['/', '\\', ':'], " ")
@@ -104,12 +125,11 @@ pub async fn export_replay_report(
 }
 
 /// The newest replay, or the one before or after the current one, of the locked map and players.
-#[tauri::command(rename_all = "snake_case")]
 pub async fn query_adjacent_replay(
-    app_handle: tauri::AppHandle,
+    host: &dyn SwarmyHost,
     query: AdjacentReplayQuery,
 ) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+    let app_config = load_stored_app_settings(host)?;
     run_query(move || {
         ApiResponseBuilder::new().process_result(navigation::try_adjacent_replay(
             app_config.replay_path,

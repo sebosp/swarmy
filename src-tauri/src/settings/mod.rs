@@ -1,7 +1,9 @@
 //! Module for application settings management.
 use swarmy_common::*;
 
+use crate::host::{SwarmyHost, SETTINGS_STORE};
 use crate::try_get_snapshot_metadata;
+use serde_json::{Map, Value};
 use tauri_plugin_store::StoreBuilder;
 
 #[tauri::command]
@@ -16,7 +18,7 @@ pub async fn set_current_app_config(
     app_handle: tauri::AppHandle,
     app_settings: AppSettings,
 ) -> Result<(), SwarmyError> {
-    let store = StoreBuilder::new(&app_handle, "settings.json").build()?;
+    let store = StoreBuilder::new(&app_handle, SETTINGS_STORE).build()?;
 
     // If there are no saved settings yet, this will return an error so we ignore the return value.
     let _ = store.reload();
@@ -33,6 +35,14 @@ pub async fn set_current_app_config(
     store.set("duplicates_path", app_settings.duplicates_path);
     store.set("notify_new_replays", app_settings.notify_new_replays);
     store.set("main_player_name", app_settings.main_player_name.trim());
+    store.set(
+        "remote_backend_url",
+        app_settings.remote_backend_url.trim().trim_end_matches('/'),
+    );
+    store.set(
+        "remote_backend_token",
+        app_settings.remote_backend_token.trim(),
+    );
     // The watcher follows the replay path and the watch setting.
     crate::replay_watcher::configure(&app_handle);
     Ok(())
@@ -41,6 +51,16 @@ pub async fn set_current_app_config(
 /// The stored settings and the stats of the snapshot, for the Config and Scan views.
 pub async fn load_app_settings(app_handle: tauri::AppHandle) -> Result<AppSettings, SwarmyError> {
     let mut settings = load_stored_app_settings(&app_handle)?;
+    if settings.is_remote() {
+        // The snapshot is the one of the remote backend.
+        settings.snapshot_stats = crate::remote::snapshot_stats(&settings)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::error!("Error getting the snapshot metadata of the backend: {err}");
+                SnapshotStats::default()
+            });
+        return Ok(settings);
+    }
     // if the ipc directory exists do basic scan.
     let ipc_path = std::path::Path::new(&settings.replay_path).join(IPC_DIR);
     if ipc_path.exists() && ipc_path.is_dir() {
@@ -62,92 +82,48 @@ pub async fn load_app_settings(app_handle: tauri::AppHandle) -> Result<AppSettin
 
 /// The stored settings only, without scanning the snapshot, for the commands that only need
 /// the paths. The `snapshot_stats` are left empty.
-pub fn load_stored_app_settings(app_handle: &tauri::AppHandle) -> Result<AppSettings, SwarmyError> {
-    let store = StoreBuilder::new(app_handle, "settings.json").build()?;
+pub fn load_stored_app_settings(host: &dyn SwarmyHost) -> Result<AppSettings, SwarmyError> {
+    Ok(app_settings_from_store(&host.read_store()?))
+}
 
-    // If there are no saved settings yet, this will return an error so we ignore the return value.
-    let _ = store.reload();
-    let disable_parallelism = store
-        .get("disable_parallelism")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    let replay_path = store
-        .get("replay_path")
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .filter(|path| !path.is_empty())
-        .unwrap_or_else(default_replay_path)
-        .trim_end_matches('/')
-        .to_string();
-
-    let cache_path = store
-        .get("cache_path")
-        .and_then(|v| v.as_str().map(|s| s.to_string()))
-        .filter(|path| !path.is_empty())
-        .unwrap_or_else(default_cache_path)
-        .trim_end_matches('/')
-        .to_string();
-
-    let scan_max_files = store
-        .get("scan_max_files")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(DEFAULT_SCAN_MAX_FILES);
-
-    let process_max_files = store
-        .get("process_max_files")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(DEFAULT_PROCESS_MAX_FILES);
-
-    let traverse_max_depth = store
-        .get("traverse_max_depth")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(DEFAULT_TRAVERSE_MAX_DEPTH);
-
-    let min_version = store
-        .get("min_version")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(DEFAULT_MIN_VERSION);
-
-    let max_version = store
-        .get("max_version")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(DEFAULT_MAX_VERSION);
-
-    let watch_new_replays = store
-        .get("watch_new_replays")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    let notify_new_replays = store
-        .get("notify_new_replays")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    let main_player_name = store
-        .get("main_player_name")
-        .and_then(|v| v.as_str().map(|s| s.trim().to_string()))
-        .unwrap_or_default();
-
-    let duplicates_path = store
-        .get("duplicates_path")
-        .and_then(|v| v.as_str().map(|s| s.trim_end_matches('/').to_string()))
-        .unwrap_or_default();
-
-    Ok(AppSettings {
-        replay_path,
-        cache_path,
+/// The settings of the values of the settings store, the defaults for the missing ones.
+pub fn app_settings_from_store(store: &Map<String, Value>) -> AppSettings {
+    let bool_of = |key: &str| store.get(key).and_then(|v| v.as_bool()).unwrap_or(false);
+    let i64_of =
+        |key: &str, default: i64| store.get(key).and_then(|v| v.as_i64()).unwrap_or(default);
+    let str_of = |key: &str| {
+        store
+            .get(key)
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default()
+    };
+    let path_of = |key: &str, default: fn() -> String| {
+        Some(str_of(key))
+            .filter(|path| !path.is_empty())
+            .unwrap_or_else(default)
+            .trim_end_matches('/')
+            .to_string()
+    };
+    AppSettings {
+        replay_path: path_of("replay_path", default_replay_path),
+        cache_path: path_of("cache_path", default_cache_path),
         snapshot_stats: SnapshotStats::default(),
-        disable_parallelism,
-        scan_max_files,
-        process_max_files,
-        traverse_max_depth,
-        min_version,
-        max_version,
-        watch_new_replays,
-        duplicates_path,
-        notify_new_replays,
-        main_player_name,
-    })
+        disable_parallelism: bool_of("disable_parallelism"),
+        scan_max_files: i64_of("scan_max_files", DEFAULT_SCAN_MAX_FILES),
+        process_max_files: i64_of("process_max_files", DEFAULT_PROCESS_MAX_FILES),
+        traverse_max_depth: i64_of("traverse_max_depth", DEFAULT_TRAVERSE_MAX_DEPTH),
+        min_version: i64_of("min_version", DEFAULT_MIN_VERSION),
+        max_version: i64_of("max_version", DEFAULT_MAX_VERSION),
+        watch_new_replays: bool_of("watch_new_replays"),
+        duplicates_path: str_of("duplicates_path").trim_end_matches('/').to_string(),
+        notify_new_replays: bool_of("notify_new_replays"),
+        main_player_name: str_of("main_player_name"),
+        remote_backend_url: str_of("remote_backend_url")
+            .trim_end_matches('/')
+            .to_string(),
+        remote_backend_token: str_of("remote_backend_token"),
+    }
 }
 
 /// The directory of the map caches until one is configured: `swarmy-caches` in the home
@@ -190,14 +166,18 @@ pub fn default_replay_path() -> String {
 /// The versions of swarmy and the libraries it is built with, see build.rs.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn get_app_versions() -> Result<ApiResponse, SwarmyError> {
-    let versions = AppVersions {
+    Ok(ApiResponseBuilder::new().process_result(Ok(app_versions())))
+}
+
+/// The versions of swarmy and the libraries it is built with, see build.rs.
+pub fn app_versions() -> AppVersions {
+    AppVersions {
         swarmy: env!("CARGO_PKG_VERSION").to_string(),
         s2protocol: env!("SWARMY_S2PROTOCOL_VERSION").to_string(),
         rerun: env!("SWARMY_RERUN_VERSION").to_string(),
         polars: env!("SWARMY_POLARS_VERSION").to_string(),
         tauri: env!("SWARMY_TAURI_VERSION").to_string(),
-    };
-    Ok(ApiResponseBuilder::new().process_result(Ok(versions)))
+    }
 }
 
 /// The links the frontend may open, the trailing slash keeps the host fixed to github.com.

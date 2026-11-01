@@ -49,6 +49,61 @@ does not print to the console, run it from PowerShell and read the log file:
 `& "$env:LOCALAPPDATA\swarmy\swarmy.exe" -vv` for the `-setup.exe` installer, or
 `& "C:\Program Files\swarmy\swarmy.exe" -vv` for the `.msi`.
 
+## Remote backend
+
+A computer that cannot handle the snapshot, i.e. a laptop with the 36k replays of aiarena, can use
+the swarmy of another computer as its backend. There, swarmy runs without a window:
+
+```bash
+# The Replay Path, Map Caches Path, notes and goals of the swarmy app of this computer.
+swarmy --serve 0.0.0.0:7878
+# Only the requests with the token, a settings directory of its own:
+SWARMY_SERVER_TOKEN=... swarmy --serve 0.0.0.0:7878 --data-dir ~/swarmy-server
+```
+
+On Linux the .deb, .rpm and Arch packages (`packaging/arch/PKGBUILD`, from the .deb) have it as
+a systemd user service, it listens on localhost only until `~/.config/swarmy/server.env` says
+otherwise:
+
+```bash
+mkdir -p ~/.config/swarmy
+cat > ~/.config/swarmy/server.env <<EOF
+SWARMY_SERVE_ADDRESS=0.0.0.0:7878
+SWARMY_SERVER_TOKEN=$(openssl rand -hex 16)
+# The settings and personal database, the ones of the swarmy app by default:
+#SWARMY_SERVER_DATA_DIR=$HOME/swarmy-server
+EOF
+systemctl --user daemon-reload   # once after installing the package
+systemctl --user enable --now swarmy-server
+loginctl enable-linger   # starts it on boot instead of on login
+journalctl --user -u swarmy-server -f
+```
+
+It runs with a lower priority (`nice` 10, idle I/O) so that the games and the desktop of that
+computer go first. With the AppImage or a build of your own, copy
+`packaging/linux/swarmy-server.service` to `~/.config/systemd/user/` and point `ExecStart` to the
+binary, i.e. with a drop-in `~/.config/systemd/user/swarmy-server.service.d/override.conf`:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=%h/Applications/swarmy.AppImage --serve ${SWARMY_SERVE_ADDRESS}
+```
+
+In the Config of the laptop, Remote Backend is its URL, i.e. `http://wormgat-zt:7878`, and Remote
+Backend Token its token. Check the Remote Backend tells whether it answers, and its version: both
+should be the same version of swarmy. Scan, Optimize and every query of the snapshot then run in
+the backend, with its snapshot, its notes and tags and its progress goals, the progress of
+Optimize is shown as usual. Leave Remote Backend empty to run everything in the laptop again.
+
+The rest runs in the laptop: Config itself, the folder dialogs, the new replays watcher, the Patch
+views and the Rerun and swarmy-bevy viewers. The viewers open the replays and map caches at the
+paths of the backend, they only work when the laptop has them at the same paths.
+
+The backend is plain HTTP, keep it in a private network such as ZeroTier, or behind a proxy with
+TLS. The desktop app and `--serve` can run at the same time in the same computer, they share the
+personal database.
+
 ## Building from the sources
 
 See [Development](Development.md).

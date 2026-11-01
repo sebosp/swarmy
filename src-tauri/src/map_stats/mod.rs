@@ -1,16 +1,14 @@
-use crate::SetupState;
+use crate::host::SwarmyHost;
 pub mod data;
 use crate::majordomo::AsyncTask;
 use swarmy_common::*;
-use tauri::State;
 
-#[tauri::command(rename_all = "snake_case")]
 pub async fn query_map_stats(
-    state: State<'_, SetupState>,
+    host: &dyn SwarmyHost,
     map_title: String,
     player_name: String,
 ) -> Result<ApiResponse, SwarmyError> {
-    let mdp_tx = state.majordomo_tx.clone();
+    let mdp_tx = host.majordomo();
     let res = ApiResponseBuilder::new();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
 

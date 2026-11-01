@@ -1,8 +1,9 @@
 //! A Tokio MPSC Majorodomo inspeired by ZMQ.
 
+use crate::host::SwarmyHost;
 use s2protocol::dir_stats::SC2ReplaysDirStats;
+use std::sync::Arc;
 use swarmy_common::{ApiResponse, ApiResponseBuilder, MapStatsQuery, SwarmyError};
-use tauri::AppHandle;
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 use tracing::{info, instrument};
@@ -16,18 +17,15 @@ pub use swarmy_common::AsyncTask;
 #[derive(Debug)]
 pub struct MajordomoCoordinator {
     rx: mpsc::Receiver<AsyncTask>,
-    app_handle: AppHandle,
+    host: Arc<dyn SwarmyHost>,
 }
 impl MajordomoCoordinator {
     /// Creates a new instance of the MajordomoCoordinator
     pub async fn new(
         main_rx: mpsc::Receiver<AsyncTask>,
-        app: AppHandle,
+        host: Arc<dyn SwarmyHost>,
     ) -> Result<Self, SwarmyError> {
-        Ok(MajordomoCoordinator {
-            rx: main_rx,
-            app_handle: app,
-        })
+        Ok(MajordomoCoordinator { rx: main_rx, host })
     }
 
     #[instrument(level = "info", skip(self))]
@@ -65,7 +63,7 @@ impl MajordomoCoordinator {
 
     pub fn init_coordinator_thread(
         main_rx: mpsc::Receiver<AsyncTask>,
-        app: AppHandle,
+        host: Arc<dyn SwarmyHost>,
     ) -> Result<std::thread::JoinHandle<()>, SwarmyError> {
         tracing::info!("init_coordinator_thread: Starting Majordomo Coordinator thread");
         let current_tokio_handle = Handle::current();
@@ -73,7 +71,7 @@ impl MajordomoCoordinator {
             .name("Majordomo Coordinator I/O".to_owned())
             .spawn(move || {
                 current_tokio_handle.spawn(async move {
-                    let mut majordomo_coordinator = Self::new(main_rx, app)
+                    let mut majordomo_coordinator = Self::new(main_rx, host)
                         .await
                         .expect("Unable to create Majordomo Coordinator");
                     majordomo_coordinator
@@ -97,12 +95,11 @@ impl MajordomoCoordinator {
         res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
     ) {
         tracing::info!("spawn_try_basic_scan_replay_path: Spawning task to scan replays directory");
-        let app_handle_clone = self.app_handle.clone();
+        let host = self.host.clone();
         let current_tokio_handle = Handle::current();
         current_tokio_handle.spawn(async move {
             let res = ApiResponseBuilder::new();
-            let app_settings =
-                crate::settings::load_stored_app_settings(&app_handle_clone).unwrap();
+            let app_settings = crate::settings::load_stored_app_settings(host.as_ref()).unwrap();
             let replay_path = app_settings.replay_path.clone();
             let disable_parallelism = app_settings.disable_parallelism;
 
@@ -127,11 +124,11 @@ impl MajordomoCoordinator {
         recreate: bool,
         res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
     ) {
-        let app_handle_clone = self.app_handle.clone();
+        let host = self.host.clone();
         let current_tokio_handle = Handle::current();
         current_tokio_handle.spawn(async move {
             let res = ApiResponseBuilder::new();
-            let snapshot_stats = try_optimize_replay_path(app_handle_clone, recreate).await;
+            let snapshot_stats = try_optimize_replay_path(host, recreate).await;
             res_tx
                 .send(res.process_result(snapshot_stats))
                 .expect("Failed to send response");
@@ -150,7 +147,7 @@ impl MajordomoCoordinator {
             player_name,
         };
         let current_tokio_handle = Handle::current();
-        let app_config = match crate::settings::load_stored_app_settings(&self.app_handle) {
+        let app_config = match crate::settings::load_stored_app_settings(self.host.as_ref()) {
             Ok(config) => config,
             Err(e) => {
                 res_tx
@@ -177,7 +174,7 @@ impl MajordomoCoordinator {
         res_tx: tokio::sync::oneshot::Sender<ApiResponse>,
     ) {
         let res = ApiResponseBuilder::new();
-        let app_config = match crate::settings::load_stored_app_settings(&self.app_handle) {
+        let app_config = match crate::settings::load_stored_app_settings(self.host.as_ref()) {
             Ok(config) => config,
             Err(e) => {
                 res_tx

@@ -5,6 +5,18 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-11-01",
+        &[
+            "s2protocol 5.0.0: the replay types are read with the new serde_mpq derives, checked against Blizzard's definitions. The selection masks of more than 8 units that did not start at a byte boundary were applied to the wrong units, the unit tracking of the game events is more accurate; the clan tag of the players without one is empty instead of a NUL character; the sequence of the command manager events and a few rarely used text fields (bank, save game, cutscene events) are read correctly. Optimize parses the replays again.",
+        ],
+    ),
+    (
+        "2026-10-31",
+        &[
+            "Remote backend: swarmy --serve 0.0.0.0:7878 runs without a window as the backend of other swarmy apps, i.e. a laptop that cannot handle a large snapshot sets its URL as Remote Backend in Config. Scan, Optimize (with its progress) and the queries of the snapshot then run in the backend, with its snapshot, notes and goals. Check the Remote Backend in Config tells whether it answers and its version.",
+        ],
+    ),
+    (
         "2026-10-30",
         &[
             "s2protocol 4.1.0: the commands of the 5.0 patches without balance data (92% of the games of a large snapshot) and of 4.10 (AI Arena) are named, the abilities, injects and chrono boosts of these games are counted. The seconds are at the Faster speed, the snapshot is about ten times smaller (zstd), the replays that could not be read before are read. Optimize parses the replays again.",

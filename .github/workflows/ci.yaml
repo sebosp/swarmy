@@ -22,8 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@nightly
+      # The nightly of rust-toolchain.toml, the latest ones do not compile zbus.
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2026-10-29
           components: rustfmt
 
       - name: Check formatting
@@ -36,8 +38,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2026-10-29
           targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2

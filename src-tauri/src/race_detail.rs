@@ -3,6 +3,7 @@
 
 use crate::ability_usage::ability_usage_cached;
 use crate::data::*;
+use crate::host::SwarmyHost;
 use crate::patch_overview::data::race_name;
 use crate::patch_overview::unit_stats::unit_variants;
 use crate::replay_rerun::decisions::{army_supply, base_unit_name, has_cost, latest_balance_units};
@@ -293,12 +294,11 @@ pub fn try_query_race_detail(replay_path: String, race: String) -> Result<RaceDe
     })
 }
 
-#[tauri::command(rename_all = "snake_case")]
 pub async fn query_race_detail(
-    app_handle: tauri::AppHandle,
+    host: &dyn SwarmyHost,
     race: String,
 ) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+    let app_config = load_stored_app_settings(host)?;
     run_query(move || {
         ApiResponseBuilder::new()
             .process_result(try_query_race_detail(app_config.replay_path, race))

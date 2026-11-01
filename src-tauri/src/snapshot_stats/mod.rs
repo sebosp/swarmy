@@ -1,15 +1,11 @@
 //! Provides information about the analyzed game collection.
 use crate::data::scan_snapshot_ipc;
-use crate::SetupState;
+use crate::host::SwarmyHost;
 use polars::prelude::*;
 use swarmy_common::*;
-use tauri::State;
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn get_snapshot_metadata(
-    state: State<'_, SetupState>,
-) -> Result<ApiResponse, SwarmyError> {
-    let mdp_tx = state.majordomo_tx.clone();
+pub async fn get_snapshot_metadata(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let mdp_tx = host.majordomo();
     let res = ApiResponseBuilder::new();
     let (res_tx, res_rx) = tokio::sync::oneshot::channel();
 

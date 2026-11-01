@@ -3,6 +3,7 @@
 //! directories they were found in. Nothing is deleted.
 
 use crate::data::*;
+use crate::host::SwarmyHost;
 use crate::settings::load_stored_app_settings;
 use polars::prelude::*;
 use rayon::prelude::*;
@@ -131,22 +132,16 @@ pub fn move_duplicates(replay_path: &str, folder: &str) -> Result<usize, SwarmyE
     Ok(moved)
 }
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn find_duplicate_replays(
-    app_handle: tauri::AppHandle,
-) -> Result<ApiResponse, SwarmyError> {
-    let settings = load_stored_app_settings(&app_handle)?;
+pub async fn find_duplicate_replays(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let settings = load_stored_app_settings(host)?;
     crate::run_query(move || {
         ApiResponseBuilder::new().process_result(find_duplicates(&settings.replay_path))
     })
     .await
 }
 
-#[tauri::command(rename_all = "snake_case")]
-pub async fn move_duplicate_replays(
-    app_handle: tauri::AppHandle,
-) -> Result<ApiResponse, SwarmyError> {
-    let settings = load_stored_app_settings(&app_handle)?;
+pub async fn move_duplicate_replays(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let settings = load_stored_app_settings(host)?;
     let replay_path = settings.replay_path.clone();
     let response = crate::run_query(move || {
         ApiResponseBuilder::new().process_result(move_duplicates(
@@ -157,7 +152,7 @@ pub async fn move_duplicate_replays(
     .await;
     // The moved replays are no longer skipped by Optimize nor new.
     crate::replay_watcher::record_skipped_replays(&replay_path);
-    crate::replay_watcher::refresh(&app_handle);
+    host.replays_changed();
     response
 }
 

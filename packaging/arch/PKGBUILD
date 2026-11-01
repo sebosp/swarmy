@@ -1,0 +1,31 @@
+# Maintainer: Seb Ospina <kraige@gmail.com>
+#
+# swarmy from the .deb of its GitHub release, with the swarmy-bevy and rerun-cli sidecars and the
+# swarmy-server user service of the remote backend (docs/Installation.md#remote-backend).
+#
+#   makepkg -si
+#
+# For a new release: update pkgver and the sha256sums, the digests of the release assets:
+#   gh release view v<pkgver> -R sebosp/swarmy --json assets --jq '.assets[] | "\(.name) \(.digest)"'
+pkgname=swarmy-bin
+pkgver=0.2.1
+pkgrel=1
+pkgdesc="StarCraft II replay collection analyser and visualizer"
+arch=('x86_64' 'aarch64')
+url="https://github.com/sebosp/swarmy"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
+optdepends=('vulkan-icd-loader: swarmy-bevy and the Rerun viewer')
+provides=('swarmy')
+conflicts=('swarmy')
+options=('!strip' '!debug')
+# The .deb has the swarmy-server user service since the first release after 0.2.1, the one of
+# `swarmy --serve`.
+source_x86_64=("${url}/releases/download/v${pkgver}/swarmy_${pkgver}_amd64.deb")
+source_aarch64=("${url}/releases/download/v${pkgver}/swarmy_${pkgver}_arm64.deb")
+sha256sums_x86_64=('1863b5072c19771a2305a248c80fc1605b77be48c31d75fb78ecb5440c6363d1')
+sha256sums_aarch64=('2f7ef55e0605b56cf68dace7fe1b158c79fc330b70d60ceb2d3db925e4998f1a')
+
+package() {
+  bsdtar -xf data.tar.* -C "${pkgdir}"
+}

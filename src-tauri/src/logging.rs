@@ -13,7 +13,7 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 /// The identifier of tauri.conf.json, the directories of the app are named after it.
-const APP_IDENTIFIER: &str = "com.swarmy";
+pub const APP_IDENTIFIER: &str = "com.swarmy";
 
 /// The environment variable with the log filter, it takes precedence over `-v`.
 pub const LOG_ENV: &str = "SWARMY_LOG";
@@ -47,6 +47,28 @@ pub struct Args {
     /// More logs: -v info, -vv debug and the time each step takes, -vvv trace (s2protocol stays at warn).
     #[arg(short, long, action = clap::ArgAction::Count)]
     pub verbose: u8,
+    /// Runs without a window as the remote backend of other swarmy apps, listening on the
+    /// address, i.e. 0.0.0.0:7878. Their Config has its URL as Remote Backend. The snapshot is the
+    /// one of the Replay Path of the Config of swarmy in this computer.
+    #[arg(long, value_name = "ADDRESS")]
+    pub serve: Option<std::net::SocketAddr>,
+    /// With --serve, the directory of the settings and of the personal database, the one of the
+    /// swarmy app by default.
+    #[arg(
+        long,
+        value_name = "DIRECTORY",
+        env = "SWARMY_SERVER_DATA_DIR",
+        requires = "serve"
+    )]
+    pub data_dir: Option<PathBuf>,
+    /// With --serve, the token the requests need, the Remote Backend Token of their Config.
+    #[arg(
+        long,
+        env = "SWARMY_SERVER_TOKEN",
+        hide_env_values = true,
+        requires = "serve"
+    )]
+    pub token: Option<String>,
 }
 
 /// The directory of the log files.

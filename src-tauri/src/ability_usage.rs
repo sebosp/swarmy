@@ -6,6 +6,7 @@
 //! can be cancelled before the High Templar is in range.
 
 use crate::data::*;
+use crate::host::SwarmyHost;
 use crate::replay_rerun::decisions::closest_balance_version;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
@@ -376,9 +377,8 @@ pub fn try_query_ability_usage(replay_path: String) -> Result<AbilityUsageTable,
 }
 
 /// The use of the tracked abilities in the games of each patch of the snapshot.
-#[tauri::command(rename_all = "snake_case")]
-pub async fn query_ability_usage(app_handle: tauri::AppHandle) -> Result<ApiResponse, SwarmyError> {
-    let app_config = load_stored_app_settings(&app_handle)?;
+pub async fn query_ability_usage(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(host)?;
     run_query(move || {
         ApiResponseBuilder::new().process_result(try_query_ability_usage(app_config.replay_path))
     })
