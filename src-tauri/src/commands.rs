@@ -17,6 +17,11 @@ macro_rules! backend_commands {
                 app_handle: tauri::AppHandle,
                 $($arg: $ty),*
             ) -> Result<ApiResponse, SwarmyError> {
+                if let Some(unavailable) =
+                    crate::snapshot_stats::snapshot_unavailable(&app_handle, stringify!($name))?
+                {
+                    return Ok(unavailable);
+                }
                 crate::$module::$name(&app_handle $(, $arg)*).await
             }
         )*
@@ -42,6 +47,11 @@ macro_rules! backend_commands {
                         $($arg: $ty),*
                     }
                     let Args { $($arg),* } = serde_json::from_value(args)?;
+                    if let Some(unavailable) =
+                        crate::snapshot_stats::snapshot_unavailable(host, stringify!($name))?
+                    {
+                        return Ok(unavailable);
+                    }
                     crate::$module::$name(host $(, $arg)*).await
                 })*
                 _ => Err(SwarmyError::Other(format!("Unknown command {command}"))),

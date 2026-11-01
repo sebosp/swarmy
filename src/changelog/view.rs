@@ -7,6 +7,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
     (
         "2026-11-01",
         &[
+            "Snapshot state: while Optimize creates the snapshot, here or in the remote backend, the views answer that the snapshot is being created instead of failing on the files being written; a snapshot whose creation was interrupted (the app was closed, the backend stopped) is reported as incomplete in Scan, with the hint to Rebuild it (s2protocol 5.0.1 keeps a locked in_progress.json in the snapshot while it writes it). Only one Optimize of a snapshot runs at a time.",
             "s2protocol 5.0.0: the replay types are read with the new serde_mpq derives, checked against Blizzard's definitions. The selection masks of more than 8 units that did not start at a byte boundary were applied to the wrong units, the unit tracking of the game events is more accurate; the clan tag of the players without one is empty instead of a NUL character; the sequence of the command manager events and a few rarely used text fields (bank, save game, cutscene events) are read correctly. Optimize parses the replays again.",
         ],
     ),

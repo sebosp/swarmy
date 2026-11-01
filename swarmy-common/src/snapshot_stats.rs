@@ -32,6 +32,18 @@ pub struct SnapshotStats {
     /// The replays added by the last Optimize, the others were already in the snapshot.
     #[serde(default)]
     pub added_replays: usize,
+    /// Whether the snapshot is `ready`, `missing`, `in_progress` (being created, by this swarmy or
+    /// another one) or `interrupted` (the application was closed before Optimize finished), see
+    /// `s2protocol::snapshot::snapshot_state`.
+    #[serde(default = "default_snapshot_state")]
+    pub snapshot_state: String,
+    /// What the user should know about the state, None when the snapshot is ready.
+    #[serde(default)]
+    pub snapshot_message: Option<String>,
+}
+
+fn default_snapshot_state() -> String {
+    "missing".to_string()
 }
 
 impl Default for SnapshotStats {
@@ -49,6 +61,8 @@ impl Default for SnapshotStats {
             is_compatible: false,
             partitions: 0,
             added_replays: 0,
+            snapshot_state: default_snapshot_state(),
+            snapshot_message: None,
         }
     }
 }

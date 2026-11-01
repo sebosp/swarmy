@@ -136,9 +136,29 @@ pub fn ArrowIpcStats(snapshot_stats: ReadSignal<SnapshotStats>) -> impl IntoView
                 format!("Not compatible with s2protocol {S2PROTOCOL_VERSION}, run Optimize again")
             }
         });
+    let state_message = snapshot_stats.get().snapshot_message;
+    let has_state_message = state_message.is_some();
+    let state_kind = snapshot_stats.get().snapshot_state;
+    let state_class = match state_kind.as_str() {
+        "in_progress" => {
+            "mx-2 mt-2 border-l-4 p-2 border-indigo-500 bg-indigo-500/10 text-sm text-indigo-200"
+        }
+        "interrupted" => {
+            "mx-2 mt-2 border-l-4 p-2 border-amber-500 bg-amber-500/10 text-sm text-amber-200"
+        }
+        _ => "mx-2 mt-2 border-l-4 p-2 border-gray-500 bg-gray-500/10 text-sm text-gray-300",
+    };
+    let state_hint = match state_kind.as_str() {
+        "in_progress" => " The views show this message until it finishes, the progress is below when it runs here.",
+        "interrupted" => " Rebuild deletes the snapshot and generates it again from all the replays, Optimize alone would keep the days already written.",
+        _ => "",
+    };
     view! {
         <div>
             <h3 class="text-base font-semibold text-white ml-2">Snapshot Statistics</h3>
+            <Show when=move || has_state_message>
+                <div class=state_class>{state_message.clone().unwrap_or_default()} {state_hint}</div>
+            </Show>
 
             <dl class="px-5 mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <StatDescriptionItem

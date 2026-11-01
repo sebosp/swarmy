@@ -17,6 +17,53 @@ pub async fn get_snapshot_metadata(host: &dyn SwarmyHost) -> Result<ApiResponse,
         .build())
 }
 
+/// The kind of a snapshot state, the `snapshot_state` of [`SnapshotStats`].
+pub fn snapshot_state_kind(state: &s2protocol::snapshot::SnapshotState) -> &'static str {
+    use s2protocol::snapshot::SnapshotState;
+    match state {
+        SnapshotState::Missing => "missing",
+        SnapshotState::InProgress(_) => "in_progress",
+        SnapshotState::Interrupted { .. } => "interrupted",
+        SnapshotState::Ready(_) => "ready",
+    }
+}
+
+/// The commands that work without the snapshot: Scan and Optimize themselves, the personal
+/// database and the replay files.
+const COMMANDS_WITHOUT_SNAPSHOT: [&str; 9] = [
+    "basic_scan_replay_path",
+    "optimize_replay_path",
+    "get_snapshot_metadata",
+    "get_replay_notes",
+    "set_replay_notes",
+    "list_replay_tags",
+    "find_duplicate_replays",
+    "move_duplicate_replays",
+    "set_progress_goals",
+];
+
+/// The answer of a snapshot query while there is no snapshot to query: being created (by this
+/// swarmy or another one, i.e. the app and the remote backend of the same computer), interrupted
+/// or missing. None when the snapshot is ready, or when the command does not need it.
+pub fn snapshot_unavailable(
+    host: &dyn SwarmyHost,
+    command: &str,
+) -> Result<Option<ApiResponse>, SwarmyError> {
+    if COMMANDS_WITHOUT_SNAPSHOT.contains(&command) {
+        return Ok(None);
+    }
+    let settings = crate::settings::load_stored_app_settings(host)?;
+    let root = std::path::Path::new(&settings.replay_path).join(IPC_DIR);
+    let state = s2protocol::snapshot::snapshot_state(&root);
+    Ok(state.message().map(|message| {
+        tracing::info!("{command} refused: {message}");
+        ApiResponseBuilder::new()
+            .with_failure()
+            .with_message(message)
+            .build()
+    }))
+}
+
 /// Gets the list of maps from the details.ipc file
 pub fn try_get_snapshot_metadata(
     replay_path: String,
@@ -27,7 +74,18 @@ pub fn try_get_snapshot_metadata(
     let ipc_path = format!("{}/{}", replay_path, IPC_DIR);
     tracing::info!("Getting snapshot metadata from: {}", ipc_path);
     let root = std::path::Path::new(&ipc_path);
-    let metadata = s2protocol::snapshot::SnapshotMetadata::read_from_dir(root).ok();
+    // Being created or interrupted: the files cannot be read, only the state is told.
+    let state = s2protocol::snapshot::snapshot_state(root);
+    let metadata = match state {
+        s2protocol::snapshot::SnapshotState::Ready(metadata) => Some(metadata),
+        other => {
+            return Ok(SnapshotStats {
+                snapshot_state: snapshot_state_kind(&other).to_string(),
+                snapshot_message: other.message(),
+                ..Default::default()
+            });
+        }
+    };
     // The metadata has the sizes of the files of all the day partitions.
     let ipc_dir_size = match &metadata {
         Some(metadata) => metadata.files.iter().map(|file| file.bytes).sum(),
@@ -96,6 +154,8 @@ pub fn try_get_snapshot_metadata(
         is_compatible: metadata
             .as_ref()
             .is_some_and(|metadata| metadata.is_compatible()),
+        snapshot_state: "ready".to_string(),
+        snapshot_message: None,
         partitions: metadata.as_ref().map_or(0, |metadata| metadata.partitions),
         added_replays: metadata.as_ref().map_or(0, |metadata| metadata.added),
         s2protocol_version: metadata.map(|metadata| metadata.s2protocol_version),
