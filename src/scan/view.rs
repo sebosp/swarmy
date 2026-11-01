@@ -57,7 +57,7 @@ pub fn ScanDirectory() -> impl IntoView {
                     {move || {
                         let settings = app_settings.get();
                         if settings.is_remote() {
-                            format!("Replay Path of {}", settings.remote_backend_url)
+                            format!("Replay Path on {}", remote_host(&settings.remote_backend_url))
                         } else {
                             "Replay Path".to_string()
                         }
@@ -69,22 +69,26 @@ pub fn ScanDirectory() -> impl IntoView {
                         if !replay_path.is_empty() {
                             replay_path
                         } else if app_settings.get().is_remote() {
-                            "Not told by the remote backend, swarmy 0.2.2 and older do not send it".to_string()
+                            "Unknown".to_string()
                         } else {
                             "Not set".to_string()
                         }
                     }}
                 </p>
+                <Show when=move || app_settings.get().is_remote()>
+                    <p class="text-xs text-muted">
+                        {move || {
+                            if app_settings.get().snapshot_replay_path().is_empty() {
+                                "The server runs an older swarmy that does not send its replay path, update it to 0.2.3 or later to see it here."
+                            } else {
+                                "Set in the Config of that computer, it cannot be changed from here."
+                            }
+                        }}
+                    </p>
+                </Show>
                 <a
                     href="#"
                     class="nav-link text-xs"
-                    title=move || {
-                        if app_settings.get().is_remote() {
-                            "The replay path, the map caches path and the other settings of the snapshot are in the Config of the computer of the remote backend, this Config only sets the backend"
-                        } else {
-                            "The replay path, the map caches path and the other settings are in Config"
-                        }
-                    }
                     on:click=move |ev: MouseEvent| {
                         ev.prevent_default();
                         navigation.active_page.set("Config".to_string());
@@ -92,7 +96,7 @@ pub fn ScanDirectory() -> impl IntoView {
                 >
                     {move || {
                         if app_settings.get().is_remote() {
-                            "Set on the remote backend, change the backend in Config"
+                            "Change the remote backend in Config"
                         } else {
                             "Change it in Config"
                         }
@@ -239,4 +243,12 @@ pub fn SnapshotStatusHeader(
             </div>
         </div>
     }
+}
+
+/// The host and port of a remote backend URL, i.e. `wormgat-zt:7878` of `http://wormgat-zt:7878`.
+fn remote_host(url: &str) -> &str {
+    let url = url.trim();
+    url.split_once("://")
+        .map_or(url, |(_, rest)| rest)
+        .trim_end_matches('/')
 }

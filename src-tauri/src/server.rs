@@ -16,7 +16,7 @@ use crate::host::{SwarmyHost, SETTINGS_STORE};
 use crate::majordomo::{AsyncTask, MajordomoCoordinator};
 use crate::settings::{app_versions, load_stored_app_settings};
 use axum::body::Bytes;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
@@ -172,6 +172,8 @@ async fn serve_on(
     let app = Router::new()
         .route("/api/version", get(version))
         .route("/api/events", get(stream_events))
+        .route("/api/files/caches/{cache_id}", get(map_cache_file))
+        .route("/api/files/replay", get(replay_file))
         .route("/api/{command}", post(run_command))
         .with_state(state);
     axum::serve(listener, app).await?;
@@ -183,6 +185,97 @@ async fn version(State(state): State<ServerState>, headers: HeaderMap) -> Respon
         return refused;
     }
     Json(app_versions()).into_response()
+}
+
+/// A map cache of the Map Caches Path of the server, for the swarmy-bevy of a client: only a
+/// cache id, the sha256 of the cache in hexadecimal, is accepted.
+async fn map_cache_file(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(cache_id): Path<String>,
+) -> Response {
+    if let Some(refused) = state.refuse_unauthorized(&headers) {
+        return refused;
+    }
+    if !is_cache_id(&cache_id) {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            format!("{cache_id} is not a cache id"),
+        );
+    }
+    let settings = match load_stored_app_settings(state.host.as_ref()) {
+        Ok(settings) => settings,
+        Err(err) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+    };
+    let file = PathBuf::from(&settings.cache_path).join(format!(
+        "{cache_id}.{}",
+        s2protocol::cache_handles::CACHE_MPQ_ARCHIVE_EXTENSION
+    ));
+    send_file(&file).await
+}
+
+/// The query of [`replay_file`].
+#[derive(serde::Deserialize)]
+struct ReplayFileQuery {
+    /// The path of the replay on the server, as in the snapshot.
+    path: String,
+}
+
+/// A replay of the Replay Path of the server, for the swarmy-bevy of a client: only the
+/// .SC2Replay files inside the Replay Path are sent.
+async fn replay_file(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<ReplayFileQuery>,
+) -> Response {
+    if let Some(refused) = state.refuse_unauthorized(&headers) {
+        return refused;
+    }
+    let settings = match load_stored_app_settings(state.host.as_ref()) {
+        Ok(settings) => settings,
+        Err(err) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+    };
+    match replay_inside(&settings.replay_path, &query.path) {
+        Some(file) => send_file(&file).await,
+        None => error_response(
+            StatusCode::FORBIDDEN,
+            format!(
+                "{} is not a replay of the Replay Path of the server",
+                query.path
+            ),
+        ),
+    }
+}
+
+/// Whether the name is a cache id: the sha256 of the cache, 64 hexadecimal digits.
+fn is_cache_id(name: &str) -> bool {
+    name.len() == 64 && name.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// The replay, once its links and `..` are resolved, when it is a .SC2Replay inside the replay
+/// path.
+fn replay_inside(replay_path: &str, replay: &str) -> Option<PathBuf> {
+    let root = std::fs::canonicalize(replay_path).ok()?;
+    let file = std::fs::canonicalize(replay).ok()?;
+    let is_replay = file
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("SC2Replay"));
+    (is_replay && file.starts_with(&root) && file.is_file()).then_some(file)
+}
+
+async fn send_file(file: &std::path::Path) -> Response {
+    match tokio::fs::read(file).await {
+        Ok(contents) => (
+            [(header::CONTENT_TYPE, "application/octet-stream")],
+            contents,
+        )
+            .into_response(),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => error_response(
+            StatusCode::NOT_FOUND,
+            format!("{} is not on the server", file.display()),
+        ),
+        Err(err) => error_response(StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+    }
 }
 
 async fn run_command(
@@ -253,6 +346,43 @@ async fn stream_events(State(state): State<ServerState>, headers: HeaderMap) -> 
 mod tests {
     use super::*;
     use swarmy_common::{AppSettings, ReplayNotes};
+
+    #[test]
+    fn it_accepts_only_cache_ids() {
+        assert!(is_cache_id(&"ab12".repeat(16)));
+        assert!(!is_cache_id("../settings.json"));
+        assert!(!is_cache_id(&"g".repeat(64)));
+        assert!(!is_cache_id(&"a".repeat(63)));
+    }
+
+    #[test]
+    fn it_sends_only_the_replays_of_the_replay_path() {
+        let root = std::env::temp_dir().join(format!("swarmy-replays-{}", std::process::id()));
+        let replays = root.join("replays");
+        std::fs::create_dir_all(replays.join("2026")).unwrap();
+        let replay = replays.join("2026").join("game.SC2Replay");
+        std::fs::write(&replay, b"replay").unwrap();
+        std::fs::write(root.join("outside.SC2Replay"), b"replay").unwrap();
+        std::fs::write(replays.join("settings.json"), b"{}").unwrap();
+        let replay_path = replays.display().to_string();
+        assert_eq!(
+            replay_inside(&replay_path, &replay.display().to_string()),
+            Some(std::fs::canonicalize(&replay).unwrap())
+        );
+        // Outside of the replay path, also through `..`.
+        let outside = replays.join("..").join("outside.SC2Replay");
+        assert_eq!(
+            replay_inside(&replay_path, &outside.display().to_string()),
+            None
+        );
+        // Not a replay.
+        let settings = replays.join("settings.json");
+        assert_eq!(
+            replay_inside(&replay_path, &settings.display().to_string()),
+            None
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[tokio::test]
     async fn it_runs_the_commands_of_the_remote_backend() {
