@@ -20,13 +20,23 @@
   const chartInstances = new Map();
   const chartMetadata = new Map();
 
-  // Swarmy is dark only, the colors match the tailwind gray palette.
-  const THEME = {
-    mode: "dark",
-    foreground: "#d1d5db",
-    muted: "#9ca3af",
-    grid: "#374151",
-    palette: ["#6366f1", "#22c55e", "#0ea5e9", "#eab308", "#a855f7"],
+  // The colors of the theme picked in Config, the --chart-* variables of styles.css: read when a
+  // chart renders, the charts render again when the theme changes.
+  const cssVar = (name, fallback) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  };
+  const theme = () => ({
+    mode: cssVar("color-scheme", "dark") === "light" ? "light" : "dark",
+    foreground: cssVar("--chart-fg", "#d1d5db"),
+    muted: cssVar("--chart-muted", "#9ca3af"),
+    grid: cssVar("--chart-grid", "#374151"),
+    palette: [1, 2, 3, 4, 5, 6, 7, 8].map((idx) => cssVar(`--chart-${idx}`, "#6366f1")),
+  });
+  // A `var(--chart-N)` given as a series color, ApexCharts needs the computed color.
+  const resolveColor = (color) => {
+    const match = /^var\((--[\w-]+)\)$/.exec(String(color).trim());
+    return match ? cssVar(match[1], "#6366f1") : color;
   };
 
   const parse = (value, fallback) => {
@@ -51,7 +61,7 @@
   function commonOptions(container, type) {
     const { series, showLegend } = chartSeries(container);
     const labels = parse(container.dataset.chartLabels, []);
-    const colors = parse(container.dataset.chartColors, null) || THEME.palette;
+    const colors = (parse(container.dataset.chartColors, null) || theme().palette).map(resolveColor);
     const tooltips = parse(container.dataset.chartTooltips, null);
     const suffix = container.dataset.chartValueSuffix || "";
     const yMax = container.dataset.chartYMax ? Number(container.dataset.chartYMax) : undefined;
@@ -68,7 +78,7 @@
         animations: { enabled: true, speed: 400 },
         parentHeightOffset: 0,
       },
-      theme: { mode: THEME.mode },
+      theme: { mode: theme().mode },
       colors,
       dataLabels: { enabled: false },
       legend: {
@@ -77,14 +87,14 @@
         horizontalAlign: "left",
         fontSize: "11px",
         fontFamily: "inherit",
-        labels: { colors: THEME.foreground },
+        labels: { colors: theme().foreground },
         markers: { size: 4 },
         itemMargin: { horizontal: 8 },
       },
       xaxis: {
         categories: labels,
-        labels: { style: { colors: THEME.muted, fontSize: "10px" }, hideOverlappingLabels: true, rotate: 0 },
-        axisBorder: { color: THEME.grid },
+        labels: { style: { colors: theme().muted, fontSize: "10px" }, hideOverlappingLabels: true, rotate: 0 },
+        axisBorder: { color: theme().grid },
         axisTicks: { show: false },
         tickAmount: labels.length > 24 ? 12 : undefined,
       },
@@ -92,11 +102,11 @@
         max: yMax,
         min: 0,
         forceNiceScale: true,
-        labels: { style: { colors: THEME.muted, fontSize: "10px" }, formatter: (value) => `${Math.round(value)}${suffix}` },
+        labels: { style: { colors: theme().muted, fontSize: "10px" }, formatter: (value) => `${Math.round(value)}${suffix}` },
       },
-      grid: { borderColor: THEME.grid, strokeDashArray: 2, padding: { top: -10, bottom: 0 } },
+      grid: { borderColor: theme().grid, strokeDashArray: 2, padding: { top: -10, bottom: 0 } },
       tooltip: {
-        theme: THEME.mode,
+        theme: theme().mode,
         shared: true,
         intersect: false,
         custom: tooltips
@@ -194,6 +204,17 @@
   } else {
     startObserver();
   }
+
+  // The theme changed, in Config or in the system: the charts take its colors.
+  const rerender = () => {
+    chartMetadata.clear();
+    checkAndInitCharts();
+  };
+  new MutationObserver(rerender).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender);
 
   let resizeTimeout;
   window.addEventListener("resize", () => {

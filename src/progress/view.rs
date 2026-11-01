@@ -12,7 +12,7 @@ use leptos::task::spawn_local;
 use std::collections::BTreeMap;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
 
 /// The games averaged by the rolling average of the charts.
 const ROLLING_GAMES: usize = 10;
@@ -94,7 +94,7 @@ pub fn ProgressView() -> impl IntoView {
     };
     view! {
         <div class="p-2 space-y-3">
-            <h1 class="text-xl font-semibold text-white">"Progress"</h1>
+            <h1 class="text-xl font-semibold text-base-content">"Progress"</h1>
             <Show when=move || loading.get()>
                 <Loading message="Reading your games..." />
             </Show>
@@ -105,7 +105,7 @@ pub fn ProgressView() -> impl IntoView {
                     .map(|report| {
                         if report.player.is_empty() {
                             return view! {
-                                <p class="text-sm text-gray-300">
+                                <p class="text-sm text-base-content/80">
                                     "Set your name in "
                                     <a
                                         href="#"
@@ -125,13 +125,13 @@ pub fn ProgressView() -> impl IntoView {
                         let player = report.player.clone();
                         let all_games = report.games.clone();
                         view! {
-                            <p class="text-xs text-gray-400">
+                            <p class="text-xs text-base-content/60">
                                 {format!(
                                     "The last {} games of {player} in the snapshot, the oldest on the left. Set a goal for each number and work on one at a time.",
                                     all_games.len(),
                                 )}
                             </p>
-                            <div class="flex items-center gap-2 text-xs text-gray-300">
+                            <div class="flex items-center gap-2 text-xs text-base-content/80">
                                 "Opponents"
                                 <select
                                     class="select select-xs"
@@ -152,7 +152,7 @@ pub fn ProgressView() -> impl IntoView {
                                 </select>
                                 <button class="btn btn-primary btn-xs" on:click=save_goals>
                                     "Save goals"
-                                </button> <span class="text-gray-500">{move || saved.get()}</span>
+                                </button> <span class="text-base-content/45">{move || saved.get()}</span>
                             </div>
                             {move || {
                                 let filter = opponents.get();
@@ -166,7 +166,7 @@ pub fn ProgressView() -> impl IntoView {
                                 view! {
                                     <table class=TABLE_CLASS>
                                         <thead>
-                                            <tr class="text-left text-gray-300">
+                                            <tr class="text-left text-base-content/80">
                                                 <th class="pr-2"></th>
                                                 <th class="pr-2">"Goal"</th>
                                                 <th class="pr-2">
@@ -300,8 +300,8 @@ fn MetricChart(
         data = data.with_optional_series("Goal", vec![Some(goal); games.len()]);
     }
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40 p-2">
-            <h3 class="text-sm font-semibold text-white" title=metric.description>
+        <div class="rounded-md border border-base-content/15 bg-base-200/40 p-2">
+            <h3 class="text-sm font-semibold text-base-content" title=metric.description>
                 {metric.label}
                 {metric.lower_is_better.then_some(" (lower is better)")}
             </h3>
@@ -313,10 +313,10 @@ fn MetricChart(
 #[component]
 fn GamesTable(games: Vec<ProgressGame>) -> impl IntoView {
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40 scroll-section max-h-96 p-2">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40 scroll-section max-h-96 p-2">
             <table class=TABLE_CLASS>
-                <thead class="sticky top-0 bg-gray-800">
-                    <tr class="text-left text-gray-300">
+                <thead class="sticky top-0 bg-base-200">
+                    <tr class="text-left text-base-content/80">
                         <th class="pr-2">"Date"</th>
                         <th class="pr-2">"Map"</th>
                         <th class="pr-2">"Opponents"</th>

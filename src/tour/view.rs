@@ -137,8 +137,8 @@ pub fn TourView() -> impl IntoView {
     let last = STEPS.len() - 1;
     view! {
         <div class="max-w-3xl p-4 space-y-4">
-            <h1 class="text-2xl font-semibold text-white">"Tour of swarmy"</h1>
-            <p class="text-sm text-gray-400">
+            <h1 class="text-2xl font-semibold text-base-content">"Tour of swarmy"</h1>
+            <p class="text-sm text-base-content/60">
                 "The steps to set swarmy up and what each view is for. Open the view of a step, then come back to the Tour from the sidebar to continue."
             </p>
             <ol class="flex flex-wrap gap-1">
@@ -162,11 +162,11 @@ pub fn TourView() -> impl IntoView {
                 let current = &STEPS[step.get()];
                 let page = current.page;
                 view! {
-                    <div class="rounded-md border border-white/15 bg-gray-800/40 p-4 space-y-3">
-                        <h2 class="text-lg font-semibold text-white">
+                    <div class="rounded-md border border-base-content/15 bg-base-200/40 p-4 space-y-3">
+                        <h2 class="text-lg font-semibold text-base-content">
                             {format!("{}. {}", step.get() + 1, current.title)}
                         </h2>
-                        <ul class="list-disc list-inside text-sm text-gray-300 space-y-1">
+                        <ul class="list-disc list-inside text-sm text-base-content/80 space-y-1">
                             {current.points.iter().map(|point| view! { <li>{*point}</li> }).collect_view()}
                         </ul>
                         <button

@@ -53,8 +53,8 @@ pub fn ScanDirectory() -> impl IntoView {
         <div class="grid grid-cols-10">
             <div class="col-span-5 pl-1">
                 // The replay path is changed in Config only, an input here would not be saved.
-                <p class="block text-sm/6 font-medium text-white">"Replay Path"</p>
-                <p id="scan-directory-path" class="text-sm font-mono text-gray-200 break-all">
+                <p class="block text-sm/6 font-medium text-base-content">"Replay Path"</p>
+                <p id="scan-directory-path" class="text-sm font-mono text-base-content/90 break-all">
                     {move || {
                         let replay_path = app_settings.get().replay_path;
                         if replay_path.is_empty() { "Not set".to_string() } else { replay_path }
@@ -78,7 +78,7 @@ pub fn ScanDirectory() -> impl IntoView {
                         if activity_stage.get() > ActivityStage::None {
                             "btn btn-primary btn-sm b-0"
                         } else {
-                            "btn btn-disabled btn-sm b-0 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 disabled:outline-gray-200"
+                            "btn btn-disabled btn-sm b-0 disabled:cursor-not-allowed disabled:bg-base-300 disabled:text-base-content/45 disabled:outline-base-content/20"
                         }
                     }
                     on:click=move |ev: MouseEvent| trigger_basic_scan_replay_path(
@@ -103,7 +103,7 @@ pub fn ScanDirectory() -> impl IntoView {
                         if !app_settings.get().replay_path.is_empty() {
                             "btn btn-accent btn-sm"
                         } else {
-                            "btn btn-disabled btn-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 disabled:outline-gray-200"
+                            "btn btn-disabled btn-sm disabled:cursor-not-allowed disabled:bg-base-300 disabled:text-base-content/45 disabled:outline-base-content/20"
                         }
                     }
                     on:click=move |_| trigger_optimize_replay_path(

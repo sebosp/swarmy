@@ -43,7 +43,7 @@ pub fn MapMinimap(terrain: MapTerrain) -> impl IntoView {
     view! {
         <svg
             viewBox=format!("0 0 {width} {height}")
-            class="w-full max-w-md border border-white/10 bg-gray-950"
+            class="w-full max-w-md border border-base-content/10 bg-base-100"
         >
             <g transform=format!("translate(0 {height}) scale(1 -1)")>{terrain_rects(&terrain)}</g>
         </svg>

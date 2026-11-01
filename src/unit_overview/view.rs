@@ -75,24 +75,24 @@ pub fn UnitOverviewView() -> impl IntoView {
     };
     view! {
         <div class="p-2 space-y-2">
-            <h1 class="text-xl font-semibold text-white">"Unit overview"</h1>
-            <p class="text-xs text-gray-500">
-                <span class="text-red-500">"▲"</span>
+            <h1 class="text-xl font-semibold text-base-content">"Unit overview"</h1>
+            <p class="text-xs text-base-content/45">
+                <span class="text-error">"▲"</span>
                 " the unit costs more or got worse than in the previous patch, "
-                <span class="text-green-500">"▼"</span>
+                <span class="text-success">"▼"</span>
                 " it costs less, "
-                <span class="text-green-500">"▲"</span>
+                <span class="text-success">"▲"</span>
                 " / "
-                <span class="text-red-500">"▼"</span>
+                <span class="text-error">"▼"</span>
                 " more or less of a property that is better the higher, i.e. life, "
-                <span class="text-yellow-400">"●"</span>
+                <span class="text-warning">"●"</span>
                 " changed. Hover a value to see the previous one."
             </p>
             <div class="grid grid-cols-10 gap-2 items-end">
                 <div class="col-span-3">
-                    <label class="block text-sm/6 font-medium text-white">"Unit"</label>
+                    <label class="block text-sm/6 font-medium text-base-content">"Unit"</label>
                     <select
-                        class="select select-sm w-full bg-gray-800 text-gray-200 border border-white/20"
+                        class="select select-sm w-full bg-base-200 text-base-content/90 border border-base-content/20"
                         on:change=move |ev| navigation.unit_name.set(event_target_value(&ev))
                     >
                         {options}
@@ -168,7 +168,7 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
                     // unchanged.
                     if previous.is_some() && value.change == PatchChange::Same {
                         return view! {
-                            <td class="pr-3 py-1 text-gray-600" title=format!("Unchanged: {}", value.value)>
+                            <td class="pr-3 py-1 text-base-content/35" title=format!("Unchanged: {}", value.value)>
                                 "〃"
                             </td>
                         }
@@ -206,8 +206,8 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
                 .collect_view();
             let label = row.label.clone();
             view! {
-                <tr class=if show_label { "border-t border-white/20" } else { "" }>
-                    <td class="pr-3 py-1 text-white whitespace-nowrap">
+                <tr class=if show_label { "border-t border-base-content/20" } else { "" }>
+                    <td class="pr-3 py-1 text-base-content whitespace-nowrap">
                         {show_label.then_some(label)}
                     </td>
                     <td class="pr-3 py-1 whitespace-nowrap">
@@ -219,26 +219,26 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
         })
         .collect_view();
     view! {
-        <h2 class="text-base/7 font-semibold text-white">
+        <h2 class="text-base/7 font-semibold text-base-content">
             <UnitIcon unit_name=unit.name.clone() size="w-12 h-12" />
             {format!("{} (", unit.name)}
             <RaceLink race=unit.race.clone() />
             ")"
         </h2>
-        <p class="text-xs text-gray-500">
+        <p class="text-xs text-base-content/45">
             "〃 the value did not change from the previous column, hover to see it. Patches without \
             any change of the unit are merged into one column."
         </p>
         <div class="overflow-x-auto">
-            <table class="min-w-full text-xs text-gray-400">
+            <table class="min-w-full text-xs text-base-content/60">
                 <thead>
-                    <tr class="text-left text-gray-300">
+                    <tr class="text-left text-base-content/80">
                         <th class="pr-3">"Patch"</th>
                         <th></th>
                         {headers}
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-white/5">{rows}</tbody>
+                <tbody class="divide-y divide-base-content/5">{rows}</tbody>
             </table>
         </div>
     }
@@ -247,9 +247,9 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
 /// A label and a value, i.e. "Units made" "20,788".
 fn stat(label: &'static str, value: String, title: &'static str) -> impl IntoView {
     view! {
-        <div class="rounded-md border border-white/10 px-3 py-2" title=title>
-            <div class="text-xs text-gray-400">{label}</div>
-            <div class="text-lg font-semibold text-white">{value}</div>
+        <div class="rounded-md border border-base-content/10 px-3 py-2" title=title>
+            <div class="text-xs text-base-content/60">{label}</div>
+            <div class="text-lg font-semibold text-base-content">{value}</div>
         </div>
     }
 }
@@ -271,7 +271,7 @@ fn UnitSnapshotPanel(unit_name: String) -> impl IntoView {
         }
     });
     view! {
-        <h2 class="text-base/7 font-semibold text-white">"In the snapshot"</h2>
+        <h2 class="text-base/7 font-semibold text-base-content">"In the snapshot"</h2>
         <ErrorMessage error />
         {move || match stats.get() {
             None if error.get().is_none() => {
@@ -311,14 +311,14 @@ fn UnitSnapshotStatsView(stats: UnitSnapshotStats) -> impl IntoView {
                 "The minerals and vespene of the enemy units killed for each mineral and vespene spent on the unit, at the latest patch cost",
             )}
         </div>
-        <h3 class="text-sm font-semibold text-white">"Use over time"</h3>
-        <p class="text-xs text-gray-500">
+        <h3 class="text-sm font-semibold text-base-content">"Use over time"</h3>
+        <p class="text-xs text-base-content/45">
             "The games of each month in which at least one player made the unit, hover a month to \
             see the units made per game."
         </p>
         <UnitUsageChart data=stats.by_month.clone() />
-        <h3 class="text-sm font-semibold text-white">"Exceptional games"</h3>
-        <p class="text-xs text-gray-500">
+        <h3 class="text-sm font-semibold text-base-content">"Exceptional games"</h3>
+        <p class="text-xs text-base-content/45">
             {format!(
                 "The players that made at least {EXCEPTIONAL_MIN_BORN} and killed at least {:.2} \
                  enemy units per unit, two standard deviations above the average of {:.2}.",
@@ -333,7 +333,8 @@ fn UnitSnapshotStatsView(stats: UnitSnapshotStats) -> impl IntoView {
 #[component]
 fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
     if games.is_empty() {
-        return view! { <p class="text-xs text-gray-500">"No exceptional games."</p> }.into_any();
+        return view! { <p class="text-xs text-base-content/45">"No exceptional games."</p> }
+            .into_any();
     }
     let rows = games
         .into_iter()
@@ -349,7 +350,7 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
                     <td class="pr-3 py-1"><PatchLink version=game.protocol_version /></td>
                     <td class="pr-3 py-1">{game.born}</td>
                     <td class="pr-3 py-1">{game.kills}</td>
-                    <td class="pr-3 py-1 text-green-400">{format!("{:.2}", game.kills_per_unit())}</td>
+                    <td class="pr-3 py-1 text-success">{format!("{:.2}", game.kills_per_unit())}</td>
                     <td class="pr-3 py-1">{game.value_killed}</td>
                     <td class="py-1 whitespace-nowrap">
                         <button
@@ -373,9 +374,9 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
         .collect_view();
     view! {
         <div class="overflow-x-auto">
-            <table class="min-w-full text-xs text-gray-400">
+            <table class="min-w-full text-xs text-base-content/60">
                 <thead>
-                    <tr class="text-left text-gray-300">
+                    <tr class="text-left text-base-content/80">
                         <th class="pr-3">"Replay"</th>
                         <th class="pr-3">"Date"</th>
                         <th class="pr-3">"Map"</th>
@@ -388,7 +389,7 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
                         <th></th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-white/5">{rows}</tbody>
+                <tbody class="divide-y divide-base-content/5">{rows}</tbody>
             </table>
         </div>
     }

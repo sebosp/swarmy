@@ -85,6 +85,11 @@ pub fn run() {
             spawn(setup(majordomo_rx, app.handle().clone()));
             replay_watcher::configure(app.handle());
             remote::relay_events(app.handle().clone());
+            // The zoom of the last session, before the first view is shown.
+            match settings::load_stored_app_settings(app.handle()) {
+                Ok(settings) => settings::apply_zoom(app.handle(), settings.zoom_percent),
+                Err(err) => tracing::warn!("Unable to read the zoom of the settings: {err}"),
+            }
             tracing::info!(
                 "Setup function called on {}:{:?}",
                 process::id(),
@@ -102,6 +107,9 @@ pub fn run() {
             tauri::generate_handler![
                 get_current_app_config,
                 set_current_app_config,
+                settings::get_ui_settings,
+                settings::zoom_step,
+                settings::set_zoom_percent,
                 settings::pick_folder,
                 remote::check_remote_backend,
                 swarmy_bevy::exec_swarmy_bevy_map_caches,
@@ -127,6 +135,14 @@ pub fn run() {
             ],
         ))
         .plugin(tauri_plugin_store::Builder::default().build())
+        // A webview starts at 100%, the zoom of the settings is applied when its page loads.
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                if let Ok(settings) = settings::load_stored_app_settings(webview.app_handle()) {
+                    settings::apply_zoom(webview.app_handle(), settings.zoom_percent);
+                }
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {

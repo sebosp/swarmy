@@ -28,7 +28,7 @@ pub fn StatsByMap() -> impl IntoView {
     view! {
         <div class="grid grid-cols-10 gap-1">
             <div class="col-span-4">
-                <label for="map_title" class="block text-sm/6 font-medium text-white">
+                <label for="map_title" class="block text-sm/6 font-medium text-base-content">
                     Map
                 </label>
                 <div>
@@ -49,7 +49,7 @@ pub fn StatsByMap() -> impl IntoView {
             </div>
             <div class="col-span-1"></div>
             <div class="col-span-4">
-                <label for="player_name" class="block text-sm/6 font-medium text-white">
+                <label for="player_name" class="block text-sm/6 font-medium text-base-content">
                     Player
                 </label>
                 <div>
@@ -76,7 +76,7 @@ pub fn StatsByMap() -> impl IntoView {
                 <Loading message="Collecting the maps of the snapshot..." />
             </Show>
             <Show when=move || backend_response.get().meta.is_complete>
-                <h2 class="text-base/7 font-semibold text-white">
+                <h2 class="text-base/7 font-semibold text-base-content">
                     {move || map_stats_store.total().get()} " unique maps found in the snapshot."
                 </h2>
             </Show>
@@ -92,43 +92,43 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
     view! {
         <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table class="relative min-w-full divide-y divide-white/15">
+                <table class="relative min-w-full divide-y divide-base-content/15">
                     <thead>
                         <tr>
                             <th
                                 scope="col"
-                                class="py-3.5 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap xs:pl-0 text-white"
+                                class="py-3.5 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap xs:pl-0 text-base-content"
                             >
                                 "Map Title"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Games"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Min Date"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Max Date"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-base-content"
                                 data-no-sort
                             >
                                 "Actions"
                             </th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/10 bg-gray-900">
+                    <tbody class="divide-y divide-base-content/10 bg-base-100">
                         <For
                             each=move || map_stats_store.data()
                             key=|row| row.read().map_info_sha256.clone()
@@ -136,16 +136,16 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                 let cache_ids: String = child.read().cache_handles.clone();
                                 view! {
                                     <tr>
-                                        <td class="py-2 pr-3 text-xs text-white">
+                                        <td class="py-2 pr-3 text-xs text-base-content">
                                             <MapLink map_title=child.read().title.clone() />
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
                                             {child.read().num_games}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
                                             {format!("{}", child.read().min_date)}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
                                             {format!("{}", child.read().max_date)}
                                         </td>
                                         <td class="px-2 py-2">

@@ -37,17 +37,17 @@ pub fn UnitsTable(
     let most_effective = most_effective_unit(&units, min_produced);
     let best_trading = best_trading_unit(&units, min_produced);
     view! {
-        <p class="text-xs text-gray-300">
+        <p class="text-xs text-base-content/80">
             "Most kills per unit: "
-            <span class="text-green-400">{most_effective.unwrap_or_else(|| "-".to_string())}</span>
+            <span class="text-success">{most_effective.unwrap_or_else(|| "-".to_string())}</span>
         </p>
-        <p class="text-xs text-gray-300" title="The minerals and vespene of the enemy units killed, divided by the minerals and vespene spent on the unit">
+        <p class="text-xs text-base-content/80" title="The minerals and vespene of the enemy units killed, divided by the minerals and vespene spent on the unit">
             "Best trade: "
-            <span class="text-green-400">{best_trading.unwrap_or_else(|| "-".to_string())}</span>
+            <span class="text-success">{best_trading.unwrap_or_else(|| "-".to_string())}</span>
         </p>
-        <table class="min-w-full text-xs text-gray-400">
+        <table class="min-w-full text-xs text-base-content/60">
             <thead>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-base-content/80">
                     <th class="pr-2">"Unit"</th>
                     <th class="pr-2">"Produced"</th>
                     <th class="pr-2">"Kills"</th>
@@ -64,14 +64,14 @@ pub fn UnitsTable(
                         let trade = unit.trade_ratio();
                         view! {
                             <tr>
-                                <td class="pr-2 text-white"><UnitLink unit_name=unit.unit.clone() /></td>
+                                <td class="pr-2 text-base-content"><UnitLink unit_name=unit.unit.clone() /></td>
                                 <td class="pr-2">{unit.produced}</td>
                                 <td class="pr-2">{unit.kills}</td>
                                 <td class="pr-2">{format!("{:.2}", unit.kills_per_unit())}</td>
                                 <td class="pr-2">{format_resources(unit.value_killed)}</td>
                                 <td
-                                    class:text-green-400=trade.is_some_and(|trade| trade >= 1.)
-                                    class:text-red-400=trade.is_some_and(|trade| trade < 1.)
+                                    class:text-success=trade.is_some_and(|trade| trade >= 1.)
+                                    class:text-error=trade.is_some_and(|trade| trade < 1.)
                                 >
                                     {trade.map(|trade| format!("{trade:.2}x")).unwrap_or_else(|| "-".to_string())}
                                 </td>

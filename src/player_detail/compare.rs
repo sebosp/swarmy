@@ -9,10 +9,10 @@ use leptos::task::spawn_local;
 use std::collections::BTreeMap;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
 
 /// The strategy tables, the columns keep their width and the text wraps inside them.
-const FIXED_TABLE_CLASS: &str = "w-full table-fixed text-xs text-gray-400";
+const FIXED_TABLE_CLASS: &str = "w-full table-fixed text-xs text-base-content/60";
 
 /// The choices shown for each strategy.
 const TOP_CHOICES: usize = 3;
@@ -87,14 +87,14 @@ fn choice_list(choices: Vec<Choice>, total: usize, units: bool) -> impl IntoView
                 .into_iter()
                 .map(|choice| view! {
                     <li class="break-words">
-                        <span class="text-white">
+                        <span class="text-base-content">
                             {if units {
                                 view! { <UnitLink unit_name=choice.name /> }.into_any()
                             } else {
                                 choice.name.into_any()
                             }}
                         </span>
-                        <span class="text-gray-500">
+                        <span class="text-base-content/45">
                             {format!(
                                 " · {} of games, {} won",
                                 percent(choice.games, total),
@@ -151,7 +151,7 @@ pub fn PlayerComparison(player: PlayerDetail, opponent_name: String) -> impl Int
         }
     });
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
             <ErrorMessage error />
             {move || match (opponent.get(), head_to_head.get()) {
                 (Some(opponent), Some(head_to_head)) => {
@@ -176,7 +176,7 @@ fn ComparisonContent(
     let strategy_row = |label: &'static str, detail: &dyn Fn(&PlayerDetail) -> AnyView| {
         view! {
             <tr class="align-top">
-                <td class="pr-3 py-1 text-gray-300">{label}</td>
+                <td class="pr-3 py-1 text-base-content/80">{label}</td>
                 <td class="pr-3 py-1 break-words">{detail(&player)}</td>
                 <td class="py-1 break-words">{detail(&opponent)}</td>
             </tr>
@@ -189,7 +189,7 @@ fn ComparisonContent(
         let total = games.len();
         view! {
             <tr class="align-top">
-                <td class="pr-3 py-1 text-gray-300">{label}</td>
+                <td class="pr-3 py-1 text-base-content/80">{label}</td>
                 <td class="pr-3 py-1 break-words">
                     {choice_list(head_to_head_choices(&games, |game| &game.player, choice), total, units)}
                 </td>
@@ -200,21 +200,21 @@ fn ComparisonContent(
         }
     };
     let header = view! {
-        <tr class="text-left text-white">
+        <tr class="text-left text-base-content">
             <th class="pr-3 py-1"></th>
             <th class="pr-3 py-1"><PlayerLink player_name=player.player_name.clone() /></th>
             <th class="py-1"><PlayerLink player_name=opponent.player_name.clone() /></th>
         </tr>
     };
     let header_h2h = view! {
-        <tr class="text-left text-white">
+        <tr class="text-left text-base-content">
             <th class="pr-3 py-1"></th>
             <th class="pr-3 py-1"><PlayerLink player_name=player.player_name.clone() /></th>
             <th class="py-1"><PlayerLink player_name=opponent.player_name.clone() /></th>
         </tr>
     };
     view! {
-        <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
             {format!(
                 "{} vs {}: {} games between them, {player_wins} – {}",
                 clean_player_name_clan_escapes(&player.player_name),
@@ -225,11 +225,11 @@ fn ComparisonContent(
         </h2>
         <div class="grid grid-cols-1 2xl:grid-cols-2 gap-4 p-2">
             <div class="min-w-0">
-                <h3 class="text-sm font-semibold text-white">"Preferred strategies, all their games"</h3>
+                <h3 class="text-sm font-semibold text-base-content">"Preferred strategies, all their games"</h3>
                 <table class=FIXED_TABLE_CLASS>
                     <colgroup><col class="w-40" /><col /><col /></colgroup>
                     <thead>{header}</thead>
-                    <tbody class="divide-y divide-white/5">
+                    <tbody class="divide-y divide-base-content/5">
                         {strategy_row("Games", &|detail| {
                             format!("{} games, {} won", detail.games, percent(detail.wins, detail.games)).into_any()
                         })}
@@ -296,11 +296,11 @@ fn ComparisonContent(
                 </table>
             </div>
             <div class="min-w-0">
-                <h3 class="text-sm font-semibold text-white">"In the games between them"</h3>
+                <h3 class="text-sm font-semibold text-base-content">"In the games between them"</h3>
                 <table class=FIXED_TABLE_CLASS>
                     <colgroup><col class="w-40" /><col /><col /></colgroup>
                     <thead>{header_h2h}</thead>
-                    <tbody class="divide-y divide-white/5">
+                    <tbody class="divide-y divide-base-content/5">
                         {h2h_row("Openings", false, opening)}
                         {h2h_row("First army unit", true, |side| side.first_army_unit.clone())}
                         {h2h_row("Favourite army unit", true, |side| side.favourite_army_unit.clone())}
@@ -310,7 +310,7 @@ fn ComparisonContent(
             </div>
         </div>
         <div class="p-2">
-            <h3 class="text-sm font-semibold text-white">"Games between them"</h3>
+            <h3 class="text-sm font-semibold text-base-content">"Games between them"</h3>
             <div class="scroll-section max-h-96 overflow-x-auto">
                 <HeadToHeadGames games player_name=player.player_name opponent_name=opponent.player_name />
             </div>
@@ -342,13 +342,13 @@ fn HeadToHeadGames(
     };
     view! {
         <table class=TABLE_CLASS>
-            <thead class="sticky top-0 bg-gray-800">
-                <tr class="text-left text-gray-300">
+            <thead class="sticky top-0 bg-base-200">
+                <tr class="text-left text-base-content/80">
                     <th class="pr-2" colspan="4"></th>
-                    <th class="pr-2 text-white" colspan="4">{clean_player_name_clan_escapes(&player_name)}</th>
-                    <th class="pr-2 text-white" colspan="4">{clean_player_name_clan_escapes(&opponent_name)}</th>
+                    <th class="pr-2 text-base-content" colspan="4">{clean_player_name_clan_escapes(&player_name)}</th>
+                    <th class="pr-2 text-base-content" colspan="4">{clean_player_name_clan_escapes(&opponent_name)}</th>
                 </tr>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-base-content/80">
                     <th class="pr-2">"Replay"</th>
                     <th class="pr-2">"Date"</th>
                     <th class="pr-2">"Map"</th>
@@ -363,7 +363,7 @@ fn HeadToHeadGames(
                     <th class="pr-3">"Expand"</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-white/5">
+            <tbody class="divide-y divide-base-content/5">
                 {games
                     .into_iter()
                     .map(|game| view! {

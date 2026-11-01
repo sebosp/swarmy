@@ -72,14 +72,14 @@ pub fn PatchOverviewView() -> impl IntoView {
     });
     view! {
         <div class="p-2 space-y-2">
-            <h1 class="text-xl font-semibold text-white">"Patch overview"</h1>
-            <p class="text-xs text-gray-500">
+            <h1 class="text-xl font-semibold text-base-content">"Patch overview"</h1>
+            <p class="text-xs text-base-content/45">
                 "The units that changed in a patch, from the s2protocol balance data. Click on a unit to see it in every patch."
             </p>
             <div class="w-64">
-                <label class="block text-sm/6 font-medium text-white">"Patch"</label>
+                <label class="block text-sm/6 font-medium text-base-content">"Patch"</label>
                 <select
-                    class="select select-sm w-full bg-gray-800 text-gray-200 border border-white/20"
+                    class="select select-sm w-full bg-base-200 text-base-content/90 border border-base-content/20"
                     on:change=move |ev| {
                         navigation.patch_version.set(None);
                         selected.set(event_target_value(&ev).parse().ok());
@@ -104,9 +104,9 @@ pub fn PatchOverviewView() -> impl IntoView {
                 </select>
             </div>
             <div class="w-64">
-                <label class="block text-sm/6 font-medium text-white">"Race"</label>
+                <label class="block text-sm/6 font-medium text-base-content">"Race"</label>
                 <select
-                    class="select select-sm w-full bg-gray-800 text-gray-200 border border-white/20"
+                    class="select select-sm w-full bg-base-200 text-base-content/90 border border-base-content/20"
                     on:change=move |ev| navigation.race.set(event_target_value(&ev))
                 >
                     <option value="" selected=move || navigation.race.get().is_empty()>"All races"</option>
@@ -125,7 +125,7 @@ pub fn PatchOverviewView() -> impl IntoView {
                     .zip(selected.get())
                     .filter(|(requested, selected)| requested != selected)
                     .map(|(requested, selected)| view! {
-                        <p class="text-xs text-gray-400">
+                        <p class="text-xs text-base-content/60">
                             {format!("Patch {requested} is not in the balance data, showing the closest patch {selected}.")}
                         </p>
                     })
@@ -156,13 +156,13 @@ pub fn PatchOverviewView() -> impl IntoView {
                         view! { <AbilityUsageRows rows /> }.into_any()
                     }
                     Err(err) => view! {
-                        <p class="text-xs text-gray-400">{format!("No snapshot to count the abilities: {err}")}</p>
+                        <p class="text-xs text-base-content/60">{format!("No snapshot to count the abilities: {err}")}</p>
                     }
                     .into_any(),
                 };
                 Some(view! {
-                    <h2 class="pt-2 text-base font-semibold text-white">"Abilities in the games of the patch"</h2>
-                    <p class="text-xs text-gray-500">
+                    <h2 class="pt-2 text-base font-semibold text-base-content">"Abilities in the games of the patch"</h2>
+                    <p class="text-xs text-base-content/45">
                         "The abilities with energy or a cooldown commanded by the players in the games of the snapshot of this patch, the games of a protocol version without balance data count for the closest patch."
                     </p>
                     {content}
@@ -176,7 +176,7 @@ pub fn PatchOverviewView() -> impl IntoView {
 fn PatchChangesTable(changes: PatchChanges) -> impl IntoView {
     let Some(previous_version) = changes.previous_version else {
         return view! {
-            <p class="text-sm text-gray-400">
+            <p class="text-sm text-base-content/60">
                 {format!("{} is the oldest patch in the balance data, there is nothing to compare it with.", changes.version)}
             </p>
         }
@@ -184,23 +184,23 @@ fn PatchChangesTable(changes: PatchChanges) -> impl IntoView {
     };
     if changes.changes.is_empty() {
         return view! {
-            <p class="text-sm text-gray-400">
+            <p class="text-sm text-base-content/60">
                 {format!("No unit changed from {previous_version} to {}.", changes.version)}
             </p>
         }
         .into_any();
     }
     view! {
-        <p class="text-sm text-gray-300">
+        <p class="text-sm text-base-content/80">
             {format!(
                 "{} changes from {previous_version} to {}.",
                 changes.changes.len(),
                 changes.version,
             )}
         </p>
-        <table class="min-w-full text-xs text-gray-400">
+        <table class="min-w-full text-xs text-base-content/60">
             <thead>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-base-content/80">
                     <th class="pr-3">"Race"</th>
                     <th class="pr-3">"Unit"</th>
                     <th class="pr-3">"Property"</th>
@@ -208,17 +208,17 @@ fn PatchChangesTable(changes: PatchChanges) -> impl IntoView {
                     <th>{changes.version}</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-white/5">
+            <tbody class="divide-y divide-base-content/5">
                 {changes
                     .changes
                     .into_iter()
                     .map(|change| view! {
                         <tr>
                             <td class="pr-3 py-1"><RaceLink race=change.race /></td>
-                            <td class="pr-3 py-1 text-white"><UnitLink unit_name=change.unit /></td>
+                            <td class="pr-3 py-1 text-base-content"><UnitLink unit_name=change.unit /></td>
                             <td class="pr-3 py-1">{change.label}</td>
                             <td class="pr-3 py-1">{change.previous}</td>
-                            <td class="py-1 text-white">
+                            <td class="py-1 text-base-content">
                                 <ChangeMarker kind=change.kind change=change.change />
                                 {change.value}
                             </td>

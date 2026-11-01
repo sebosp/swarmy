@@ -41,7 +41,7 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
         return match details.terrain.clone() {
             Some(terrain) => view! { <MapMinimap terrain /> }.into_any(),
             None => view! {
-                <p class="text-xs text-gray-500">"The map cache is not downloaded, no minimap."</p>
+                <p class="text-xs text-base-content/45">"The map cache is not downloaded, no minimap."</p>
             }
             .into_any(),
         };
@@ -101,7 +101,7 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
         <div class="space-y-1">
             <svg
                 viewBox=format!("0 0 {width} {height}")
-                class="w-full max-w-md border border-white/10 bg-gray-950"
+                class="w-full max-w-md border border-base-content/10 bg-base-100"
             >
                 <image
                     href=image.data_url.clone()
@@ -113,7 +113,7 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
                 />
                 <g class:hidden=move || !show_resources.get()>{resource_marks} {start_marks}</g>
             </svg>
-            <label class="flex items-center gap-2 text-xs text-gray-400">
+            <label class="flex items-center gap-2 text-xs text-base-content/60">
                 <input
                     type="checkbox"
                     class="checkbox checkbox-xs"
@@ -122,7 +122,7 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
                 />
                 "Show resources and start locations"
             </label>
-            <p class="flex flex-wrap gap-x-3 text-xs text-gray-500">
+            <p class="flex flex-wrap gap-x-3 text-xs text-base-content/45">
                 <span style=format!("color: {MINERAL_COLOR}")>"■ Minerals"</span>
                 <span style=format!("color: {RICH_MINERAL_COLOR}")>"■ Gold minerals"</span>
                 <span style=format!("color: {GEYSER_COLOR}")>"● Vespene"</span>
@@ -175,31 +175,31 @@ pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
     let default_amounts = resources.default_amounts;
     view! {
         <div class="space-y-2">
-            <h2 class="text-base/7 font-semibold text-white">"Resources"</h2>
-            <table class="text-xs text-gray-400">
+            <h2 class="text-base/7 font-semibold text-base-content">"Resources"</h2>
+            <table class="text-xs text-base-content/60">
                 <tbody>
                     {rows
                         .into_iter()
                         .map(|(label, value)| view! {
                             <tr>
-                                <td class="pr-4 text-gray-300">{label}</td>
-                                <td class="text-white">{value}</td>
+                                <td class="pr-4 text-base-content/80">{label}</td>
+                                <td class="text-base-content">{value}</td>
                             </tr>
                         })
                         .collect_view()}
                 </tbody>
             </table>
             <Show when=move || { default_amounts > 0 }>
-                <p class="text-xs text-gray-500">
+                <p class="text-xs text-base-content/45">
                     {format!(
                         "{default_amounts} resources use the default amount of their type (1,800 minerals per large field, 900 per small field, 2,250 vespene per geyser), the map does not set them.",
                     )}
                 </p>
             </Show>
-            <h2 class="text-base/7 font-semibold text-white">"Start locations"</h2>
-            <table class="text-xs text-gray-400">
+            <h2 class="text-base/7 font-semibold text-base-content">"Start locations"</h2>
+            <table class="text-xs text-base-content/60">
                 <thead>
-                    <tr class="text-left text-gray-300">
+                    <tr class="text-left text-base-content/80">
                         <th class="pr-3">"Start location"</th>
                         <th class="pr-3">"Position"</th>
                         <th class="pr-3" title="The mineral fields of the main base">"Fields"</th>
@@ -215,7 +215,7 @@ pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
                         .iter()
                         .map(|start| view! {
                             <tr>
-                                <td class="pr-3 text-white">{start.name.clone()}</td>
+                                <td class="pr-3 text-base-content">{start.name.clone()}</td>
                                 <td class="pr-3">{format!("{:.1}, {:.1}", start.x, start.y)}</td>
                                 <td class="pr-3">{start.mineral_fields}</td>
                                 <td class="pr-3">

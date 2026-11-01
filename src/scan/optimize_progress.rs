@@ -111,7 +111,7 @@ pub fn OptimizeProgress() -> impl IntoView {
                             .map(|(idx, (index, total, name))| {
                                 let finished = is_done || idx + 1 < last_step;
                                 view! {
-                                    <li class:text-gray-400=finished class:text-white=!finished>
+                                    <li class=move || if finished { "text-base-content/60" } else { "text-base-content" }>
                                         {if finished { "✓ " } else { "⏳ " }}
                                         {format!("{index}/{total} {name}")}
                                     </li>
@@ -123,12 +123,12 @@ pub fn OptimizeProgress() -> impl IntoView {
                             .map(|(done, total)| {
                                 let percent = done * 100 / total.max(1);
                                 view! {
-                                    <div class="mt-1 text-xs text-gray-300">
+                                    <div class="mt-1 text-xs text-base-content/80">
                                         {format!("{done} of {total} replays processed ({percent}%)")}
                                     </div>
-                                    <div class="h-2 w-full rounded bg-gray-700">
+                                    <div class="h-2 w-full rounded bg-base-300">
                                         <div
-                                            class="h-2 rounded bg-indigo-500"
+                                            class="h-2 rounded bg-primary"
                                             style=format!("width: {percent}%")
                                         ></div>
                                     </div>
@@ -140,7 +140,7 @@ pub fn OptimizeProgress() -> impl IntoView {
                             .map(|file| {
                                 view! {
                                     <tr>
-                                        <td class="pr-4 text-white">{file.name.clone()}</td>
+                                        <td class="pr-4 text-base-content">{file.name.clone()}</td>
                                         <td class="pr-4 text-right">
                                             {bibytes2(file.bytes as f64)}
                                         </td>
@@ -150,21 +150,21 @@ pub fn OptimizeProgress() -> impl IntoView {
                             })
                             .collect_view();
                         view! {
-                            <div class="grid grid-cols-2 gap-4 text-sm text-gray-300">
+                            <div class="grid grid-cols-2 gap-4 text-sm text-base-content/80">
                                 <div>
                                     <p>
                                         "Files found: "
-                                        <span class="text-white">{count(state.files_found)}</span>
+                                        <span class="text-base-content">{count(state.files_found)}</span>
                                     </p>
                                     <p>
                                         "Already in the snapshot or copies of another replay: "
-                                        <span class="text-white">
+                                        <span class="text-base-content">
                                             {count(state.already_in_snapshot)}
                                         </span>
                                     </p>
                                     <p>
                                         "New replays with valid init data: "
-                                        <span class="text-white">
+                                        <span class="text-base-content">
                                             {count(state.valid_replays)}
                                         </span>
                                     </p>
@@ -174,7 +174,7 @@ pub fn OptimizeProgress() -> impl IntoView {
                                         .elapsed_ms
                                         .map(|elapsed_ms| {
                                             view! {
-                                                <p class="mt-1 text-green-400">
+                                                <p class="mt-1 text-success">
                                                     {format!(
                                                         "Snapshot written in {:.1}s",
                                                         elapsed_ms as f64 / 1000.,
@@ -184,9 +184,9 @@ pub fn OptimizeProgress() -> impl IntoView {
                                         })}
                                 </div>
                                 <div>
-                                    <table class="text-xs text-gray-400">
+                                    <table class="text-xs text-base-content/60">
                                         <thead>
-                                            <tr class="text-left text-gray-300">
+                                            <tr class="text-left text-base-content/80">
                                                 <th class="pr-4">"File"</th>
                                                 <th class="pr-4 text-right">"Size"</th>
                                                 <th class="text-right">"Records"</th>

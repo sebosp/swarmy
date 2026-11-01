@@ -1,4 +1,5 @@
 pub mod abilities;
+pub mod appearance;
 pub mod charts;
 pub mod left_sidebar_menu;
 pub mod links;

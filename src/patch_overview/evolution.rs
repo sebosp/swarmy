@@ -12,10 +12,18 @@ use swarmy_common::*;
 /// The colors of the lines, assigned by the position of the series: tailwind indigo, emerald,
 /// amber, rose, sky, fuchsia, lime, orange.
 const SERIES_COLORS: [&str; 8] = [
-    "#6366f1", "#10b981", "#f59e0b", "#f43f5e", "#0ea5e9", "#d946ef", "#84cc16", "#f97316",
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+    "var(--chart-6)",
+    "var(--chart-7)",
+    "var(--chart-8)",
 ];
 
-const SELECT_CLASS: &str = "select select-sm bg-gray-800 text-gray-200 border border-white/20";
+const SELECT_CLASS: &str =
+    "select select-sm bg-base-200 text-base-content/90 border border-base-content/20";
 
 #[derive(serde::Serialize)]
 struct UnitArgs {
@@ -245,8 +253,8 @@ pub fn PatchEvolutionView() -> impl IntoView {
     };
     view! {
         <div class="p-2 space-y-3">
-            <h1 class="text-xl font-semibold text-white">"Patch Evolution"</h1>
-            <p class="text-sm text-gray-400">
+            <h1 class="text-xl font-semibold text-base-content">"Patch Evolution"</h1>
+            <p class="text-sm text-base-content/60">
                 "The costs of units, and of what they train, build, research and upgrade, over the patches of the balance data. A line per unit, item and measure: minerals, vespene, supply, time, whether it exists and its number of requirements."
             </p>
             <div class="flex flex-wrap items-center gap-2">
@@ -266,7 +274,7 @@ pub fn PatchEvolutionView() -> impl IntoView {
                     }).collect_view()}
                 </select>
                 <input
-                    class="input input-sm bg-gray-800 text-gray-200 border border-white/20"
+                    class="input input-sm bg-base-200 text-base-content/90 border border-base-content/20"
                     placeholder="Name of the query"
                     prop:value=move || name.get()
                     on:input=move |ev| name.set(event_target_value(&ev))
@@ -287,7 +295,7 @@ pub fn PatchEvolutionView() -> impl IntoView {
                 >
                     "Remove"
                 </button>
-                <span class="text-sm text-gray-500">{move || status.get()}</span>
+                <span class="text-sm text-base-content/45">{move || status.get()}</span>
             </div>
             <div class="space-y-1">
                 {move || (0..series.read().len()).map(|idx| view! { <SeriesEditor idx series units /> }).collect_view()}
@@ -328,7 +336,7 @@ fn AbilityEvolution() -> impl IntoView {
             Err(err) => {
                 return Some(
                     view! {
-                        <p class="text-xs text-gray-400">{format!("No snapshot to count the abilities: {err}")}</p>
+                        <p class="text-xs text-base-content/60">{format!("No snapshot to count the abilities: {err}")}</p>
                     }
                     .into_any(),
                 )
@@ -356,8 +364,8 @@ fn AbilityEvolution() -> impl IntoView {
     };
     view! {
         <div class="space-y-1 pt-2">
-            <h2 class="text-base font-semibold text-white">"Ability use per game"</h2>
-            <p class="text-sm text-gray-400">
+            <h2 class="text-base font-semibold text-base-content">"Ability use per game"</h2>
+            <p class="text-sm text-base-content/60">
                 "The abilities with energy or a cooldown commanded per game by the players of the race, in the games of the snapshot by patch. A patch without a point has no game in which the ability was used."
             </p>
             <select class=SELECT_CLASS on:change=move |ev| race.set(event_target_value(&ev))>

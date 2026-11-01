@@ -27,16 +27,18 @@ pub fn Main() -> impl IntoView {
     let navigation = Navigation::new(HOME_PAGE);
     provide_context(navigation);
     swarmy_ui::components::unit_icon::provide_unit_icons();
+    swarmy_ui::components::appearance::install_ui_settings();
     let active_page = navigation.active_page;
 
     view! {
-        <div id="swarmy-tauri-window" class="flex w-screen h-screen bg-gray-800 rounded">
+        <div id="swarmy-tauri-window" class="flex w-screen h-screen bg-base-200 rounded">
             <LeftSideBarMenu active_page=active_page />
+            <swarmy_ui::components::appearance::ZoomToastView />
             <div class="flex flex-col grow w-full h-full min-w-0">
             <NewReplaysBanner />
             <div
                 id="swarmy-tauri-content"
-                class="flex grow w-full min-h-0 overflow-auto text-gray-400 bg-gray-900 rounded"
+                class="flex grow w-full min-h-0 overflow-auto text-base-content/60 bg-base-100 rounded"
             >
                 <Show when=move || active_page.get() == HOME_PAGE>
                     <div id="swarmy-tauri-home-content" class="flex flex-col grow min-w-0 p-2 rounded">

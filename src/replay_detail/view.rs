@@ -30,7 +30,7 @@ const MIN_PRODUCED_FOR_EFFECTIVENESS: usize = 3;
 /// A side that lost this many times what the other lost made a bad trade.
 const BAD_TRADE_RATIO: f32 = 1.5;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
 
 #[component]
 pub fn ReplayDetailView() -> impl IntoView {
@@ -83,7 +83,7 @@ pub fn ReplayDetailView() -> impl IntoView {
                             <ReplayNavigation detail=detail.clone() error />
                             <ReplayHeader detail=detail.clone() />
                             <ReplayNotesPanel sha256=detail.sha256.clone() />
-                            <div class="flex gap-4 text-xs text-gray-400">
+                            <div class="flex gap-4 text-xs text-base-content/60">
                                 <label class="flex items-center gap-1">
                                     <input
                                         type="checkbox"
@@ -248,7 +248,7 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
         })
     });
     view! {
-        <div class="flex flex-wrap items-center gap-3 rounded-md border border-white/15 bg-gray-800/40 p-2 text-sm">
+        <div class="flex flex-wrap items-center gap-3 rounded-md border border-base-content/15 bg-base-200/40 p-2 text-sm">
             <button
                 class="btn btn-sm btn-primary"
                 title="The previous replay by date, of the locked map and players"
@@ -315,12 +315,12 @@ fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
         });
     };
     view! {
-        <div class="flex items-start justify-between rounded-md border border-white/15 bg-gray-800/40 p-2">
+        <div class="flex items-start justify-between rounded-md border border-base-content/15 bg-base-200/40 p-2">
             <div>
-                <h1 class="text-xl font-semibold text-white">
+                <h1 class="text-xl font-semibold text-base-content">
                     <MapLink map_title=detail.map_title.clone() />
                 </h1>
-                <p class="text-sm text-gray-400">
+                <p class="text-sm text-base-content/60">
                     "Replay " <ReplayLink ext_fs_id=detail.ext_fs_id />
                     {format!(
                         " · {} · {} · patch version ",
@@ -328,7 +328,7 @@ fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
                         format_game_time(detail.duration_seconds),
                     )} <PatchLink version=detail.protocol_version />
                 </p>
-                <p class="text-sm text-gray-300">
+                <p class="text-sm text-base-content/80">
                     "Winner: "
                     {detail
                         .winners
@@ -368,7 +368,7 @@ fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
                 >
                     "Export report"
                 </button>
-                <span class="text-xs text-gray-400 self-center">{move || exported.get()}</span>
+                <span class="text-xs text-base-content/60 self-center">{move || exported.get()}</span>
             </div>
         </div>
     }
@@ -400,9 +400,9 @@ fn base_events(summary: &ReplayPlayerSummary) -> Vec<(u32, bool, String, Option<
 fn PatchComparison(seconds: u32, average: Option<PatchAverage>) -> impl IntoView {
     average.map(|average| {
         let color = match seconds.cmp(&average.seconds) {
-            std::cmp::Ordering::Less => "text-green-400",
-            std::cmp::Ordering::Equal => "text-gray-400",
-            std::cmp::Ordering::Greater => "text-red-400",
+            std::cmp::Ordering::Less => "text-success",
+            std::cmp::Ordering::Equal => "text-base-content/60",
+            std::cmp::Ordering::Greater => "text-error",
         };
         let title = format!(
             "The average is {} in {} games of the same patch in the snapshot",
@@ -442,12 +442,12 @@ fn section_band<V: IntoView + 'static>(
         })
         .collect_view();
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h3 class="px-2 py-1 text-sm font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h3 class="px-2 py-1 text-sm font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 {title}
             </h3>
             <div class=format!(
-                "grid {} divide-x divide-white/15",
+                "grid {} divide-x divide-base-content/15",
                 player_columns(players.len()),
             )>{cells}</div>
         </div>
@@ -471,21 +471,21 @@ fn PlayerSections(
             let [r, g, b, _] = summary.player.color;
             view! {
                 <div class="px-2 py-1">
-                    <div class="flex items-center gap-2 text-base text-white">
+                    <div class="flex items-center gap-2 text-base text-base-content">
                         <span
                             class="inline-block w-3 h-3 rounded-full"
                             style=format!("background: rgb({r},{g},{b})")
                         ></span>
                         <ResultMarker result=summary.player.result.clone() />
                         <PlayerLink player_name=summary.player.name.clone() />
-                        <span class="text-sm text-gray-400">
+                        <span class="text-sm text-base-content/60">
                             <RaceLink race=summary.player.race.clone() />
                         </span>
                         {summary
                             .rating
                             .map(|rating| {
                                 view! {
-                                    <span class="text-xs text-gray-400">
+                                    <span class="text-xs text-base-content/60">
                                         {format!("MMR {rating}")}
                                     </span>
                                 }
@@ -499,7 +499,7 @@ fn PlayerSections(
     view! {
         <div class="space-y-2">
             <div class=format!(
-                "sticky top-0 z-10 grid {} divide-x divide-white/15 rounded-md border border-white/20 bg-gray-900",
+                "sticky top-0 z-10 grid {} divide-x divide-base-content/15 rounded-md border border-base-content/20 bg-base-100",
                 player_columns(players.len()),
             )>{player_headers}</div>
 
@@ -513,25 +513,25 @@ fn PlayerSections(
                 &players,
                 move |summary| {
                     if summary.player.is_computer {
-                        return view! { <p class="text-xs text-gray-500">"A computer player"</p> }
+                        return view! { <p class="text-xs text-base-content/45">"A computer player"</p> }
                             .into_any();
                     }
                     if summary.lessons.is_empty() {
-                        return view! { <p class="text-xs text-gray-500">"Nothing costly"</p> }
+                        return view! { <p class="text-xs text-base-content/45">"Nothing costly"</p> }
                             .into_any();
                     }
                     view! {
-                        <ol class="text-xs text-gray-300 list-decimal list-inside space-y-1">
+                        <ol class="text-xs text-base-content/80 list-decimal list-inside space-y-1">
                             {summary
                                 .lessons
                                 .iter()
                                 .map(|lesson| {
                                     view! {
                                         <li>
-                                            <span class="font-semibold text-amber-300">
+                                            <span class="font-semibold text-warning">
                                                 {lesson.title.clone()}
                                             </span>
-                                            <span class="text-gray-500">
+                                            <span class="text-base-content/45">
                                                 {format!(" ~{}: ", format_resources(lesson.cost))}
                                             </span>
                                             {lesson.detail.clone()}
@@ -557,7 +557,7 @@ fn PlayerSections(
                     let answers = summary.opening_answers.clone();
                     if answers.answers.is_empty() {
                         return view! {
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-base-content/45">
                                 "Not a 1v1, or the opening of the opponent is played too little"
                             </p>
                         }
@@ -565,7 +565,7 @@ fn PlayerSections(
                     }
                     let own = summary.opening.join(" → ");
                     view! {
-                        <p class="text-xs text-gray-400">
+                        <p class="text-xs text-base-content/60">
                             {format!("vs {}", answers.enemy_opening)}
                         </p>
                         <table class=TABLE_CLASS>
@@ -575,7 +575,7 @@ fn PlayerSections(
                                     .iter()
                                     .map(|answer| {
                                         let class = if answer.opening == own {
-                                            "pr-2 text-amber-300"
+                                            "pr-2 text-warning"
                                         } else {
                                             "pr-2"
                                         };
@@ -599,7 +599,7 @@ fn PlayerSections(
                                     .map(|own| {
                                         view! {
                                             <tr title="Your opening in this game">
-                                                <td class="pr-2 text-amber-300">{own.opening.clone()}</td>
+                                                <td class="pr-2 text-warning">{own.opening.clone()}</td>
                                                 <td class="pr-2 font-mono">
                                                     {format!("{:.0}% of {}", 100. * own.win_rate(), own.games)}
                                                 </td>
@@ -619,7 +619,7 @@ fn PlayerSections(
                 &players,
                 move |summary| {
                     view! {
-                        <ul class="text-xs text-gray-400 font-mono">
+                        <ul class="text-xs text-base-content/60 font-mono">
                             {base_events(summary)
                                 .into_iter()
                                 .map(|(seconds, new_base, text, average)| {
@@ -649,7 +649,7 @@ fn PlayerSections(
                             <tbody>
                                 <tr>
                                     <td class="pr-2">"Lost"</td>
-                                    <td class="pr-2 text-red-400">
+                                    <td class="pr-2 text-error">
                                         {format!(
                                             "{} minerals, {} vespene",
                                             resources.lost.minerals,
@@ -659,7 +659,7 @@ fn PlayerSections(
                                 </tr>
                                 <tr>
                                     <td class="pr-2">"Killed"</td>
-                                    <td class="pr-2 text-green-400">
+                                    <td class="pr-2 text-success">
                                         {format!(
                                             "{} minerals, {} vespene",
                                             resources.killed.minerals,
@@ -707,7 +707,7 @@ fn PlayerSections(
                 move |summary| {
                     if summary.ability_efficiency.is_empty() {
                         return view! {
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-base-content/45">
                                 "No casters, or the commands of this patch have no names yet"
                             </p>
                         }
@@ -819,7 +819,7 @@ fn PlayerSections(
                     view! {
                         <table class=TABLE_CLASS>
                             <thead>
-                                <tr class="text-left text-gray-300">
+                                <tr class="text-left text-base-content/80">
                                     <th class="pr-2">"Time"</th>
                                     <th class="pr-2">"Workers"</th>
                                     <th class="pr-2">"Supply"</th>
@@ -829,7 +829,7 @@ fn PlayerSections(
                                 {(!summary.winner_benchmarks.is_empty())
                                     .then(|| {
                                         view! {
-                                            <tr class="text-left text-gray-500">
+                                            <tr class="text-left text-base-content/45">
                                                 <th colspan="5" class="font-normal">
                                                     {format!(
                                                         "/ the median of the {} winners of the matchup in the patch",
@@ -863,7 +863,7 @@ fn PlayerSections(
                                                     .map(|winner| {
                                                         view! {
                                                             <span
-                                                                class="text-gray-500"
+                                                                class="text-base-content/45"
                                                                 title=format!(
                                                                     "The median of the {winner_games} players who won this matchup in the patch",
                                                                 )
@@ -876,7 +876,7 @@ fn PlayerSections(
                                                     .is_some_and(|enemy| value_of > value(enemy))
                                                     .then(|| {
                                                         view! {
-                                                            <span class="text-green-500" title="Ahead of the enemy">
+                                                            <span class="text-success" title="Ahead of the enemy">
                                                                 " ▲"
                                                             </span>
                                                         }
@@ -916,7 +916,7 @@ fn PlayerSections(
                 &players,
                 move |summary| {
                     view! {
-                        <p class="text-xs text-gray-300">
+                        <p class="text-xs text-base-content/80">
                             {format!("{} bases", summary.bases_at_10)}
                         </p>
                         <UnitCountsTable counts=summary.army_at_10.clone() />
@@ -933,14 +933,14 @@ fn PlayerSections(
                         + summary.bad_decisions.len();
                     view! {
                         <p
-                            class="text-xs text-gray-400"
+                            class="text-xs text-base-content/60"
                             title="Units produced scored against the enemy army at the time, from the balance data strengths and weaknesses"
                         >
-                            <span class="text-green-500">
+                            <span class="text-success">
                                 {format!("{} good", summary.good_decisions)}
                             </span>
                             {format!(" · {} even · ", summary.even_decisions)}
-                            <span class="text-red-500">
+                            <span class="text-error">
                                 {format!("{} bad", summary.bad_decisions.len())}
                             </span>
                             {format!(" out of {total_decisions}")}
@@ -956,10 +956,10 @@ fn PlayerSections(
                                                 <td class="pr-2 font-mono">
                                                     {format_game_time(decision.seconds)}
                                                 </td>
-                                                <td class="pr-2 text-white">
+                                                <td class="pr-2 text-base-content">
                                                     <UnitLink unit_name=decision.unit.clone() />
                                                 </td>
-                                                <td class="pr-2 text-red-400">
+                                                <td class="pr-2 text-error">
                                                     {format!("{:+.2}", decision.score)}
                                                 </td>
                                                 <td>
@@ -998,15 +998,15 @@ fn PlayerSections(
                     view! {
                         <div class="grid grid-cols-3 gap-2">
                             <div>
-                                <p class="text-xs text-gray-300">"Killed"</p>
+                                <p class="text-xs text-base-content/80">"Killed"</p>
                                 <UnitCountsTable counts=summary.units_killed.clone() />
                             </div>
                             <div>
-                                <p class="text-xs text-gray-300">"Lost"</p>
+                                <p class="text-xs text-base-content/80">"Lost"</p>
                                 <UnitCountsTable counts=summary.units_lost.clone() />
                             </div>
                             <div>
-                                <p class="text-xs text-gray-300">"Killed by"</p>
+                                <p class="text-xs text-base-content/80">"Killed by"</p>
                                 <UnitCountsTable counts=summary.killed_by.clone() />
                             </div>
                         </div>
@@ -1022,8 +1022,8 @@ fn PlayerSections(
                     let build_order = summary.build_order.clone();
                     view! {
                         <table class=TABLE_CLASS>
-                            <thead class="sticky top-0 bg-gray-800">
-                                <tr class="text-left text-gray-300">
+                            <thead class="sticky top-0 bg-base-200">
+                                <tr class="text-left text-base-content/80">
                                     <th class="pr-2">"Time"</th>
                                     <th class="pr-2">"Supply"</th>
                                     <th>"Unit, structure or upgrade"</th>
@@ -1046,7 +1046,7 @@ fn PlayerSections(
                                                         {format_game_time(entry.seconds)}
                                                     </td>
                                                     <td class="pr-2 font-mono">{entry.supply}</td>
-                                                    <td class="text-white">
+                                                    <td class="text-base-content">
                                                         {if entry.is_upgrade {
                                                             entry.name.into_any()
                                                         } else {
@@ -1074,7 +1074,7 @@ fn PlayerSections(
 /// The opening, scouting, proxy and first kill of the player.
 #[component]
 fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
-    let badge = "inline-block rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300";
+    let badge = "inline-block rounded bg-base-300 px-1.5 py-0.5 text-xs text-base-content/80";
     let opening = (!summary.opening.is_empty()).then(|| summary.opening.join(" → "));
     view! {
         <div class="mt-1 flex flex-wrap gap-1">
@@ -1118,7 +1118,7 @@ fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
                 .proxy
                 .map(|proxy| {
                     view! {
-                        <span class="inline-block rounded bg-orange-900 px-1.5 py-0.5 text-xs text-orange-200">
+                        <span class="inline-block rounded bg-warning/20 px-1.5 py-0.5 text-xs text-warning">
                             {format!(
                                 "Proxy: {} at {}",
                                 proxy.text,
@@ -1200,11 +1200,11 @@ fn enemy_benchmarks(
 /// The legend class of each [`FocusKind`] and its color in the focus chart.
 fn focus_color(kind: FocusKind) -> (&'static str, &'static str) {
     match kind {
-        FocusKind::Army => ("bg-red-500", "#ef4444"),
-        FocusKind::Macro => ("bg-indigo-500", "#6366f1"),
-        FocusKind::Economy => ("bg-yellow-500", "#eab308"),
-        FocusKind::Expand => ("bg-green-500", "#22c55e"),
-        FocusKind::Upgrades => ("bg-purple-500", "#a855f7"),
+        FocusKind::Army => ("bg-error", "var(--color-error)"),
+        FocusKind::Macro => ("bg-primary", "var(--color-primary)"),
+        FocusKind::Economy => ("bg-warning", "var(--color-warning)"),
+        FocusKind::Expand => ("bg-success", "#22c55e"),
+        FocusKind::Upgrades => ("bg-secondary", "#a855f7"),
     }
 }
 
@@ -1252,13 +1252,13 @@ fn FocusDetails(focus: PlayerFocus, chart_scale: CommandsScale) -> impl IntoView
     }
     view! {
         <p
-            class="text-xs text-gray-400"
+            class="text-xs text-base-content/60"
             title="The units selected and commanded: army units, townhalls and production, workers, townhalls built, research"
         >
             {legend}
         </p>
         <p
-            class="text-xs text-gray-300"
+            class="text-xs text-base-content/80"
             title="The longest time with army selections or commands and no macro, expand or upgrade action, after 02:00"
         >
             "Longest army only: "
@@ -1345,7 +1345,7 @@ fn MacroDetails(macro_summary: MacroSummary, chart_scale: CommandsScale) -> impl
                     .collect_view()}
             </tbody>
         </table>
-        <div class="mt-1 text-[10px] text-gray-500">
+        <div class="mt-1 text-[10px] text-base-content/45">
             <div class="mb-0.5">"Commands per minute"</div>
             <BarChart data=chart class="h-32" />
         </div>
@@ -1362,7 +1362,7 @@ fn UnitCountsTable(counts: Vec<UnitCount>) -> impl IntoView {
                     .map(|count| {
                         view! {
                             <tr>
-                                <td class="pr-2 text-white">
+                                <td class="pr-2 text-base-content">
                                     <UnitLink unit_name=count.unit />
                                 </td>
                                 <td>{count.count}</td>
@@ -1467,18 +1467,18 @@ fn WinChanceChart(
     let empty = points.is_empty();
     let turning_points = chances.turning_points.clone();
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 "Win chance"
             </h2>
             <div class="px-2 py-1">
-                <p class="text-xs text-gray-400">
+                <p class="text-xs text-base-content/60">
                     "Who the game favors every 30 seconds, from the army value, income, workers and resources killed of each side, \
                     as they turned out in thousands of games of the snapshot. It does not see the mistakes: \
                     a side ahead can still lose a fight, take a bad engagement or blunder the game away."
                 </p>
                 <Show when=move || empty>
-                    <p class="text-xs text-gray-500">"The game ended before 02:00."</p>
+                    <p class="text-xs text-base-content/45">"The game ended before 02:00."</p>
                 </Show>
                 <Show when=move || !empty>
                     <LineChart data=data.clone() />
@@ -1486,8 +1486,8 @@ fn WinChanceChart(
                 {(!turning_points.is_empty())
                     .then(|| {
                         view! {
-                            <h3 class="mt-1 text-sm font-semibold text-white">"Turning points"</h3>
-                            <ul class="text-xs text-gray-300 space-y-1">
+                            <h3 class="mt-1 text-sm font-semibold text-base-content">"Turning points"</h3>
+                            <ul class="text-xs text-base-content/80 space-y-1">
                                 {turning_points
                                     .into_iter()
                                     .map(|point| {
@@ -1510,7 +1510,7 @@ fn WinChanceChart(
                                                 <span>
                                                     {format!("{favored} +{:.0}%", point.change.abs() * 100.)}
                                                 </span>
-                                                <span class="text-gray-400">
+                                                <span class="text-base-content/60">
                                                     {point
                                                         .engagement
                                                         .clone()
@@ -1548,17 +1548,17 @@ fn WinChanceChart(
 fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
     let empty = engagements.is_empty();
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 "Engagements"
             </h2>
             <div class="scroll-section max-h-96 px-2 py-1">
                 <Show when=move || empty>
-                    <p class="text-xs text-gray-500">"None"</p>
+                    <p class="text-xs text-base-content/45">"None"</p>
                 </Show>
                 <table class=TABLE_CLASS>
-                    <thead class="sticky top-0 bg-gray-800">
-                        <tr class="text-left text-gray-300">
+                    <thead class="sticky top-0 bg-base-200">
+                        <tr class="text-left text-base-content/80">
                             <th class="pr-2">"Time"</th>
                             <th class="pr-2">"Player"</th>
                             <th class="pr-2">"Lost"</th>
@@ -1571,7 +1571,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                             <th>"Units"</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/10">
+                    <tbody class="divide-y divide-base-content/10">
                         {engagements
                             .into_iter()
                             .flat_map(|engagement| {
@@ -1615,7 +1615,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                                     {bad_trade
                                                         .then(|| {
                                                             view! {
-                                                                <span class="text-red-500" title="Bad trade">
+                                                                <span class="text-error" title="Bad trade">
                                                                     "▼ "
                                                                 </span>
                                                             }
@@ -1623,7 +1623,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                                     {good_trade
                                                         .then(|| {
                                                             view! {
-                                                                <span class="text-green-500" title="Good trade">
+                                                                <span class="text-success" title="Good trade">
                                                                     "▲ "
                                                                 </span>
                                                             }
@@ -1663,13 +1663,13 @@ fn engagement_bad_trade(lost: u32, most_lost: u32, least_lost: u32) -> bool {
 fn Messages(messages: Vec<TimedEvent>) -> impl IntoView {
     let empty = messages.is_empty();
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 "Messages"
             </h2>
             <div class="px-2 py-1">
                 <Show when=move || empty>
-                    <p class="text-xs text-gray-500">"None"</p>
+                    <p class="text-xs text-base-content/45">"None"</p>
                 </Show>
                 <table class=TABLE_CLASS>
                     <tbody>
@@ -1684,7 +1684,7 @@ fn Messages(messages: Vec<TimedEvent>) -> impl IntoView {
                                         <td class="pr-2">
                                             <PlayerLink player_name=event.player />
                                         </td>
-                                        <td class="text-white">{event.text}</td>
+                                        <td class="text-base-content">{event.text}</td>
                                     </tr>
                                 }
                             })

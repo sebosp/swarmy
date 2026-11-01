@@ -11,9 +11,9 @@ use swarmy_common::{clean_player_name_clan_escapes, RACE_NAMES};
 #[component]
 pub fn ResultMarker(result: String) -> impl IntoView {
     match result.as_str() {
-        "Win" => view! { <span class="text-green-500" title="Win">"▲ "</span> }.into_any(),
-        "Loss" => view! { <span class="text-red-500" title="Loss">"▼ "</span> }.into_any(),
-        _ => view! { <span class="text-gray-500" title=result>"■ "</span> }.into_any(),
+        "Win" => view! { <span class="text-success" title="Win">"▲ "</span> }.into_any(),
+        "Loss" => view! { <span class="text-error" title="Loss">"▼ "</span> }.into_any(),
+        _ => view! { <span class="text-base-content/45" title=result>"■ "</span> }.into_any(),
     }
 }
 
@@ -45,7 +45,7 @@ pub fn ReplayLink(ext_fs_id: u64) -> impl IntoView {
     view! {
         <a
             href="#"
-            class="nav-link text-green-400"
+            class="nav-link text-success"
             title="Open the replay details"
             on:click=move |ev: MouseEvent| {
                 ev.prevent_default();

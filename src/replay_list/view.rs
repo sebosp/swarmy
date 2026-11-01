@@ -17,8 +17,8 @@ use swarmy_common::*;
 const MATCHUPS: [&str; 6] = ["PvP", "PvT", "PvZ", "TvT", "TvZ", "ZvZ"];
 
 const SELECT_CLASS: &str =
-    "select select-sm w-full bg-gray-800 text-gray-200 border border-white/20";
-const LABEL_CLASS: &str = "block text-sm/6 font-medium text-white";
+    "select select-sm w-full bg-base-200 text-base-content/90 border border-base-content/20";
+const LABEL_CLASS: &str = "block text-sm/6 font-medium text-base-content";
 
 /// A dropdown of the replay list filters, `options` are the values and their labels, the first
 /// one is the default.
@@ -271,7 +271,7 @@ pub fn ReplayList(/*active_page: RwSignal<String>*/) -> impl IntoView {
                 <Loading message="Collecting the replays of the snapshot..." />
             </Show>
             <Show when=move || backend_response.get().meta.is_complete>
-                <h2 class="text-base/7 font-semibold text-white">
+                <h2 class="text-base/7 font-semibold text-base-content">
                     {move || {
                         let total = replay_list_store.total().get();
                         let shown = replay_list_store.data().read().len();
@@ -311,7 +311,7 @@ fn SortHeader(
     view! {
         <th
             scope="col"
-            class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white cursor-pointer select-none hover:text-indigo-300"
+            class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-base-content cursor-pointer select-none hover:text-primary"
             aria-sort=aria_sort
             title="Sort by this column, click again to reverse"
             on:click=move |_| {
@@ -343,14 +343,14 @@ pub fn ReplayListDataTable(
     view! {
         <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table class="relative min-w-full divide-y divide-white/15" data-server-sort>
+                <table class="relative min-w-full divide-y divide-base-content/15" data-server-sort>
                     <thead>
                         <tr>
                             <SortHeader label="ID" sort_by=ReplayListSort::Id replay_query />
                             <SortHeader label="Map" sort_by=ReplayListSort::Map replay_query />
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Actions"
                             </th>
@@ -360,13 +360,13 @@ pub fn ReplayListDataTable(
                             <SortHeader label="Date" sort_by=ReplayListSort::Date replay_query />
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Notes"
                             </th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/10 bg-gray-900">
+                    <tbody class="divide-y divide-base-content/10 bg-base-100">
                         <For
                             each=move || replay_list_store.data()
                             key=|row| { row.read().ext_fs_id }
@@ -387,7 +387,7 @@ pub fn ReplayListDataTable(
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="px-0 py-0 text-xs text-gray-400">
+                                            <span class="px-0 py-0 text-xs text-base-content/60">
                                                 <MapLink map_title=child.read().map_title.clone() />
                                             </span>
                                         </td>
@@ -459,7 +459,7 @@ pub fn ReplayListDataTable(
                                                 />
                                             </button>
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
                                         <ul>
                                         { players
                                                 .into_iter()
@@ -475,7 +475,7 @@ pub fn ReplayListDataTable(
                                         }
                                         </ul>
                                         </td>
-                                        <td class="px-2 py-2 text-xs font-mono text-gray-400">
+                                        <td class="px-2 py-2 text-xs font-mono text-base-content/60">
                                             {format_game_time(child.read().duration.max(0) as u32)}
                                         </td>
                                         <td>
@@ -493,11 +493,11 @@ pub fn ReplayListDataTable(
                                                 })
                                                 .collect_view()}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-base-content/60">
                                             {format!("{}", child.read().replay_date)}
                                         </td>
-                                        <td class="px-2 py-2 text-xs text-gray-400">
-                                            <span class="text-yellow-400">
+                                        <td class="px-2 py-2 text-xs text-base-content/60">
+                                            <span class="text-warning">
                                                 {rating_text(child.read().rating)}
                                             </span>
                                             {child

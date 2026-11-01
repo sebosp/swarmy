@@ -6,7 +6,7 @@ use crate::*;
 use leptos::prelude::*;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
 
 /// The use of the tracked abilities by patch, it does not change until the snapshot is optimized
 /// again.
@@ -19,7 +19,7 @@ pub async fn fetch_ability_usage() -> Result<AbilityUsageTable, String> {
 pub fn AbilityName(ability: String) -> impl IntoView {
     match tracked_ability(&ability) {
         Some(tracked) => view! {
-            <span class="text-white" title=format!("{} of the {}, {}", tracked.cost.label(), tracked.unit, tracked.ability)>
+            <span class="text-base-content" title=format!("{} of the {}, {}", tracked.cost.label(), tracked.unit, tracked.ability)>
                 {tracked.label}
             </span>
         }
@@ -38,14 +38,14 @@ pub fn AbilityUsageRows(
 ) -> impl IntoView {
     if rows.is_empty() {
         return view! {
-            <p class="text-xs text-gray-400">"No games of the snapshot used these abilities."</p>
+            <p class="text-xs text-base-content/60">"No games of the snapshot used these abilities."</p>
         }
         .into_any();
     }
     view! {
         <table class=TABLE_CLASS>
             <thead>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-base-content/80">
                     {show_race.then(|| view! { <th class="pr-3">"Race"</th> })}
                     <th class="pr-3">"Ability"</th>
                     <th class="pr-3">"Unit"</th>
@@ -56,7 +56,7 @@ pub fn AbilityUsageRows(
                     <th title="The most uses per game, with at least 3 games of the race">"Top players"</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-white/5">
+            <tbody class="divide-y divide-base-content/5">
                 {rows
                     .into_iter()
                     .map(|row| {
@@ -70,7 +70,7 @@ pub fn AbilityUsageRows(
                                 <td class="pr-3 py-1"><AbilityName ability=row.ability.clone() /></td>
                                 <td class="pr-3 py-1"><UnitLink unit_name=unit.to_string() /></td>
                                 <td class="pr-3 py-1">{cost}</td>
-                                <td class="pr-3 py-1 text-right font-mono text-white">{format!("{:.2}", row.per_game())}</td>
+                                <td class="pr-3 py-1 text-right font-mono text-base-content">{format!("{:.2}", row.per_game())}</td>
                                 <td class="pr-3 py-1 text-right font-mono">{format!("{:.0}% of {}", row.used_percent(), row.player_games)}</td>
                                 <td class="pr-3 py-1 text-right font-mono">{format!("{:.2}", row.per_game_used())}</td>
                                 <td class="py-1">
@@ -100,14 +100,14 @@ pub fn AbilityUsageRows(
 pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
     if abilities.is_empty() {
         return view! {
-            <p class="text-xs text-gray-400">"No ability with energy or a cooldown used."</p>
+            <p class="text-xs text-base-content/60">"No ability with energy or a cooldown used."</p>
         }
         .into_any();
     }
     view! {
         <table class=TABLE_CLASS>
             <thead>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-base-content/80">
                     <th class="pr-2">"Ability"</th>
                     <th class="pr-2 text-right">"Uses"</th>
                     <th class="pr-2 text-right" title="The uses per game of the players of the race in the games of the patch">"Patch avg"</th>
@@ -121,9 +121,9 @@ pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
                     .map(|ability| {
                         let average = ability.patch.as_ref().map(|patch| patch.per_game());
                         let color = match average {
-                            Some(average) if ability.uses as f64 >= average * 1.25 => "text-green-400",
-                            Some(average) if (ability.uses as f64) < average * 0.75 => "text-red-400",
-                            _ => "text-white",
+                            Some(average) if ability.uses as f64 >= average * 1.25 => "text-success",
+                            Some(average) if (ability.uses as f64) < average * 0.75 => "text-error",
+                            _ => "text-base-content",
                         };
                         let is_top = ability.is_top_player();
                         view! {

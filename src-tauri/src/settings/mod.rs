@@ -43,6 +43,14 @@ pub async fn set_current_app_config(
         "remote_backend_token",
         app_settings.remote_backend_token.trim(),
     );
+    let zoom_percent = clamp_zoom_percent(app_settings.zoom_percent as i64);
+    store.set("zoom_percent", zoom_percent);
+    store.set("theme", app_settings.theme.trim());
+    store.set("reduce_motion", app_settings.reduce_motion.trim());
+    store.set("underline_links", app_settings.underline_links);
+    store.set("focus_outline", app_settings.focus_outline);
+    store.save()?;
+    apply_zoom(&app_handle, zoom_percent);
     // The watcher follows the replay path and the watch setting.
     crate::replay_watcher::configure(&app_handle);
     Ok(())
@@ -123,7 +131,75 @@ pub fn app_settings_from_store(store: &Map<String, Value>) -> AppSettings {
             .trim_end_matches('/')
             .to_string(),
         remote_backend_token: str_of("remote_backend_token"),
+        zoom_percent: clamp_zoom_percent(i64_of("zoom_percent", default_zoom_percent() as i64)),
+        theme: Some(str_of("theme"))
+            .filter(|theme| !theme.is_empty())
+            .unwrap_or_else(default_theme),
+        reduce_motion: Some(str_of("reduce_motion"))
+            .filter(|value| REDUCE_MOTION_OPTIONS.iter().any(|(id, _)| id == value))
+            .unwrap_or_else(default_reduce_motion),
+        underline_links: bool_of("underline_links"),
+        focus_outline: bool_of("focus_outline"),
     }
+}
+
+/// The settings of the interface, without the snapshot statistics: for the window to apply the
+/// theme and the zoom as soon as it opens.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn get_ui_settings(app_handle: tauri::AppHandle) -> Result<UiSettings, SwarmyError> {
+    let settings = load_stored_app_settings(&app_handle)?;
+    Ok(UiSettings {
+        zoom_percent: settings.zoom_percent,
+        theme: settings.theme,
+        reduce_motion: settings.reduce_motion,
+        underline_links: settings.underline_links,
+        focus_outline: settings.focus_outline,
+    })
+}
+
+/// Zooms the main window: the webview scales the whole interface, text, charts and icons.
+pub fn apply_zoom(app_handle: &tauri::AppHandle, zoom_percent: u32) {
+    use tauri::Manager;
+    let Some(window) = app_handle.get_webview_window("main") else {
+        return;
+    };
+    if let Err(err) = window.set_zoom(zoom_percent as f64 / 100.) {
+        tracing::warn!("Unable to zoom the window to {zoom_percent}%: {err}");
+    }
+}
+
+/// Changes the zoom by steps (Ctrl+= and Ctrl+-, `0` resets it), saves it and applies it. The
+/// message is the new zoom in percent.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn zoom_step(
+    app_handle: tauri::AppHandle,
+    steps: i32,
+) -> Result<ApiResponse, SwarmyError> {
+    let settings = load_stored_app_settings(&app_handle)?;
+    let zoom_percent = if steps == 0 {
+        default_zoom_percent()
+    } else {
+        clamp_zoom_percent(settings.zoom_percent as i64 + steps as i64 * ZOOM_STEP_PERCENT as i64)
+    };
+    set_zoom_percent(app_handle, zoom_percent).await
+}
+
+/// Saves and applies a zoom, the message is the zoom in percent.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn set_zoom_percent(
+    app_handle: tauri::AppHandle,
+    zoom_percent: u32,
+) -> Result<ApiResponse, SwarmyError> {
+    let zoom_percent = clamp_zoom_percent(zoom_percent as i64);
+    let store = StoreBuilder::new(&app_handle, SETTINGS_STORE).build()?;
+    let _ = store.reload();
+    store.set("zoom_percent", zoom_percent);
+    store.save()?;
+    apply_zoom(&app_handle, zoom_percent);
+    Ok(ApiResponseBuilder::new()
+        .with_success()
+        .with_message(zoom_percent.to_string())
+        .build())
 }
 
 /// The directory of the map caches until one is configured: `swarmy-caches` in the home

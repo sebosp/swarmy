@@ -156,7 +156,7 @@ pub fn NewReplaysBanner() -> impl IntoView {
                 })
         }}
         <Show when=move || status.get().needs_optimize()>
-            <div class="flex items-center justify-between gap-2 px-3 py-1 text-sm text-indigo-100 bg-indigo-900/60 border-b border-indigo-500/40">
+            <div class="flex items-center justify-between gap-2 px-3 py-1 text-sm text-primary bg-primary/20 border-b border-primary/40">
                 <span>{message}</span>
                 <button
                     class="btn btn-accent btn-xs"

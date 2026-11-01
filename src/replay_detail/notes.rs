@@ -25,9 +25,9 @@ pub fn RatingStars(rating: RwSignal<Option<u8>>) -> impl IntoView {
                 <button
                     class=move || {
                         if rating.get().is_some_and(|rating| rating >= stars) {
-                            "text-yellow-400 text-xl leading-none"
+                            "text-warning text-xl leading-none"
                         } else {
-                            "text-gray-600 text-xl leading-none hover:text-yellow-200"
+                            "text-base-content/35 text-xl leading-none hover:text-warning"
                         }
                     }
                     title=format!("{stars} stars, click again to remove the rating")
@@ -97,14 +97,14 @@ pub fn ReplayNotesPanel(sha256: String) -> impl IntoView {
         });
     };
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40 p-2 space-y-2 text-sm">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40 p-2 space-y-2 text-sm">
             <div class="flex items-center gap-3">
-                <h2 class="text-base/7 font-semibold text-white">"Notes"</h2>
+                <h2 class="text-base/7 font-semibold text-base-content">"Notes"</h2>
                 <RatingStars rating />
-                <span class="text-xs text-gray-500">{move || status.get()}</span>
+                <span class="text-xs text-base-content/45">{move || status.get()}</span>
             </div>
             <textarea
-                class="textarea textarea-sm w-full bg-gray-900 text-gray-200 border border-white/20"
+                class="textarea textarea-sm w-full bg-base-100 text-base-content/90 border border-base-content/20"
                 rows="3"
                 placeholder="Notes about the replay, i.e. what to show when casting it"
                 prop:value=move || note.get()
@@ -112,7 +112,7 @@ pub fn ReplayNotesPanel(sha256: String) -> impl IntoView {
             ></textarea>
             <div class="flex items-center gap-2">
                 <input
-                    class="input input-sm grow bg-gray-900 text-gray-200 border border-white/20"
+                    class="input input-sm grow bg-base-100 text-base-content/90 border border-base-content/20"
                     list="replay-tags"
                     placeholder="Tags separated by commas, i.e. finals, comeback"
                     prop:value=move || tags.get()

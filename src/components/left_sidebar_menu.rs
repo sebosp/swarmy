@@ -33,13 +33,13 @@ pub fn LeftSideBarMenu(active_page: RwSignal<String>) -> impl IntoView {
     view! {
         <div
             id="swarmy-tauri-left-sidebar"
-            class="flex flex-col items-center w-12 h-full overflow-y-auto text-gray-400 bg-gray-900 rounded border-r border-base-100 py-1"
+            class="flex flex-col items-center w-12 h-full overflow-y-auto text-base-content/60 bg-base-100 rounded border-r border-base-100 py-1"
         >
             {MENU_GROUPS
                 .iter()
                 .enumerate()
                 .map(|(idx, pages)| {
-                    let separator = if idx == 0 { "" } else { "mt-1 pt-1 border-t border-purple-700" };
+                    let separator = if idx == 0 { "" } else { "mt-1 pt-1 border-t border-secondary" };
                     view! {
                         <div class=format!("flex flex-col items-center gap-0.5 {separator}")>
                             {pages
@@ -57,9 +57,9 @@ pub fn LeftSideBarMenu(active_page: RwSignal<String>) -> impl IntoView {
 #[component]
 fn SidebarMenuItem(name: &'static str, active_page: RwSignal<String>) -> impl IntoView {
     let active_icon_class =
-        "flex items-center justify-center w-9 h-9 rounded text-gray-200 bg-gray-700";
+        "flex items-center justify-center w-9 h-9 rounded text-base-content/90 bg-base-300";
     let inactive_icon_class =
-        "flex items-center justify-center w-9 h-9 rounded hover:bg-gray-700 hover:text-gray-300";
+        "flex items-center justify-center w-9 h-9 rounded hover:bg-base-300 hover:text-base-content/80";
     let icon_data = match name {
         HOME_PAGE => HOUSE,
         TOUR_PAGE => SIGNPOST,

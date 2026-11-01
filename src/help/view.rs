@@ -328,15 +328,15 @@ fn entries(entries: &[Entry]) -> impl IntoView + use<> {
         .map(|(term, explanation)| {
             view! {
                 <tr class="align-top">
-                    <td class="pr-4 py-1 text-white whitespace-nowrap">{*term}</td>
+                    <td class="pr-4 py-1 text-base-content whitespace-nowrap">{*term}</td>
                     <td class="py-1">{*explanation}</td>
                 </tr>
             }
         })
         .collect_view();
     view! {
-        <table class="min-w-full text-sm text-gray-400">
-            <tbody class="divide-y divide-white/5">{rows}</tbody>
+        <table class="min-w-full text-sm text-base-content/60">
+            <tbody class="divide-y divide-base-content/5">{rows}</tbody>
         </table>
     }
 }
@@ -345,7 +345,7 @@ fn entries(entries: &[Entry]) -> impl IntoView + use<> {
 pub fn Help() -> impl IntoView {
     view! {
         <div class="max-w-5xl p-2 space-y-4">
-            <h1 class="text-xl font-semibold text-white">"Help"</h1>
+            <h1 class="text-xl font-semibold text-base-content">"Help"</h1>
             <Panel title="Getting started">{entries(&GETTING_STARTED)}</Panel>
             <Panel title="Views">{entries(&VIEWS)}</Panel>
             <Panel title="How the statistics are calculated">{entries(&LOGIC)}</Panel>

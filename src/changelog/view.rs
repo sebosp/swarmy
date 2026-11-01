@@ -7,6 +7,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
     (
         "2026-11-01",
         &[
+            "Zoom, themes and accessibility in Config: Ctrl+= and Ctrl+- zoom the whole interface (Ctrl+0 resets, 50% to 250%), the theme can be Swarmy, Light, Dark, High contrast, the Catppuccin and Tokyo Night variants or follow the light or dark preference of the desktop, and the motion, the link underlines and the focus outline can be set. All of it is kept on this computer. The colors of the charts are checked for color vision deficiencies in every theme.",
             "Snapshot state: while Optimize creates the snapshot, here or in the remote backend, the views answer that the snapshot is being created instead of failing on the files being written; a snapshot whose creation was interrupted (the app was closed, the backend stopped) is reported as incomplete in Scan, with the hint to Rebuild it (s2protocol 5.0.1 keeps a locked in_progress.json in the snapshot while it writes it). Only one Optimize of a snapshot runs at a time.",
             "s2protocol 5.0.0: the replay types are read with the new serde_mpq derives, checked against Blizzard's definitions. The selection masks of more than 8 units that did not start at a byte boundary were applied to the wrong units, the unit tracking of the game events is more accurate; the clan tag of the players without one is empty instead of a NUL character; the sequence of the command manager events and a few rarely used text fields (bank, save game, cutscene events) are read correctly. Optimize parses the replays again.",
         ],
@@ -155,13 +156,13 @@ const CHANGELOG: &[(&str, &[&str])] = &[
 pub fn Changelog() -> impl IntoView {
     view! {
         <div class="max-w-3xl p-4 space-y-4">
-            <h1 class="text-2xl font-semibold text-white">"Changelog"</h1>
+            <h1 class="text-2xl font-semibold text-base-content">"Changelog"</h1>
             {CHANGELOG
                 .iter()
                 .map(|(date, changes)| view! {
                     <div>
-                        <h2 class="text-base/7 font-semibold text-white">{*date}</h2>
-                        <ul class="mt-1 list-disc list-inside text-sm text-gray-400">
+                        <h2 class="text-base/7 font-semibold text-base-content">{*date}</h2>
+                        <ul class="mt-1 list-disc list-inside text-sm text-base-content/60">
                             {changes.iter().map(|change| view! { <li>{*change}</li> }).collect_view()}
                         </ul>
                     </div>

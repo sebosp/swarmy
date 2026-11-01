@@ -10,13 +10,13 @@ pub fn change_marker(
     kind: PatchRowKind,
     change: PatchChange,
 ) -> Option<(&'static str, &'static str)> {
-    const WORSE_UP: (&str, &str) = ("▲", "text-red-500");
-    const BETTER_DOWN: (&str, &str) = ("▼", "text-green-500");
-    const BETTER_UP: (&str, &str) = ("▲", "text-green-500");
-    const WORSE_DOWN: (&str, &str) = ("▼", "text-red-500");
+    const WORSE_UP: (&str, &str) = ("▲", "text-error");
+    const BETTER_DOWN: (&str, &str) = ("▼", "text-success");
+    const BETTER_UP: (&str, &str) = ("▲", "text-success");
+    const WORSE_DOWN: (&str, &str) = ("▼", "text-error");
     match (kind, change) {
         (_, PatchChange::Same) => None,
-        (_, PatchChange::Changed) => Some(("●", "text-yellow-400")),
+        (_, PatchChange::Changed) => Some(("●", "text-warning")),
         // A benefit added, i.e. a unit it is strong against, is better.
         (PatchRowKind::Benefit, PatchChange::Added) => Some(BETTER_UP),
         (PatchRowKind::Benefit, PatchChange::Removed) => Some(WORSE_DOWN),

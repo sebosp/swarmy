@@ -23,6 +23,11 @@ pub fn Config() -> impl IntoView {
     let notify_new_replays = RwSignal::new(false);
     let remote_backend_url = RwSignal::new("".to_string());
     let remote_backend_token = RwSignal::new("".to_string());
+    let zoom_percent = RwSignal::new(default_zoom_percent());
+    let theme = RwSignal::new(default_theme());
+    let reduce_motion = RwSignal::new(default_reduce_motion());
+    let underline_links = RwSignal::new(false);
+    let focus_outline = RwSignal::new(false);
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
@@ -44,6 +49,11 @@ pub fn Config() -> impl IntoView {
             *notify_new_replays.write() = settings.notify_new_replays;
             *remote_backend_url.write() = settings.remote_backend_url.clone();
             *remote_backend_token.write() = settings.remote_backend_token.clone();
+            *zoom_percent.write() = settings.zoom_percent;
+            *theme.write() = settings.theme.clone();
+            *reduce_motion.write() = settings.reduce_motion.clone();
+            *underline_links.write() = settings.underline_links;
+            *focus_outline.write() = settings.focus_outline;
             set_backend_response.update(|val| {
                 val.meta.success = true;
                 val.meta.is_complete = true;
@@ -52,21 +62,21 @@ pub fn Config() -> impl IntoView {
     );
     view! {
         <div class="ml-4 mt-4">
-            <h2 class="text-base/7 font-semibold text-white">"Swarmy Settings"</h2>
+            <h2 class="text-base/7 font-semibold text-base-content">"Swarmy Settings"</h2>
             <DisplayBackendStatus backend_response />
-            <div class="mt-6 space-y-10 border-b border-white/10 pb-12 sm:space-y-0 sm:divide-y sm:divide-white/10 sm:border-t sm:border-t-white/10 sm:pb-0">
+            <div class="mt-6 space-y-10 border-b border-base-content/10 pb-12 sm:space-y-0 sm:divide-y sm:divide-base-content/10 sm:border-t sm:border-t-white/10 sm:pb-0">
                 <fieldset>
                     <legend class="sr-only">"Parallelism"</legend>
                     <div class="grid grid-cols-4 gap-4 py-6">
-                        <div aria-hidden="true" class="text-sm/6 font-semibold text-white">
-                            <p class="text-sm/6 font-semibold text-white">"Parallelism"</p>
-                            <p class="text-sm/6 font-semibold text-white">
+                        <div aria-hidden="true" class="text-sm/6 font-semibold text-base-content">
+                            <p class="text-sm/6 font-semibold text-base-content">"Parallelism"</p>
+                            <p class="text-sm/6 font-semibold text-base-content">
                                 " Status: "
                                 <span class=move || {
                                     if disable_parallelism.get() {
-                                        "inline-flex items-center rounded-full bg-orange-400/10 px-1.5 py-0.5 text-xs font-medium text-orange-400"
+                                        "inline-flex items-center rounded-full bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
                                     } else {
-                                        "inline-flex items-center rounded-full bg-green-400/10 px-1.5 py-0.5 text-xs font-medium text-green-400"
+                                        "inline-flex items-center rounded-full bg-success/10 px-1.5 py-0.5 text-xs font-medium text-success"
                                     }
                                 }>
                                     {move || {
@@ -92,12 +102,12 @@ pub fn Config() -> impl IntoView {
                                                 on:click=move |_| {
                                                     disable_parallelism.set(!disable_parallelism.get())
                                                 }
-                                                class="col-start-1 row-start-1 appearance-none rounded-sm border border-white/10 bg-white/5 checked:border-indigo-500 checked:bg-indigo-500 indeterminate:border-indigo-500 indeterminate:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:border-white/5 disabled:bg-white/10 disabled:checked:bg-white/10 forced-colors:appearance-auto"
+                                                class="col-start-1 row-start-1 appearance-none rounded-sm border border-base-content/10 bg-base-content/5 checked:border-primary checked:bg-primary indeterminate:border-primary indeterminate:bg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:border-base-content/5 disabled:bg-base-content/10 disabled:checked:bg-base-content/10 forced-colors:appearance-auto"
                                             />
                                             <svg
                                                 viewBox="0 0 14 14"
                                                 fill="none"
-                                                class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-white group-has-disabled:stroke-white/25"
+                                                class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-base-content group-has-disabled:stroke-base-content/25"
                                             >
                                                 <path
                                                     d="M3 8L6 11L11 3.5"
@@ -117,7 +127,7 @@ pub fn Config() -> impl IntoView {
                                         </div>
                                     </div>
                                     <div class="text-sm/6">
-                                        <label for="parallelism" class="font-medium text-white">
+                                        <label for="parallelism" class="font-medium text-base-content">
                                             "Disable Parallelism"
                                         </label>
                                     </div>
@@ -138,12 +148,12 @@ pub fn Config() -> impl IntoView {
                 <fieldset>
                     <legend class="sr-only">"New replays"</legend>
                     <div class="grid grid-cols-4 gap-4 py-6">
-                        <p class="text-sm/6 font-semibold text-white">"New replays"</p>
-                        <label class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white">
+                        <p class="text-sm/6 font-semibold text-base-content">"New replays"</p>
+                        <label class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-base-content">
                             <input
                                 id="watch_new_replays"
                                 type="checkbox"
-                                class="size-4 accent-indigo-500"
+                                class="size-4 accent-primary"
                                 prop:checked=move || watch_new_replays.get()
                                 on:change=move |ev| watch_new_replays.set(event_target_checked(&ev))
                             />
@@ -160,13 +170,13 @@ pub fn Config() -> impl IntoView {
                         </div>
                         <div></div>
                         <label
-                            class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white"
+                            class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-base-content"
                             title="Shows a message with the name of each new replay the watcher finds, i.e. when a game ends"
                         >
                             <input
                                 id="notify_new_replays"
                                 type="checkbox"
-                                class="size-4 accent-indigo-500"
+                                class="size-4 accent-primary"
                                 prop:disabled=move || !watch_new_replays.get()
                                 prop:checked=move || notify_new_replays.get()
                                 on:change=move |ev| {
@@ -234,6 +244,8 @@ pub fn Config() -> impl IntoView {
                     optional=true
                 />
                 <CheckRemoteBackend remote_backend_url remote_backend_token />
+                <ConfigAppearance zoom_percent theme />
+                <ConfigAccessibility reduce_motion underline_links focus_outline />
                 <ConfigNumberInput
                     name="scan_max_files"
                     label="Max number of files to Scan"
@@ -286,6 +298,11 @@ pub fn Config() -> impl IntoView {
                                     notify_new_replays: notify_new_replays.get(),
                                     remote_backend_url: remote_backend_url.get(),
                                     remote_backend_token: remote_backend_token.get(),
+                                    zoom_percent: zoom_percent.get(),
+                                    theme: theme.get(),
+                                    reduce_motion: reduce_motion.get(),
+                                    underline_links: underline_links.get(),
+                                    focus_outline: focus_outline.get(),
                                     ..Default::default()
                                 },
                                 set_backend_response,
@@ -311,7 +328,7 @@ pub fn ConfigNumberInput(
     let (is_invalid_number, set_is_invalid_number) = signal(false);
     view! {
         <div class="mt-2 col-span-1 sm:mt-0">
-            <label class="block text-sm/6 font-medium text-white sm:pt-1.5">{label}</label>
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">{label}</label>
         </div>
         <div class="mt-2 col-span-2 sm:mt-0">
             <input
@@ -320,9 +337,9 @@ pub fn ConfigNumberInput(
                 aria-describedby=move || format!("{}-description", name)
                 class=move || {
                     if is_invalid_number.get() {
-                        "block w-full rounded-md bg-white/5 px-3 py-1.5 text-red-400 outline-1 -outline-offset-1 outline-red-500/50 placeholder:text-red-400/70 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 sm:pr-9 sm:max-w-xs sm:text-sm/6"
+                        "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-error outline-1 -outline-offset-1 outline-error/50 placeholder:text-error/70 focus:outline-2 focus:-outline-offset-2 focus:outline-error sm:pr-9 sm:max-w-xs sm:text-sm/6"
                     } else {
-                        "block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:max-w-xs sm:text-sm/6"
+                        "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-base-content/45 focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:max-w-xs sm:text-sm/6"
                     }
                 }
                 on:input=move |ev| {
@@ -341,9 +358,9 @@ pub fn ConfigNumberInput(
                 id=move || format!("{}-description", name)
                 class=move || {
                     if is_invalid_number.get() {
-                        "mt-2 text-sm text-red-400"
+                        "mt-2 text-sm text-error"
                     } else {
-                        "mt-2 text-sm/6 text-gray-400"
+                        "mt-2 text-sm/6 text-base-content/60"
                     }
                 }
             >
@@ -401,7 +418,7 @@ pub fn ConfigStringInput(
     };
     view! {
         <div class="mt-2 col-span-1 sm:mt-0">
-            <label class="block text-sm/6 font-medium text-white sm:pt-1.5">{label}</label>
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">{label}</label>
         </div>
         <div class="mt-2 col-span-2 sm:mt-0">
             <div class="flex gap-2">
@@ -411,9 +428,9 @@ pub fn ConfigStringInput(
                     aria-describedby=move || format!("{}-description", name)
                     class=move || {
                         if is_missing() {
-                            "block w-full rounded-md bg-white/5 px-3 py-1.5 text-red-400 outline-1 -outline-offset-1 outline-red-500/50 placeholder:text-red-400/70 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 sm:pr-9 sm:text-sm/6"
+                            "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-error outline-1 -outline-offset-1 outline-error/50 placeholder:text-error/70 focus:outline-2 focus:-outline-offset-2 focus:outline-error sm:pr-9 sm:text-sm/6"
                         } else {
-                            "block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                            "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-base-content/45 focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:text-sm/6"
                         }
                     }
                     on:input=move |ev| {
@@ -446,9 +463,9 @@ pub fn ConfigStringInput(
                 id=move || format!("{}-description", name)
                 class=move || {
                     if is_missing() {
-                        "mt-2 text-sm/6 text-red-400"
+                        "mt-2 text-sm/6 text-error"
                     } else {
-                        "mt-2 text-sm/6 text-gray-400"
+                        "mt-2 text-sm/6 text-base-content/60"
                     }
                 }
             >
@@ -464,12 +481,12 @@ pub fn ConfigStringInput(
         </div>
         {if warning {
             view! {
-                <div class="col-span-1 text-amber-400">
+                <div class="col-span-1 text-warning">
                     <span class="group relative inline-block" tabindex="0" aria-label=description>
                         <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
                         <span
                             role="tooltip"
-                            class="invisible absolute right-0 top-7 z-20 w-96 max-w-[80vw] whitespace-pre-line rounded-md border border-amber-500/60 bg-amber-950 px-3 py-2 text-sm text-amber-100 shadow-lg group-hover:visible group-focus:visible"
+                            class="invisible absolute right-0 top-7 z-20 w-96 max-w-[80vw] whitespace-pre-line rounded-md border border-warning/60 bg-base-200 px-3 py-2 text-sm text-warning shadow-lg group-hover:visible group-focus:visible"
                         >
                             {description}
                         </span>
@@ -487,6 +504,163 @@ pub fn ConfigStringInput(
             }
                 .into_any()
         }}
+    }
+}
+
+/// The theme and the zoom: the theme is applied as it is picked and saved with Save, the zoom is
+/// saved as it changes, as Ctrl+= and Ctrl+- do.
+#[component]
+fn ConfigAppearance(zoom_percent: RwSignal<u32>, theme: RwSignal<String>) -> impl IntoView {
+    let toast = use_context::<crate::components::appearance::ZoomToast>();
+    // The zoom saved by the shortcuts or the buttons, read back for the form.
+    if let Some(toast) = toast {
+        Effect::new(move |_| {
+            if let Some(percent) = toast.0.get() {
+                zoom_percent.set(percent);
+            }
+        });
+    }
+    let zoom = move |steps: i32| {
+        if let Some(toast) = toast {
+            crate::components::appearance::zoom_step(steps, toast);
+        }
+    };
+    view! {
+        <div class="col-span-1">
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">"Theme"</label>
+        </div>
+        <div class="col-span-2">
+            <select
+                class="select select-sm w-full max-w-xs"
+                prop:value=move || theme.get()
+                on:change=move |ev| {
+                    let picked = event_target_value(&ev);
+                    crate::components::appearance::apply_theme(&picked);
+                    theme.set(picked);
+                }
+            >
+                {THEMES
+                    .iter()
+                    .map(|(id, label)| {
+                        view! {
+                            <option value=*id selected=move || theme.get() == *id>
+                                {*label}
+                            </option>
+                        }
+                    })
+                    .collect_view()}
+            </select>
+        </div>
+        <div class="col-span-1 text-primary">
+            <span title="The colors of the interface, applied as you pick them and kept with Save. Follow the system picks Swarmy or Light from the light or dark preference of your desktop.">
+                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+            </span>
+        </div>
+        <div class="col-span-1">
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">"Zoom"</label>
+        </div>
+        <div class="col-span-2 flex items-center gap-2">
+            <button type="button" class="btn btn-outline btn-sm" title="Zoom out, Ctrl+-" on:click=move |_| zoom(-1)>
+                "−"
+            </button>
+            <span class="w-14 text-center text-sm text-base-content">
+                {move || format!("{}%", zoom_percent.get())}
+            </span>
+            <button type="button" class="btn btn-outline btn-sm" title="Zoom in, Ctrl+=" on:click=move |_| zoom(1)>
+                "+"
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" title="Back to 100%, Ctrl+0" on:click=move |_| zoom(0)>
+                "Reset"
+            </button>
+        </div>
+        <div class="col-span-1 text-primary">
+            <span title="The size of the whole interface, text, charts and icons, from 50% to 250%. Ctrl+= and Ctrl+- change it in any view, Ctrl+0 resets it; it is saved as it changes.">
+                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+            </span>
+        </div>
+    }
+}
+
+/// The accessibility options, applied as they are picked and kept with Save. The chart colors are
+/// safe for color vision deficiencies in every theme, the zoom is the text size, see above.
+#[component]
+fn ConfigAccessibility(
+    reduce_motion: RwSignal<String>,
+    underline_links: RwSignal<bool>,
+    focus_outline: RwSignal<bool>,
+) -> impl IntoView {
+    let apply = move || {
+        crate::components::appearance::apply_accessibility(
+            &reduce_motion.get_untracked(),
+            underline_links.get_untracked(),
+            focus_outline.get_untracked(),
+        )
+    };
+    view! {
+        <div class="col-span-1">
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">"Motion"</label>
+        </div>
+        <div class="col-span-2">
+            <select
+                class="select select-sm w-full max-w-xs"
+                on:change=move |ev| {
+                    reduce_motion.set(event_target_value(&ev));
+                    apply();
+                }
+            >
+                {REDUCE_MOTION_OPTIONS
+                    .iter()
+                    .map(|(id, label)| {
+                        view! {
+                            <option value=*id selected=move || reduce_motion.get() == *id>
+                                {*label}
+                            </option>
+                        }
+                    })
+                    .collect_view()}
+            </select>
+        </div>
+        <div class="col-span-1 text-primary">
+            <span title="Reduce stops the animations and transitions, i.e. the spinners and the sliding panels. Follow the system uses the Reduce animations setting of your desktop.">
+                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+            </span>
+        </div>
+        <div class="col-span-1">
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">
+                "Links and focus"
+            </label>
+        </div>
+        <div class="col-span-2 flex flex-col gap-2">
+            <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content">
+                <input
+                    type="checkbox"
+                    class="toggle toggle-sm"
+                    prop:checked=move || underline_links.get()
+                    on:change=move |ev| {
+                        underline_links.set(event_target_checked(&ev));
+                        apply();
+                    }
+                />
+                "Underline the links, not only on hover"
+            </label>
+            <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content">
+                <input
+                    type="checkbox"
+                    class="toggle toggle-sm"
+                    prop:checked=move || focus_outline.get()
+                    on:change=move |ev| {
+                        focus_outline.set(event_target_checked(&ev));
+                        apply();
+                    }
+                />
+                "Always show the focus outline"
+            </label>
+        </div>
+        <div class="col-span-1 text-primary">
+            <span title="The names that open another view are underlined with dots; underlined links also show them as solid underlines. The focus outline shows which element the keyboard is on, also after a click.">
+                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+            </span>
+        </div>
     }
 }
 
@@ -532,10 +706,10 @@ fn CheckRemoteBackend(
             </button>
             {move || match status.get() {
                 Some(Ok(message)) => {
-                    view! { <span class="text-sm/6 text-green-400">{message}</span> }.into_any()
+                    view! { <span class="text-sm/6 text-success">{message}</span> }.into_any()
                 }
                 Some(Err(err)) => {
-                    view! { <span class="text-sm/6 text-red-400">{err}</span> }.into_any()
+                    view! { <span class="text-sm/6 text-error">{err}</span> }.into_any()
                 }
                 None => ().into_any(),
             }}

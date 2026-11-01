@@ -7,8 +7,8 @@ use leptos::prelude::*;
 #[component]
 pub fn Section(title: &'static str, height: &'static str, children: Children) -> impl IntoView {
     view! {
-        <div class="mt-2 rounded-md border border-white/15 bg-gray-800/40">
-            <h3 class="px-2 py-1 text-sm font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="mt-2 rounded-md border border-base-content/15 bg-base-200/40">
+            <h3 class="px-2 py-1 text-sm font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 {title}
             </h3>
             <div class=format!("scroll-section px-2 py-1 {height}")>{children()}</div>
@@ -20,8 +20,8 @@ pub fn Section(title: &'static str, height: &'static str, children: Children) ->
 #[component]
 pub fn Panel(title: &'static str, children: Children) -> impl IntoView {
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 {title}
             </h2>
             <div class="px-2 py-1">{children()}</div>

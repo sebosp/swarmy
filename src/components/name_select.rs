@@ -31,9 +31,9 @@ pub fn NameSelect(
     });
     view! {
         <div class="w-64">
-            <label class="block text-sm/6 font-medium text-white">{label}</label>
+            <label class="block text-sm/6 font-medium text-base-content">{label}</label>
             <select
-                class="select select-sm w-full bg-gray-800 text-gray-200 border border-white/20"
+                class="select select-sm w-full bg-base-200 text-base-content/90 border border-base-content/20"
                 on:change=move |ev| on_select.run(event_target_value(&ev))
             >
                 <option value="" selected=move || value.get().is_empty()>

@@ -22,8 +22,8 @@ const MIN_PRODUCED_FOR_EFFECTIVENESS: usize = 10;
 /// The rows shown in the units table.
 const TOP_UNITS: usize = 15;
 
-const HEADING_CLASS: &str = "text-base/7 font-semibold text-white";
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const HEADING_CLASS: &str = "text-base/7 font-semibold text-base-content";
+const TABLE_CLASS: &str = "min-w-full text-xs text-base-content/60";
 
 fn win_rate(wins: usize, games: usize) -> String {
     if games == 0 {
@@ -146,10 +146,10 @@ fn PlayerHeader(detail: PlayerDetail) -> impl IntoView {
         .join(", ");
     view! {
         <div>
-            <h1 class="text-xl font-semibold text-white">
+            <h1 class="text-xl font-semibold text-base-content">
                 {clean_player_name_clan_escapes(&detail.player_name)}
             </h1>
-            <p class="text-sm text-gray-400">
+            <p class="text-sm text-base-content/60">
                 {format!(
                     "{} games, {} wins, {} losses ({}) · {}",
                     detail.games,
@@ -168,10 +168,10 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
     view! {
         <div>
             <h2 class=HEADING_CLASS>"Opponents"</h2>
-            <p class="text-xs text-gray-500">"Click on the record to filter the matches below."</p>
+            <p class="text-xs text-base-content/45">"Click on the record to filter the matches below."</p>
             <table class=TABLE_CLASS>
                 <thead>
-                    <tr class="text-left text-gray-300">
+                    <tr class="text-left text-base-content/80">
                         <th class="pr-2">"Opponent"</th>
                         <th class="pr-2">"Games"</th>
                         <th class="pr-2">"W - L"</th>
@@ -188,13 +188,13 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
                                 move || opponent.get() == name
                             };
                             view! {
-                                <tr class:bg-gray-800=selected>
+                                <tr class:bg-base-200=selected>
                                     <td class="pr-2"><PlayerLink player_name=record.opponent.clone() /></td>
                                     <td class="pr-2">{record.games}</td>
                                     <td class="pr-2">
                                         <a
                                             href="#"
-                                            class="hover:text-indigo-400"
+                                            class="hover:text-primary"
                                             title="Show the matches against this opponent"
                                             on:click=move |ev: MouseEvent| {
                                                 ev.prevent_default();
@@ -205,9 +205,9 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
                                                 }
                                             }
                                         >
-                                            <span class="text-green-500">{record.wins}</span>
+                                            <span class="text-success">{record.wins}</span>
                                             " - "
-                                            <span class="text-red-500">{record.games - record.wins}</span>
+                                            <span class="text-error">{record.games - record.wins}</span>
                                         </a>
                                     </td>
                                     <td>{win_rate(record.wins, record.games)}</td>
@@ -243,7 +243,7 @@ fn MatchesTable(matches: Vec<PlayerMatch>, opponent: RwSignal<String>) -> impl I
             </h2>
             <table class=TABLE_CLASS>
                 <thead>
-                    <tr class="text-left text-gray-300">
+                    <tr class="text-left text-base-content/80">
                         <th class="pr-2">"ID"</th>
                         <th class="pr-2">"Date"</th>
                         <th class="pr-2">"Protocol"</th>
@@ -260,7 +260,7 @@ fn MatchesTable(matches: Vec<PlayerMatch>, opponent: RwSignal<String>) -> impl I
                                 <td class="pr-2"><ReplayLink ext_fs_id=game.ext_fs_id /></td>
                                 <td class="pr-2">{game.date}</td>
                                 <td class="pr-2"><PatchLink version=game.protocol_version /></td>
-                                <td class="pr-2 text-white"><MapLink map_title=game.map_title /></td>
+                                <td class="pr-2 text-base-content"><MapLink map_title=game.map_title /></td>
                                 <td class="pr-2">
                                     <ResultMarker result=if game.won { "Win" } else { "Loss" }.to_string() />
                                     <RaceLink race=game.race />
