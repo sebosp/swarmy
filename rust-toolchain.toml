@@ -1,7 +1,7 @@
 [toolchain]
-channel = "nightly"
-# channel = "nightly-2026-01-09"
-# Despite polars-ops-53 saying it should work with 2026-04-01
-# Otherwise errors with:
-# 79 |         use core::unicode::{Case_Ignorable, Cased};
-#   |                             ^^^^^^^^^^^^^^ private function
+# The nightlies from 2026-10-31 fail to compile zbus 5.19, a Tauri dependency: "cycle detected when
+# computing when `zvariant_utils::signature::child::Child` needs async drop" (E0391). Move the
+# date forward once a nightly builds it again; polars needs a nightly from 2026 anyway.
+channel = "nightly-2026-10-29"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
