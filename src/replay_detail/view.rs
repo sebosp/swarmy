@@ -595,7 +595,7 @@ fn PlayerSections(
                                         view! {
                                             <tr>
                                                 <td class=class>{answer.opening.clone()}</td>
-                                                <td class="pr-2 font-mono">
+                                                <td class="pr-2 num">
                                                     {format!(
                                                         "{:.0}% of {}",
                                                         100. * answer.win_rate(),
@@ -613,7 +613,7 @@ fn PlayerSections(
                                         view! {
                                             <tr title="Your opening in this game">
                                                 <td class="pr-2 text-warning">{own.opening.clone()}</td>
-                                                <td class="pr-2 font-mono">
+                                                <td class="pr-2 num">
                                                     {format!("{:.0}% of {}", 100. * own.win_rate(), own.games)}
                                                 </td>
                                             </tr>
@@ -749,7 +749,7 @@ fn PlayerSections(
                                                         efficiency.possible,
                                                     )}
                                                 </td>
-                                                <td class="pr-2 font-semibold">{format!("{share:.0}%")}</td>
+                                                <td class="pr-2 num font-semibold">{format!("{share:.0}%")}</td>
                                             </tr>
                                         }
                                     })
@@ -834,10 +834,10 @@ fn PlayerSections(
                             <thead>
                                 <tr class="text-left text-muted">
                                     <th class="pr-2">"Time"</th>
-                                    <th class="pr-2">"Workers"</th>
-                                    <th class="pr-2">"Supply"</th>
-                                    <th class="pr-2">"Income/min"</th>
-                                    <th>"Army value"</th>
+                                    <th class="pr-2 num">"Workers"</th>
+                                    <th class="pr-2 num">"Supply"</th>
+                                    <th class="pr-2 num">"Income/min"</th>
+                                    <th class="num">"Army value"</th>
                                 </tr>
                                 {(!summary.winner_benchmarks.is_empty())
                                     .then(|| {
@@ -853,7 +853,7 @@ fn PlayerSections(
                                         }
                                     })}
                             </thead>
-                            <tbody class="font-mono">
+                            <tbody class="tabular-nums">
                                 {summary
                                     .benchmarks
                                     .iter()
@@ -869,46 +869,50 @@ fn PlayerSections(
                                         let winner_games = summary.winner_games;
                                         let ahead = move |value: fn(&Benchmark) -> i32| {
                                             let value_of = value(benchmark);
+                                            // Each part has its width, so that the values of
+                                            // the rows line up whatever their digits.
                                             view! {
-                                                {value_of}
+                                                <span class="inline-block min-w-[5ch] text-right">
+                                                    {value_of}
+                                                </span>
                                                 {winner
                                                     .as_ref()
                                                     .map(|winner| {
                                                         view! {
                                                             <span
-                                                                class="text-faint"
+                                                                class="inline-block min-w-[7ch] pl-0.5 text-left text-faint"
                                                                 title=format!(
                                                                     "The median of the {winner_games} players who won this matchup in the patch",
                                                                 )
                                                             >
-                                                                {format!(" /{}", value(winner))}
+                                                                {format!("/{}", value(winner))}
                                                             </span>
                                                         }
                                                     })}
-                                                {enemy
-                                                    .is_some_and(|enemy| value_of > value(enemy))
-                                                    .then(|| {
-                                                        view! {
-                                                            <span class="text-success" title="Ahead of the enemy">
-                                                                " ▲"
-                                                            </span>
-                                                        }
-                                                    })}
+                                                <span class="inline-block w-[2ch] text-center text-success">
+                                                    {if enemy.is_some_and(|enemy| value_of > value(enemy)) {
+                                                        view! { <span title="Ahead of the enemy">"▲"</span> }
+                                                            .into_any()
+                                                    } else {
+                                                        // A no-break space keeps the width of the arrow.
+                                                        "\u{a0}".into_any()
+                                                    }}
+                                                </span>
                                             }
                                         };
                                         view! {
                                             <tr>
-                                                <td class="pr-2">
+                                                <td class="pr-2 tabular-nums">
                                                     {format_game_time(benchmark.minute * 60)}
                                                 </td>
-                                                <td class="pr-2">{ahead(|benchmark| benchmark.workers)}</td>
-                                                <td class="pr-2">{ahead(|benchmark| benchmark.supply)}</td>
-                                                <td class="pr-2">
+                                                <td class="pr-2 num">{ahead(|benchmark| benchmark.workers)}</td>
+                                                <td class="pr-2 num">{ahead(|benchmark| benchmark.supply)}</td>
+                                                <td class="pr-2 num">
                                                     {ahead(|benchmark| {
                                                         benchmark.minerals_rate + benchmark.vespene_rate
                                                     })}
                                                 </td>
-                                                <td>{ahead(|benchmark| benchmark.army_value)}</td>
+                                                <td class="num">{ahead(|benchmark| benchmark.army_value)}</td>
                                             </tr>
                                         }
                                     })
@@ -966,13 +970,13 @@ fn PlayerSections(
                                     .map(|decision| {
                                         view! {
                                             <tr>
-                                                <td class="pr-2 font-mono">
+                                                <td class="pr-2 num">
                                                     {format_game_time(decision.seconds)}
                                                 </td>
                                                 <td class="pr-2 text-base-content">
                                                     <UnitLink unit_name=decision.unit.clone() />
                                                 </td>
-                                                <td class="pr-2 text-error">
+                                                <td class="pr-2 num text-error">
                                                     {format!("{:+.2}", decision.score)}
                                                 </td>
                                                 <td>
@@ -1038,7 +1042,7 @@ fn PlayerSections(
                             <thead class="sticky top-0 bg-base-200">
                                 <tr class="text-left text-muted">
                                     <th class="pr-2">"Time"</th>
-                                    <th class="pr-2">"Supply"</th>
+                                    <th class="pr-2 num">"Supply"</th>
                                     <th>"Unit, structure or upgrade"</th>
                                 </tr>
                             </thead>
@@ -1058,7 +1062,7 @@ fn PlayerSections(
                                                     <td class="pr-2 font-mono">
                                                         {format_game_time(entry.seconds)}
                                                     </td>
-                                                    <td class="pr-2 font-mono">{entry.supply}</td>
+                                                    <td class="pr-2 num">{entry.supply}</td>
                                                     <td class="text-base-content">
                                                         {if entry.is_upgrade {
                                                             entry.name.into_any()
@@ -1378,7 +1382,7 @@ fn UnitCountsTable(counts: Vec<UnitCount>) -> impl IntoView {
                                 <td class="pr-2 text-base-content">
                                     <UnitLink unit_name=count.unit />
                                 </td>
-                                <td>{count.count}</td>
+                                <td class="num">{count.count}</td>
                             </tr>
                         }
                     })

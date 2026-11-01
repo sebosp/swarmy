@@ -349,7 +349,7 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
                     <td class="pr-3 py-1"><PatchLink version=game.protocol_version /></td>
                     <td class="pr-3 py-1">{game.born}</td>
                     <td class="pr-3 py-1">{game.kills}</td>
-                    <td class="pr-3 py-1 text-success">{format!("{:.2}", game.kills_per_unit())}</td>
+                    <td class="pr-3 py-1 num text-success">{format!("{:.2}", game.kills_per_unit())}</td>
                     <td class="pr-3 py-1">{game.value_killed}</td>
                     <td class="py-1 whitespace-nowrap">
                         <button

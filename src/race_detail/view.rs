@@ -241,11 +241,11 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
                             .map(|unit| view! {
                                 <tr>
                                     <td class="pr-3 py-1"><UnitLink unit_name=unit.unit.clone() /></td>
-                                    <td class="pr-3 py-1 text-right font-mono">
+                                    <td class="pr-3 py-1 num">
                                         {format!("{:.0}%", 100. * unit.games as f64 / detail.player_games.max(1) as f64)}
                                     </td>
-                                    <td class="pr-3 py-1 text-right font-mono text-base-content">{format!("{:.1}", unit.born_per_game())}</td>
-                                    <td class="pr-3 py-1 text-right font-mono">{format!("{:.2}", unit.kills_per_unit())}</td>
+                                    <td class="pr-3 py-1 num text-base-content">{format!("{:.1}", unit.born_per_game())}</td>
+                                    <td class="pr-3 py-1 num">{format!("{:.2}", unit.kills_per_unit())}</td>
                                     <td class="pr-3 py-1"><WinRate wins=unit.wins games=unit.games /></td>
                                 </tr>
                             })

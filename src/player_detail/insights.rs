@@ -125,7 +125,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
                     <tr class="text-left text-muted">
                         <th class="pr-2">"Matchup"</th>
                         <th class="pr-2">"Time"</th>
-                        <th class="pr-2">"Games"</th>
+                        <th class="pr-2 num">"Games"</th>
                         <th class="pr-2">"Workers"</th>
                         <th class="pr-2">"Supply"</th>
                         <th class="pr-2">"Income/min"</th>
@@ -140,7 +140,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
                             <tr>
                                 <td class="pr-2 font-sans">{benchmark.matchup.clone()}</td>
                                 <td class="pr-2">{format_game_time(benchmark.minute * 60)}</td>
-                                <td class="pr-2">{format!("{} / {}", benchmark.games, benchmark.snapshot_games)}</td>
+                                <td class="pr-2 num">{format!("{} / {}", benchmark.games, benchmark.snapshot_games)}</td>
                                 <td class="pr-2">{compared(benchmark.workers, benchmark.snapshot_workers)}</td>
                                 <td class="pr-2">{compared(benchmark.supply, benchmark.snapshot_supply)}</td>
                                 <td class="pr-2">{compared(benchmark.income, benchmark.snapshot_income)}</td>
@@ -204,7 +204,7 @@ fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
             <thead>
                 <tr class="text-left text-muted">
                     <th class="pr-2">{title}</th>
-                    <th class="pr-2">"Games"</th>
+                    <th class="pr-2 num">"Games"</th>
                     <th>"Win rate"</th>
                 </tr>
             </thead>
@@ -214,7 +214,7 @@ fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
                     .map(|entry| view! {
                         <tr>
                             <td class="pr-2 text-base-content">{entry.label}</td>
-                            <td class="pr-2">{entry.games}</td>
+                            <td class="pr-2 num">{entry.games}</td>
                             <td>{percent(entry.wins, entry.games)}</td>
                         </tr>
                     })
@@ -233,7 +233,7 @@ fn ChoiceTable(shares: Vec<ChoiceShare>, units: bool) -> impl IntoView {
                 <tr class="text-left text-muted">
                     <th class="pr-2">"Context"</th>
                     <th class="pr-2">"Choice"</th>
-                    <th class="pr-2">"Share"</th>
+                    <th class="pr-2 num">"Share"</th>
                     <th>"Win rate"</th>
                 </tr>
             </thead>
@@ -250,7 +250,7 @@ fn ChoiceTable(shares: Vec<ChoiceShare>, units: bool) -> impl IntoView {
                                     share.choice.into_any()
                                 }}
                             </td>
-                            <td class="pr-2">{format!("{} ({}/{})", percent(share.games, share.context_games), share.games, share.context_games)}</td>
+                            <td class="pr-2 num">{format!("{} ({}/{})", percent(share.games, share.context_games), share.games, share.context_games)}</td>
                             <td>{percent(share.wins, share.games)}</td>
                         </tr>
                     })

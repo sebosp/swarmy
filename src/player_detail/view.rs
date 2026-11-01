@@ -173,7 +173,7 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
                 <thead>
                     <tr class="text-left text-muted">
                         <th class="pr-2">"Opponent"</th>
-                        <th class="pr-2">"Games"</th>
+                        <th class="pr-2 num">"Games"</th>
                         <th class="pr-2">"W - L"</th>
                         <th>"Win rate"</th>
                     </tr>
@@ -190,7 +190,7 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
                             view! {
                                 <tr class:bg-base-200=selected>
                                     <td class="pr-2"><PlayerLink player_name=record.opponent.clone() /></td>
-                                    <td class="pr-2">{record.games}</td>
+                                    <td class="pr-2 num">{record.games}</td>
                                     <td class="pr-2">
                                         <a
                                             href="#"

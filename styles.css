@@ -386,3 +386,19 @@ thead th[aria-sort="descending"]::after {
   content: " ▼";
   font-size: 0.7em;
 }
+
+/* A number of a table: right aligned with digits of one width, so that the units, tens and
+   hundreds of the rows line up, whatever the number of digits. */
+@utility num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The digits of the tables have one width everywhere, the number columns are also `num`. */
+@layer base {
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+}

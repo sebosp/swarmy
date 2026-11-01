@@ -129,7 +129,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                         <thead>
                             <tr class="text-left text-muted">
                                 <th class="pr-2">"Matchup"</th>
-                                <th class="pr-2">"Games"</th>
+                                <th class="pr-2 num">"Games"</th>
                                 <th title="The win rate of the first race of the matchup">
                                     "First race wins"
                                 </th>
@@ -155,7 +155,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                             <td class="pr-2 text-base-content">
                                                 <span class="nav-link">{matchup.label.clone()}</span>
                                             </td>
-                                            <td class="pr-2">{matchup.games}</td>
+                                            <td class="pr-2 num">{matchup.games}</td>
                                             <td>
                                                 {if mirror {
                                                     "-".to_string()
@@ -176,7 +176,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                         <thead>
                             <tr class="text-left text-muted">
                                 <th class="pr-2">"Player"</th>
-                                <th class="pr-2">"Games"</th>
+                                <th class="pr-2 num">"Games"</th>
                                 <th>"Win rate"</th>
                             </tr>
                         </thead>
@@ -190,7 +190,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                             <td class="pr-2">
                                                 <PlayerLink player_name=player.label.clone() />
                                             </td>
-                                            <td class="pr-2">{player.games}</td>
+                                            <td class="pr-2 num">{player.games}</td>
                                             <td>{win_rate(player.wins, player.games)}</td>
                                         </tr>
                                     }
@@ -346,7 +346,7 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
                                         view! {
                                             <tr title=layer.description.clone()>
                                                 <td class="pr-3 text-muted">{layer.label.clone()}</td>
-                                                <td class="pr-3 text-right font-mono">{total}</td>
+                                                <td class="pr-3 num">{total}</td>
                                                 <td>{top}</td>
                                             </tr>
                                         }
@@ -465,14 +465,14 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
                                         view! {
                                             <tr>
                                                 <td class="pr-3 font-mono">{format!("({x}, {y})")}</td>
-                                                <td class="pr-3 text-right font-mono text-base-content">
+                                                <td class="pr-3 num text-base-content">
                                                     {spot.kills}
                                                 </td>
-                                                <td class="pr-3 text-right font-mono">{spot.sieges}</td>
-                                                <td class="pr-3 text-right font-mono">
+                                                <td class="pr-3 num">{spot.sieges}</td>
+                                                <td class="pr-3 num">
                                                     {format!("{:.1}", spot.kills_per_siege())}
                                                 </td>
-                                                <td class="text-right font-mono">{spot.games}</td>
+                                                <td class="num">{spot.games}</td>
                                             </tr>
                                         }
                                     })

@@ -49,11 +49,11 @@ pub fn UnitsTable(
             <thead>
                 <tr class="text-left text-muted">
                     <th class="pr-2">"Unit"</th>
-                    <th class="pr-2">"Produced"</th>
-                    <th class="pr-2">"Kills"</th>
-                    <th class="pr-2">"Kills/unit"</th>
-                    <th class="pr-2" title="The minerals and vespene of the enemy units killed">"Value killed"</th>
-                    <th title="The value killed for each mineral and vespene spent on the unit">"Trade"</th>
+                    <th class="pr-2 num">"Produced"</th>
+                    <th class="pr-2 num">"Kills"</th>
+                    <th class="pr-2 num">"Kills/unit"</th>
+                    <th class="pr-2 num" title="The minerals and vespene of the enemy units killed">"Value killed"</th>
+                    <th class="num" title="The value killed for each mineral and vespene spent on the unit">"Trade"</th>
                 </tr>
             </thead>
             <tbody>
@@ -65,11 +65,12 @@ pub fn UnitsTable(
                         view! {
                             <tr>
                                 <td class="pr-2 text-base-content"><UnitLink unit_name=unit.unit.clone() /></td>
-                                <td class="pr-2">{unit.produced}</td>
-                                <td class="pr-2">{unit.kills}</td>
-                                <td class="pr-2">{format!("{:.2}", unit.kills_per_unit())}</td>
-                                <td class="pr-2">{format_resources(unit.value_killed)}</td>
+                                <td class="pr-2 num">{unit.produced}</td>
+                                <td class="pr-2 num">{unit.kills}</td>
+                                <td class="pr-2 num">{format!("{:.2}", unit.kills_per_unit())}</td>
+                                <td class="pr-2 num">{format_resources(unit.value_killed)}</td>
                                 <td
+                                    class="num"
                                     class:text-success=trade.is_some_and(|trade| trade >= 1.)
                                     class:text-error=trade.is_some_and(|trade| trade < 1.)
                                 >
