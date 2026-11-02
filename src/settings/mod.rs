@@ -37,12 +37,19 @@ where
     F: Fn(AppSettings) + 'static,
 {
     spawn_local(async move {
-        match invoke_json::<AppSettings>("get_ui_settings", &()).await {
+        // get_ui_settings answers the settings themselves, not an ApiResponse.
+        match serde_wasm_bindgen::from_value::<AppSettings>(
+            invoke_without_args("get_ui_settings").await,
+        ) {
             Ok(config) => {
                 *set_app_settings.write() = config.clone();
                 update_fn(config);
             }
-            Err(err) => console_log(&format!("Error invoking get_ui_settings: {err}")),
+            Err(err) => {
+                // The settings with the snapshot stats instead, the view must not wait forever.
+                console_log(&format!("Error invoking get_ui_settings: {err:?}"));
+                with_fetch_current_app_config(set_app_settings, update_fn);
+            }
         }
     });
 }
