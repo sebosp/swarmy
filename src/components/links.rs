@@ -40,7 +40,15 @@ pub fn PlayerLink(player_name: String) -> impl IntoView {
 
 /// The snapshot id of the replay, clicking it opens the Replay Detail view.
 #[component]
-pub fn ReplayLink(ext_fs_id: u64) -> impl IntoView {
+pub fn ReplayLink(
+    ext_fs_id: u64,
+    /// The map of the replay when the view knows it, shown while it is analysed.
+    #[prop(optional)]
+    map_title: Option<String>,
+    /// The players of the replay when the view knows them.
+    #[prop(optional)]
+    players: Vec<String>,
+) -> impl IntoView {
     let navigation = use_navigation();
     view! {
         <a
@@ -49,7 +57,14 @@ pub fn ReplayLink(ext_fs_id: u64) -> impl IntoView {
             title="Open the replay details"
             on:click=move |ev: MouseEvent| {
                 ev.prevent_default();
-                navigation.open_replay(ext_fs_id);
+                match map_title.clone() {
+                    Some(map_title) => navigation.open_replay_with(crate::navigation::ReplayPreview {
+                        ext_fs_id,
+                        map_title,
+                        players: players.clone(),
+                    }),
+                    None => navigation.open_replay(ext_fs_id),
+                }
             }
         >
             <code>{ext_fs_id}</code>

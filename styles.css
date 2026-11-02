@@ -438,3 +438,13 @@ thead th[aria-sort="descending"]::after {
   color: var(--color-base-content);
   text-decoration-style: solid;
 }
+
+/* The gutter between the players of Replay Detail: the wheel scrolls the page there, not a
+   section of a player. */
+.scroll-gutter {
+  background: color-mix(in oklab, var(--color-base-content) 4%, transparent);
+  border-inline: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent);
+}
+.scroll-gutter:hover {
+  background: color-mix(in oklab, var(--color-base-content) 8%, transparent);
+}

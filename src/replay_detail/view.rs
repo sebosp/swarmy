@@ -69,10 +69,26 @@ pub fn ReplayDetailView() -> impl IntoView {
     view! {
         <div class="p-2 space-y-3">
             <Show when=move || navigation.replay_id.get().is_none() && error.get().is_none()>
-                <p class="text-sm">"Looking for the newest replay of the snapshot..."</p>
+                <Loading message="Analysing the latest replay of the snapshot..." />
             </Show>
             <Show when=move || loading.get()>
-                <Loading message="Analysing the replay..." />
+                {move || {
+                    let id = navigation.replay_id.get().unwrap_or_default();
+                    let message = match navigation.replay_preview.get() {
+                        Some(preview) if preview.ext_fs_id == id => format!(
+                            "Analysing replay {id} on {}: {}...",
+                            preview.map_title,
+                            preview
+                                .players
+                                .iter()
+                                .map(|name| clean_player_name_clan_escapes(name))
+                                .collect::<Vec<_>>()
+                                .join(" vs "),
+                        ),
+                        _ => format!("Analysing replay {id}..."),
+                    };
+                    view! { <Loading message /> }
+                }}
             </Show>
             <ErrorMessage error />
             // The replay shown until the next one is analysed is grayed out and cannot be hovered,
@@ -431,13 +447,33 @@ fn PatchComparison(seconds: u32, average: Option<PatchAverage>) -> impl IntoView
 }
 
 /// The grid columns of a band, one per player.
-fn player_columns(players: usize) -> &'static str {
-    match players {
-        0 | 1 => "grid-cols-1",
-        2 => "grid-cols-2",
-        3 => "grid-cols-3",
-        _ => "grid-cols-4",
+/// The columns of the players, with a gutter between two players: the page scrolls with the
+/// wheel over a gutter, where the sections of the players would scroll themselves.
+fn player_grid_style(players: usize) -> String {
+    let columns = vec!["minmax(0,1fr)"; players.clamp(1, 4)].join(" 1.25rem ");
+    format!("grid-template-columns: {columns}")
+}
+
+/// The cells of the players with a gutter between them, see [`player_grid_style`].
+fn with_gutters(cells: Vec<AnyView>, header: bool) -> Vec<AnyView> {
+    let mut out = Vec::with_capacity(cells.len() * 2);
+    for (idx, cell) in cells.into_iter().enumerate() {
+        if idx > 0 {
+            out.push(
+                view! {
+                    <div
+                        class="scroll-gutter flex items-center justify-center text-faint text-xs select-none"
+                        title="Scroll the page here, without scrolling a section"
+                    >
+                        {header.then_some("⇕")}
+                    </div>
+                }
+                .into_any(),
+            );
+        }
+        out.push(cell);
     }
+    out
 }
 
 /// A band with the same section of every player side by side, the cells of a band share the grid
@@ -452,17 +488,16 @@ fn section_band<V: IntoView + 'static>(
         .iter()
         .map(|summary| {
             view! { <div class=format!("scroll-section min-w-0 px-2 py-1 {height}")>{content(summary)}</div> }
+                .into_any()
         })
-        .collect_view();
+        .collect::<Vec<_>>();
+    let cells = with_gutters(cells, false);
     view! {
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
             <h3 class="px-2 py-1 text-sm font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 {title}
             </h3>
-            <div class=format!(
-                "grid {} divide-x divide-base-content/15",
-                player_columns(players.len()),
-            )>{cells}</div>
+            <div class="grid" style=player_grid_style(players.len())>{cells}</div>
         </div>
     }
 }
@@ -507,14 +542,17 @@ fn PlayerSections(
                     <PlayerBadges summary=summary.clone() />
                 </div>
             }
+            .into_any()
         })
-        .collect_view();
+        .collect::<Vec<_>>();
     view! {
         <div class="space-y-2">
-            <div class=format!(
-                "sticky top-0 z-10 grid {} divide-x divide-base-content/15 rounded-md border border-base-content/20 bg-base-100",
-                player_columns(players.len()),
-            )>{player_headers}</div>
+            <div
+                class="sticky top-0 z-10 grid rounded-md border border-base-content/20 bg-base-100"
+                style=player_grid_style(players.len())
+            >
+                {with_gutters(player_headers, true)}
+            </div>
 
             {section_band(
                 view! {

@@ -257,10 +257,16 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                         .zip(game.player_results)
                                         .collect();
                                     players.sort_by_key(|(_, result)| result != "Win");
+                                    let names: Vec<String> =
+                                        players.iter().map(|(name, _)| name.clone()).collect();
                                     view! {
                                         <tr>
                                             <td class="pr-2">
-                                                <ReplayLink ext_fs_id=game.ext_fs_id />
+                                                <ReplayLink
+                                                    ext_fs_id=game.ext_fs_id
+                                                    map_title=details.title.clone()
+                                                    players=names
+                                                />
                                             </td>
                                             <td class="pr-2 tabular-nums">{game.replay_date.to_string()}</td>
                                             <td>

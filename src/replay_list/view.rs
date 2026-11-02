@@ -381,7 +381,11 @@ pub fn ReplayListDataTable(
                                     <tr>
                                         <td>
                                             <span class="ps-0 pe-1 py-0 text-xs">
-                                                <ReplayLink ext_fs_id=child.read().ext_fs_id />
+                                                <ReplayLink
+                                                    ext_fs_id=child.read().ext_fs_id
+                                                    map_title=child.read().map_title.clone()
+                                                    players=child.read().player_list.clone()
+                                                />
                                             </span>
                                         </td>
                                         <td>

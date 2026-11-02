@@ -45,6 +45,16 @@ pub struct Navigation {
     pub optimize_requested: RwSignal<bool>,
     /// The map and players locked in Replay Detail, the previous and next replays are of them.
     pub replay_locks: RwSignal<ReplayLocks>,
+    /// What the view that opened the replay knew of it, for the message while it is analysed.
+    pub replay_preview: RwSignal<Option<ReplayPreview>>,
+}
+
+/// The map and players of a replay, as the view that opens it shows them.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct ReplayPreview {
+    pub ext_fs_id: u64,
+    pub map_title: String,
+    pub players: Vec<String>,
 }
 
 /// The map and players locked in Replay Detail.
@@ -70,10 +80,20 @@ impl Navigation {
             replay_time_frame: RwSignal::new(TimeFrame::AllTime),
             optimize_requested: RwSignal::new(false),
             replay_locks: RwSignal::new(ReplayLocks::default()),
+            replay_preview: RwSignal::new(None),
         }
     }
 
     pub fn open_replay(&self, ext_fs_id: u64) {
+        self.replay_preview.set(None);
+        self.replay_id.set(Some(ext_fs_id));
+        self.active_page.set(REPLAY_DETAIL_PAGE.to_string());
+    }
+
+    /// Opens a replay whose map and players the view knows, they are shown while it is analysed.
+    pub fn open_replay_with(&self, preview: ReplayPreview) {
+        let ext_fs_id = preview.ext_fs_id;
+        self.replay_preview.set(Some(preview));
         self.replay_id.set(Some(ext_fs_id));
         self.active_page.set(REPLAY_DETAIL_PAGE.to_string());
     }
