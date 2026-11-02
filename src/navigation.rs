@@ -14,6 +14,7 @@ pub const PATCH_OVERVIEW_PAGE: &str = "Patch Overview";
 pub const UNIT_OVERVIEW_PAGE: &str = "Unit Overview";
 pub const PATCH_EVOLUTION_PAGE: &str = "Patch Evolution";
 pub const RACE_DETAIL_PAGE: &str = "Race Detail";
+pub const ABILITY_PAGE: &str = "Ability";
 pub const PROGRESS_PAGE: &str = "Progress";
 pub const SCAN_PAGE: &str = "Scan";
 pub const REPLAY_LIST_PAGE: &str = "Replay List";
@@ -47,6 +48,8 @@ pub struct Navigation {
     pub replay_locks: RwSignal<ReplayLocks>,
     /// What the view that opened the replay knew of it, for the message while it is analysed.
     pub replay_preview: RwSignal<Option<ReplayPreview>>,
+    /// The ability shown in the Ability view, [`swarmy_common::TrackedAbility::ability`].
+    pub ability: RwSignal<String>,
 }
 
 /// The map and players of a replay, as the view that opens it shows them.
@@ -81,6 +84,7 @@ impl Navigation {
             optimize_requested: RwSignal::new(false),
             replay_locks: RwSignal::new(ReplayLocks::default()),
             replay_preview: RwSignal::new(None),
+            ability: RwSignal::new(String::new()),
         }
     }
 
@@ -106,6 +110,12 @@ impl Navigation {
     pub fn scout_map(&self, map_title: &str) {
         self.map_title.set(map_title.to_string());
         self.active_page.set(MAP_SCOUT_PAGE.to_string());
+    }
+
+    /// Opens the Ability view of an ability, i.e. `SpawnLarva.Execute`.
+    pub fn open_ability(&self, ability: &str) {
+        self.ability.set(ability.to_string());
+        self.active_page.set(ABILITY_PAGE.to_string());
     }
 
     pub fn open_unit(&self, unit_name: &str) {

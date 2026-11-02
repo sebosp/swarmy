@@ -86,6 +86,7 @@ backend_commands! {
     map_details::list_maps();
     patch_overview::query_unit_snapshot_stats(unit_name: String);
     ability_usage::query_ability_usage();
+    ability_detail::query_ability_detail(query: AbilityDetailQuery);
     race_detail::query_race_detail(race: String);
     progress::query_progress();
     progress::set_progress_goals(goals: BTreeMap<String, f64>);

@@ -1,6 +1,7 @@
 //! Swarmy Tauri Application
 
 use leptos::prelude::*;
+use swarmy_ui::ability::view::AbilityView;
 use swarmy_ui::changelog::view::Changelog;
 use swarmy_ui::components::left_sidebar_menu::LeftSideBarMenu;
 use swarmy_ui::components::new_replays::NewReplaysBanner;
@@ -124,6 +125,11 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == RACE_DETAIL_PAGE>
                     <div id="swarmy-tauri-race-detail-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <RaceDetailView />
+                    </div>
+                </Show>
+                <Show when=move || active_page.get() == ABILITY_PAGE>
+                    <div id="swarmy-tauri-ability-content" class="flex flex-col grow min-w-0 p-2 rounded">
+                        <AbilityView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == PROGRESS_PAGE>

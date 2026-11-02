@@ -10,6 +10,7 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
+pub mod ability_detail;
 pub mod ability_usage;
 #[cfg(test)]
 mod bench_queries;

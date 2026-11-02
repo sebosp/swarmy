@@ -257,7 +257,10 @@ mod tests {
 
     #[test]
     fn it_splits_the_cache_ids() {
-        assert_eq!(split_cache_ids("a, b,,"), vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(
+            split_cache_ids("a, b,,"),
+            vec!["a".to_string(), "b".to_string()]
+        );
         assert!(split_cache_ids("").is_empty());
     }
 }

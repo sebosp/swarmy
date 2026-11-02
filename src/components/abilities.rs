@@ -17,11 +17,20 @@ pub async fn fetch_ability_usage() -> Result<AbilityUsageTable, String> {
 /// The ability name with the cost, i.e. `Abduct` and `Energy` as a title.
 #[component]
 pub fn AbilityName(ability: String) -> impl IntoView {
+    let navigation = crate::navigation::use_navigation();
     match tracked_ability(&ability) {
         Some(tracked) => view! {
-            <span class="text-base-content" title=format!("{} of the {}, {}", tracked.cost.label(), tracked.unit, tracked.ability)>
+            <a
+                href="#"
+                class="nav-link text-base-content"
+                title=format!("{} of the {}, {}: open the Ability view", tracked.cost.label(), tracked.unit, tracked.ability)
+                on:click=move |ev: leptos::ev::MouseEvent| {
+                    ev.prevent_default();
+                    navigation.open_ability(tracked.ability);
+                }
+            >
                 {tracked.label}
-            </span>
+            </a>
         }
         .into_any(),
         None => view! { <span>{ability}</span> }.into_any(),

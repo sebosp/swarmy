@@ -379,3 +379,74 @@ mod tests {
         assert_eq!(Rank { rank: 1, of: 20 }.top_percent(), 5.);
     }
 }
+
+/// The arguments of `query_ability_detail`.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AbilityDetailQuery {
+    /// [`TrackedAbility::ability`]
+    pub ability: String,
+}
+
+/// The use of an ability in a group of games: a patch, a month or a matchup.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AbilityGroupUsage {
+    /// The patch, the month (`2026-10`) or the matchup (`ZvT`).
+    pub label: String,
+    /// The games of each player of the race, one per player and game.
+    pub player_games: usize,
+    /// The player games in which it was used at least once.
+    pub games_used: usize,
+    pub uses: usize,
+    /// The average game second of the first use, in the games it was used.
+    pub avg_first_seconds: Option<u32>,
+}
+
+impl AbilityGroupUsage {
+    pub fn per_game(&self) -> f64 {
+        self.uses as f64 / self.player_games.max(1) as f64
+    }
+
+    pub fn used_percent(&self) -> f64 {
+        100. * self.games_used as f64 / self.player_games.max(1) as f64
+    }
+}
+
+/// The use of an ability by a player in a game.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AbilityGameUse {
+    pub ext_fs_id: u64,
+    /// As stored in the replay, with the clan tag escaped.
+    pub player_name: String,
+    pub map_title: String,
+    /// `2026-10-24`
+    pub date: String,
+    /// `ZvT`, `Team games` for the games of more than two players.
+    pub matchup: String,
+    pub uses: usize,
+    /// The game second of the first use.
+    pub first_seconds: Option<u32>,
+}
+
+/// An ability in the games of the snapshot: who uses it the most, how its use changed over time,
+/// by patch and by matchup, the games with the most uses, and when it is first used.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AbilityDetail {
+    /// [`TrackedAbility::ability`]
+    pub ability: String,
+    pub totals: AbilityGroupUsage,
+    /// The game with the earliest first use.
+    pub fastest: Option<AbilityGameUse>,
+    /// Oldest patch first.
+    pub by_patch: Vec<AbilityGroupUsage>,
+    /// Oldest month first.
+    pub by_month: Vec<AbilityGroupUsage>,
+    /// The most played matchup first.
+    pub by_matchup: Vec<AbilityGroupUsage>,
+    /// The most uses per game, with at least [`ABILITY_RANK_MIN_GAMES`] games of the race.
+    pub top_players: Vec<AbilityPlayerUsage>,
+    /// The most uses in a game.
+    pub top_games: Vec<AbilityGameUse>,
+}
+
+/// The players and games listed in [`AbilityDetail`].
+pub const ABILITY_DETAIL_TOP: usize = 10;
