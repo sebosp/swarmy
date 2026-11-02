@@ -3,8 +3,8 @@
 use super::resources::{MapPicture, MapResourcesPanel};
 use crate::components::links::{PlayerLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
+use crate::components::map_cell::{MapCell, MapHighlightContext};
 use crate::components::name_select::NameSelect;
-use crate::map_stats::actions::trigger_swarmy_bevy_exec_on_caches;
 use crate::navigation::use_navigation;
 use crate::*;
 use leptos::ev::MouseEvent;
@@ -71,79 +71,102 @@ pub fn MapDetailsView() -> impl IntoView {
     }
 }
 
+/// A number of the data, emphasized against the words around it.
+fn figure(value: impl std::fmt::Display) -> impl IntoView {
+    view! { <span class="font-medium text-base-content tabular-nums">{value.to_string()}</span> }
+}
+
 #[component]
 fn MapDetailsContent(details: MapDetails) -> impl IntoView {
     let navigation = use_navigation();
     let title = details.title.clone();
     let cache_handles = details.cache_handles.clone();
+    // The spot hovered in the tables, highlighted on the map.
+    provide_context(MapHighlightContext(RwSignal::new(None)));
+    let bevy_status = RwSignal::new(String::new());
+    let open_in_bevy = move |_ev: MouseEvent| {
+        #[derive(serde::Serialize)]
+        struct Args {
+            cache_ids: String,
+        }
+        let args = Args {
+            cache_ids: cache_handles.clone(),
+        };
+        bevy_status.set("Starting swarmy-bevy...".to_string());
+        spawn_local(async move {
+            match invoke_response("exec_swarmy_bevy_map_caches", &args).await {
+                Ok(response) => bevy_status.set(response.message),
+                Err(err) => bevy_status.set(err),
+            }
+        });
+    };
+    // The mirror matchups always have a winner and a loser, they are left out; the most played
+    // first.
+    let mut matchups: Vec<_> = details
+        .matchups
+        .iter()
+        .filter(|matchup| !is_mirror_matchup(&matchup.label))
+        .cloned()
+        .collect();
+    matchups.sort_by(|a, b| b.games.cmp(&a.games));
     view! {
-        <div class="flex items-start justify-between">
+        <div class="flex items-start justify-between gap-4">
             <div>
                 <h1 class="text-xl font-semibold text-base-content">{details.title.clone()}</h1>
                 <p class="text-sm text-muted">
-                    {format!(
-                        "{} games from {} to {} · {} on average",
-                        details.num_games,
-                        details.min_date,
-                        details.max_date,
-                        format_game_time(details.avg_duration_seconds),
-                    )}
+                    {figure(details.num_games)}
+                    " games from "
+                    {figure(details.min_date.clone())}
+                    " to "
+                    {figure(details.max_date.clone())}
+                    ", "
+                    {figure(format_game_time(details.avg_duration_seconds))}
+                    " on average"
                 </p>
             </div>
-            <div class="flex gap-2">
-                <button
-                    class="btn btn-primary btn-sm"
-                    title="Scout this map"
-                    on:click=move |_ev: MouseEvent| navigation.scout_map(&title)
-                >
-                    <Icon icon=BINOCULARS weight=IconWeight::Light />
-                    "Scout this map"
-                </button>
-                <button
-                    class="btn btn-primary btn-sm"
-                    title="Open in Swarmy-Bevy"
-                    on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_exec_on_caches(
-                        &cache_handles,
-                    )
-                >
-                    <Icon icon=CUBE weight=IconWeight::Light />
-                    "Open in Swarmy-Bevy"
-                </button>
+            <div class="flex flex-col items-end gap-1">
+                <div class="flex gap-2">
+                    <button
+                        class="btn btn-primary btn-sm"
+                        title="Scout this map"
+                        on:click=move |_ev: MouseEvent| navigation.scout_map(&title)
+                    >
+                        <Icon icon=BINOCULARS weight=IconWeight::Light />
+                        "Scout this map"
+                    </button>
+                    <button class="btn btn-primary btn-sm" title="Open in Swarmy-Bevy" on:click=open_in_bevy>
+                        <Icon icon=CUBE weight=IconWeight::Light />
+                        "Open in Swarmy-Bevy"
+                    </button>
+                </div>
+                <span class="text-xs text-muted">{move || bevy_status.get()}</span>
             </div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-            <div>
-                <p class="text-xs text-muted whitespace-pre-line">
-                    {details.description.clone()}
-                </p>
+        // The map stays in view while the sections beside it scroll, hovering a cell in them
+        // highlights it on the map.
+        <div class="grid grid-cols-[minmax(0,28rem)_minmax(0,1fr)] gap-6 items-start">
+            <div class="sticky top-0 self-start pt-1">
                 <MapPicture details=details.clone() />
-                {details
-                    .resources
-                    .clone()
-                    .map(|resources| view! { <MapResourcesPanel resources /> })}
             </div>
-            <div class="space-y-4">
-                <div>
-                    <h2 class=HEADING_CLASS>"Race vs race"</h2>
+            <div class="space-y-5 min-w-0">
+                <p class="text-xs text-muted whitespace-pre-line">{details.description.clone()}</p>
+                <div class="grid grid-cols-2 gap-6">
                     <table class=TABLE_CLASS>
                         <thead>
                             <tr class="text-left text-muted">
                                 <th class="pr-2">"Matchup"</th>
                                 <th class="pr-2 num">"Games"</th>
-                                <th title="The win rate of the first race of the matchup">
-                                    "First race wins"
+                                <th class="num" title="The win rate of the first race of the matchup">
+                                    "First race favored"
                                 </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {details
-                                .matchups
-                                .iter()
+                            {matchups
+                                .into_iter()
                                 .map(|matchup| {
-                                    let mirror = is_mirror_matchup(&matchup.label);
                                     let map_title = details.title.clone();
                                     let label = matchup.label.clone();
-                                    // Mirror matchups always have a winner and a loser.
                                     view! {
                                         <tr
                                             class="cursor-pointer hover:bg-base-200"
@@ -156,28 +179,19 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                                 <span class="nav-link">{matchup.label.clone()}</span>
                                             </td>
                                             <td class="pr-2 num">{matchup.games}</td>
-                                            <td>
-                                                {if mirror {
-                                                    "-".to_string()
-                                                } else {
-                                                    win_rate(matchup.wins, matchup.games)
-                                                }}
-                                            </td>
+                                            <td class="num">{win_rate(matchup.wins, matchup.games)}</td>
                                         </tr>
                                     }
                                 })
                                 .collect_view()}
                         </tbody>
                     </table>
-                </div>
-                <div>
-                    <h2 class=HEADING_CLASS>"Top players"</h2>
                     <table class=TABLE_CLASS>
                         <thead>
                             <tr class="text-left text-muted">
-                                <th class="pr-2">"Player"</th>
+                                <th class="pr-2">"Top players"</th>
                                 <th class="pr-2 num">"Games"</th>
-                                <th>"Win rate"</th>
+                                <th class="num">"Win rate"</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -191,7 +205,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                                 <PlayerLink player_name=player.label.clone() />
                                             </td>
                                             <td class="pr-2 num">{player.games}</td>
-                                            <td>{win_rate(player.wins, player.games)}</td>
+                                            <td class="num">{win_rate(player.wins, player.games)}</td>
                                         </tr>
                                     }
                                 })
@@ -199,58 +213,67 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                         </tbody>
                     </table>
                 </div>
+                {details
+                    .resources
+                    .clone()
+                    .map(|resources| view! { <MapResourcesPanel resources /> })}
+                <MapLayersPanel
+                    map_title=details.title.clone()
+                    cache_handles=details.cache_handles.clone()
+                />
+                <div>
+                    <h2 class=HEADING_CLASS>"Recent games"</h2>
+                    <table class=TABLE_CLASS>
+                        <thead>
+                            <tr class="text-left text-muted">
+                                <th class="pr-2">"ID"</th>
+                                <th class="pr-2">"Date"</th>
+                                <th title="The winner first">"Players"</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {details
+                                .recent_games
+                                .into_iter()
+                                .map(|game| {
+                                    // The winners first, then the others in their order.
+                                    let mut players: Vec<(String, String)> = game
+                                        .player_list
+                                        .into_iter()
+                                        .zip(game.player_results)
+                                        .collect();
+                                    players.sort_by_key(|(_, result)| result != "Win");
+                                    view! {
+                                        <tr>
+                                            <td class="pr-2">
+                                                <ReplayLink ext_fs_id=game.ext_fs_id />
+                                            </td>
+                                            <td class="pr-2 tabular-nums">{game.replay_date.to_string()}</td>
+                                            <td>
+                                                {players
+                                                    .into_iter()
+                                                    .map(|(player_name, result)| {
+                                                        view! {
+                                                            <span class="mr-3">
+                                                                <ResultMarker result />
+                                                                <PlayerLink player_name />
+                                                            </span>
+                                                        }
+                                                    })
+                                                    .collect_view()}
+                                            </td>
+                                        </tr>
+                                    }
+                                })
+                                .collect_view()}
+                        </tbody>
+                    </table>
+                </div>
+                <LongRangeSpotsPanel
+                    map_title=details.title.clone()
+                    cache_handles=details.cache_handles.clone()
+                />
             </div>
-        </div>
-        <MapLayersPanel
-            map_title=details.title.clone()
-            cache_handles=details.cache_handles.clone()
-        />
-        <SiegeSpotsPanel
-            map_title=details.title.clone()
-            cache_handles=details.cache_handles.clone()
-        />
-        <div>
-            <h2 class=HEADING_CLASS>"Recent games"</h2>
-            <table class=TABLE_CLASS>
-                <thead>
-                    <tr class="text-left text-muted">
-                        <th class="pr-2">"ID"</th>
-                        <th class="pr-2">"Date"</th>
-                        <th>"Players"</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {details
-                        .recent_games
-                        .into_iter()
-                        .map(|game| {
-                            view! {
-                                <tr>
-                                    <td class="pr-2">
-                                        <ReplayLink ext_fs_id=game.ext_fs_id />
-                                    </td>
-                                    <td class="pr-2">{game.replay_date.to_string()}</td>
-                                    <td>
-                                        {game
-                                            .player_list
-                                            .into_iter()
-                                            .zip(game.player_results)
-                                            .map(|(player_name, result)| {
-                                                view! {
-                                                    <span class="mr-3">
-                                                        <ResultMarker result />
-                                                        <PlayerLink player_name />
-                                                    </span>
-                                                }
-                                            })
-                                            .collect_view()}
-                                    </td>
-                                </tr>
-                            }
-                        })
-                        .collect_view()}
-                </tbody>
-            </table>
         </div>
     }
 }
@@ -330,19 +353,27 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
                                             .iter()
                                             .map(|spot| spot.count)
                                             .sum();
+                                        let cells = layers.spot_cells as f32;
                                         let top = layer
                                             .spots
                                             .first()
                                             .map(|spot| {
-                                                format!(
-                                                    "the most at cells ({}, {}): {} in {} games",
-                                                    spot.x * layers.spot_cells,
-                                                    spot.y * layers.spot_cells,
-                                                    spot.count,
-                                                    spot.games,
-                                                )
+                                                view! {
+                                                    "the most at "
+                                                    <MapCell
+                                                        x=spot.x as f32 * cells
+                                                        y=spot.y as f32 * cells
+                                                        size=cells
+                                                    />
+                                                    ": "
+                                                    {figure(spot.count)}
+                                                    " in "
+                                                    {figure(spot.games)}
+                                                    " games"
+                                                }
+                                                    .into_any()
                                             })
-                                            .unwrap_or_else(|| "none".to_string());
+                                            .unwrap_or_else(|| "none".into_any());
                                         view! {
                                             <tr title=layer.description.clone()>
                                                 <td class="pr-3 text-muted">{layer.label.clone()}</td>
@@ -362,10 +393,10 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
     }
 }
 
-/// Where the Siege Tanks sieged and killed the most in the games of the map, with a button to see
-/// all the spots as bars on the map in swarmy-bevy.
+/// Where the long range units stood and killed the most in the games of the map, with a button to
+/// see all the spots as bars on the map in swarmy-bevy. A preview: only the Siege Tanks so far.
 #[component]
-fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
+fn LongRangeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
     #[derive(serde::Serialize)]
     struct Args {
         map_title: String,
@@ -405,7 +436,10 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
     view! {
         <div>
             <div class="flex items-center gap-2">
-                <h2 class=HEADING_CLASS>"Siege Tank spots"</h2>
+                <h2 class=HEADING_CLASS>
+                    "Long Range Unit Spots "
+                    <span class="badge badge-sm badge-outline font-normal">"preview"</span>
+                </h2>
                 <button
                     class="btn btn-primary btn-xs"
                     title="All the spots as bars on the map: the height is the kills, red the most kills per siege"
@@ -418,7 +452,8 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
             </div>
             <p class="text-xs text-faint">
                 {format!(
-                    "Where the Siege Tanks sieged, in squares of {SIEGE_SPOT_CELLS}x{SIEGE_SPOT_CELLS} cells, and the enemy units that cost resources they killed until they unsieged.",
+                    "Where the Siege Tanks sieged, in squares of {SIEGE_SPOT_CELLS}x{SIEGE_SPOT_CELLS} cells, and the enemy units that cost resources they killed until they unsieged. \
+                    This is a preview: more long range units (Lurkers, Liberators, Tempests...) and more of what they did are being added.",
                 )}
             </p>
             {move || match spots.get() {
@@ -435,17 +470,17 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
                 Some(Ok(spots)) => {
                     view! {
                         <p class="text-xs text-muted">
-                            {format!(
-                                "{} sieges in {} games, {} kills.",
-                                spots.sieges,
-                                spots.games,
-                                spots.kills,
-                            )}
+                            {figure(spots.sieges)}
+                            " sieges in "
+                            {figure(spots.games)}
+                            " games, "
+                            {figure(spots.kills)}
+                            " kills."
                         </p>
                         <table class=TABLE_CLASS>
                             <thead>
                                 <tr class="text-left text-muted">
-                                    <th class="pr-3">"Cells"</th>
+                                    <th class="pr-3">"Cell"</th>
                                     <th class="pr-3 text-right">"Kills"</th>
                                     <th class="pr-3 text-right">"Sieges"</th>
                                     <th class="pr-3 text-right">"Kills per siege"</th>
@@ -458,13 +493,16 @@ fn SiegeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
                                     .iter()
                                     .take(SIEGE_SPOTS_SHOWN)
                                     .map(|spot| {
-                                        let (x, y) = (
-                                            spot.x * spots.spot_cells,
-                                            spot.y * spots.spot_cells,
-                                        );
+                                        let cells = spots.spot_cells as f32;
                                         view! {
                                             <tr>
-                                                <td class="pr-3 font-mono">{format!("({x}, {y})")}</td>
+                                                <td class="pr-3">
+                                                    <MapCell
+                                                        x=spot.x as f32 * cells
+                                                        y=spot.y as f32 * cells
+                                                        size=cells
+                                                    />
+                                                </td>
                                                 <td class="pr-3 num text-base-content">
                                                     {spot.kills}
                                                 </td>

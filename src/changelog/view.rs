@@ -5,6 +5,15 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-11-02",
+        &[
+            "Map Details: the map stays in view while the sections beside it scroll, and hovering a cell, i.e. (36, 120), highlights it on the map with a line across its x, one across its y and a square on it; the cells are written (x, y) everywhere. The matchups leave out the mirrors and are sorted by games, with First race favored; Resources shows the gold mineral fields and rich geysers as counts (- when none) and the Expansions; the winner comes first in Recent games; the Siege Tank spots are Long Range Unit Spots (preview), at the bottom. Rich vespene is violet on the map. Open in Swarmy-Bevy says what happened.",
+            "swarmy-bevy with a remote backend: the replay and its map caches are copied from the backend to this computer before it opens, the siege spots and the map lessons are queried in the backend.",
+            "Home says whether the snapshot is on this computer or on a remote backend, which one and its version, the replays directory there and when the snapshot was optimized; the versions are in Help. Scan names the backend in its status and leaves out Find duplicates with a remote backend; Config shows Loading until its settings are read. Map List has its filters on one line and counts the maps and games.",
+            "The buttons of the Swarmy, High contrast, Catppuccin and Tokyo Night themes are flat again, and the toggles of Config are shown.",
+        ],
+    ),
+    (
         "2026-11-01",
         &[
             "Config with a remote backend: the Remote Backend comes first, and while one is set the Map Caches Path, the Duplicate Replays Folder, the parallelism and the Scan limits are hidden, they are the ones of the Config of the backend. Saving Config keeps the settings (a new Remote Backend was lost when leaving Config) and says Config saved. Scan shows the Replay Path of the backend and works without a local one.",

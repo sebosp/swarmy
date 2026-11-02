@@ -410,3 +410,19 @@ thead th[aria-sort="descending"]::after {
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* A cell of the map in Map Details: underlined with dots, hovering or focusing it highlights it
+   on the map, see src/components/map_cell.rs. */
+.map-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: crosshair;
+}
+.map-cell:hover,
+.map-cell:focus-visible {
+  color: var(--color-base-content);
+  text-decoration-style: solid;
+}

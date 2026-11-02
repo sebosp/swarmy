@@ -1,5 +1,6 @@
 //! The minimap of a map with its resources and start locations, and their totals and distances.
 
+use crate::components::map_cell::{MapCell, MapHighlightContext};
 use crate::components::terrain::MapMinimap;
 use leptos::prelude::*;
 use swarmy_common::*;
@@ -7,7 +8,10 @@ use swarmy_common::*;
 const MINERAL_COLOR: &str = "#67e8f9";
 const RICH_MINERAL_COLOR: &str = "#facc15";
 const GEYSER_COLOR: &str = "#4ade80";
-const RICH_GEYSER_COLOR: &str = "#fb923c";
+// Rich vespene is purple in the game, gold is the color of the gold minerals.
+const RICH_GEYSER_COLOR: &str = "#a78bfa";
+/// The spot hovered in the tables of Map Details, a color no resource has.
+const HIGHLIGHT_COLOR: &str = "#f472b6";
 const START_COLOR: &str = "#f87171";
 
 /// The number with thousands separators, i.e. `61,200`.
@@ -37,6 +41,7 @@ fn resource_color(resource: &MapResource) -> &'static str {
 #[component]
 pub fn MapPicture(details: MapDetails) -> impl IntoView {
     let show_resources = RwSignal::new(true);
+    let highlight = use_context::<MapHighlightContext>();
     let Some(image) = details.minimap.clone() else {
         return match details.terrain.clone() {
             Some(terrain) => view! { <MapMinimap terrain /> }.into_any(),
@@ -112,6 +117,30 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
                     preserveAspectRatio="none"
                 />
                 <g class:hidden=move || !show_resources.get()>{resource_marks} {start_marks}</g>
+                // The spot hovered in the tables: a line across its x, one across its y and a
+                // square on it.
+                {move || {
+                    let spot = highlight.and_then(|MapHighlightContext(spot)| spot.get())?;
+                    let (center_x, center_y) = spot.center();
+                    let (cx, cy) = to_svg(center_x, center_y);
+                    let side = spot.size.max(2.);
+                    Some(view! {
+                        <g pointer-events="none">
+                            <line x1=0 y1=cy x2=width y2=cy stroke=HIGHLIGHT_COLOR stroke-width=0.4 stroke-opacity=0.8 />
+                            <line x1=cx y1=0 x2=cx y2=height stroke=HIGHLIGHT_COLOR stroke-width=0.4 stroke-opacity=0.8 />
+                            <rect
+                                x=cx - side / 2.
+                                y=cy - side / 2.
+                                width=side
+                                height=side
+                                fill=HIGHLIGHT_COLOR
+                                fill-opacity=0.25
+                                stroke=HIGHLIGHT_COLOR
+                                stroke-width=0.6
+                            />
+                        </g>
+                    })
+                }}
             </svg>
             <label class="flex items-center gap-2 text-xs text-muted">
                 <input
@@ -134,43 +163,57 @@ pub fn MapPicture(details: MapDetails) -> impl IntoView {
     .into_any()
 }
 
-fn yes_no(count: usize, what: &str) -> String {
-    match count {
-        0 => "No".to_string(),
-        count => format!("Yes, {count} {what}"),
+/// A number of the data, emphasized against the words around it.
+fn figure(value: String) -> AnyView {
+    view! { <span class="font-medium text-base-content tabular-nums">{value}</span> }.into_any()
+}
+
+/// A count of the data, `-` when there are none.
+fn count_or_dash(count: usize) -> AnyView {
+    if count == 0 {
+        view! { <span class="text-muted">"-"</span> }.into_any()
+    } else {
+        figure(count.to_string())
     }
 }
 
 /// The totals of the resources and the distances of the main base resources.
 #[component]
 pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
-    let rows = [
+    let rows: [(&str, &str, AnyView); 5] = [
         (
             "Minerals",
-            format!(
-                "{} in {} mineral fields",
-                thousands(resources.minerals),
-                resources.mineral_fields
-            ),
+            "",
+            view! {
+                {figure(thousands(resources.minerals))}
+                " in "
+                {figure(resources.mineral_fields.to_string())}
+                " mineral fields"
+            }
+            .into_any(),
         ),
         (
             "Vespene",
-            format!(
-                "{} in {} geysers",
-                thousands(resources.vespene),
-                resources.geysers
-            ),
+            "",
+            view! {
+                {figure(thousands(resources.vespene))}
+                " in "
+                {figure(resources.geysers.to_string())}
+                " geysers"
+            }
+            .into_any(),
         ),
         (
-            "Gold minerals",
-            yes_no(resources.rich_mineral_fields, "gold mineral fields"),
+            "Gold mineral fields",
+            "",
+            count_or_dash(resources.rich_mineral_fields),
         ),
+        ("Rich geysers", "", count_or_dash(resources.rich_geysers)),
         (
-            "Rich vespene",
-            yes_no(resources.rich_geysers, "rich geysers"),
+            "Expansions",
+            "All the bases of the map, the main bases included: every base has two geysers",
+            figure((resources.geysers / 2).to_string()),
         ),
-        // Every base has two geysers.
-        ("Bases", format!("about {}", resources.geysers / 2)),
     ];
     let default_amounts = resources.default_amounts;
     view! {
@@ -180,10 +223,10 @@ pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
                 <tbody>
                     {rows
                         .into_iter()
-                        .map(|(label, value)| view! {
-                            <tr>
+                        .map(|(label, help, value)| view! {
+                            <tr title=(!help.is_empty()).then_some(help)>
                                 <td class="pr-4 text-muted">{label}</td>
-                                <td class="text-base-content">{value}</td>
+                                <td class="text-muted">{value}</td>
                             </tr>
                         })
                         .collect_view()}
@@ -202,7 +245,7 @@ pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
                     <tr class="text-left text-muted">
                         <th class="pr-3">"Start location"</th>
                         <th class="pr-3">"Position"</th>
-                        <th class="pr-3" title="The mineral fields of the main base">"Fields"</th>
+                        <th class="pr-3 num" title="The mineral fields of the main base">"Fields"</th>
                         <th class="pr-3" title="From the start location to the mineral fields of the main base, in map units">
                             "Mineral distance"
                         </th>
@@ -216,8 +259,8 @@ pub fn MapResourcesPanel(resources: MapResources) -> impl IntoView {
                         .map(|start| view! {
                             <tr>
                                 <td class="pr-3 text-base-content">{start.name.clone()}</td>
-                                <td class="pr-3">{format!("{:.1}, {:.1}", start.x, start.y)}</td>
-                                <td class="pr-3">{start.mineral_fields}</td>
+                                <td class="pr-3"><MapCell x=start.x y=start.y centered=true /></td>
+                                <td class="pr-3 num">{start.mineral_fields}</td>
                                 <td class="pr-3">
                                     {format!(
                                         "{:.2} on average ({:.2} to {:.2})",
