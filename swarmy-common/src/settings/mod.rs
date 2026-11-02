@@ -131,6 +131,14 @@ impl AppSettings {
         !self.remote_backend_url.trim().is_empty()
     }
 
+    /// The host and port of the remote backend, i.e. `wormgat-zt:7878` of `http://wormgat-zt:7878`.
+    pub fn remote_host(&self) -> &str {
+        let url = self.remote_backend_url.trim();
+        url.split_once("://")
+            .map_or(url, |(_, rest)| rest)
+            .trim_end_matches('/')
+    }
+
     /// Whether Scan and Optimize can run: the remote backend uses the replay path of its own
     /// Config, this computer needs one.
     pub fn can_scan(&self) -> bool {

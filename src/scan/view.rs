@@ -57,7 +57,7 @@ pub fn ScanDirectory() -> impl IntoView {
                     {move || {
                         let settings = app_settings.get();
                         if settings.is_remote() {
-                            format!("Replay Path on {}", remote_host(&settings.remote_backend_url))
+                            format!("Replay Path on {}", settings.remote_host())
                         } else {
                             "Replay Path".to_string()
                         }
@@ -243,12 +243,4 @@ pub fn SnapshotStatusHeader(
             </div>
         </div>
     }
-}
-
-/// The host and port of a remote backend URL, i.e. `wormgat-zt:7878` of `http://wormgat-zt:7878`.
-fn remote_host(url: &str) -> &str {
-    let url = url.trim();
-    url.split_once("://")
-        .map_or(url, |(_, rest)| rest)
-        .trim_end_matches('/')
 }
