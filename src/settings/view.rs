@@ -4,6 +4,7 @@ use leptos::{ev::MouseEvent, prelude::*};
 use phosphor_leptos::{Icon, IconWeight, FOLDER_OPEN, QUESTION};
 use swarmy_common::*;
 
+use crate::components::loading::Loading;
 use crate::{
     settings::actions::trigger_set_current_app_config, DisplayBackendStatus, SELECT_CLASS,
 };
@@ -33,7 +34,9 @@ pub fn Config() -> impl IntoView {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
     });
-    crate::settings::with_fetch_current_app_config(
+    // The form is shown once the stored settings are read, not with the defaults first.
+    let loaded = RwSignal::new(false);
+    crate::settings::with_fetch_stored_app_config(
         set_app_settings,
         move |settings: AppSettings| {
             *replay_path.write() = settings.replay_path.clone();
@@ -58,13 +61,18 @@ pub fn Config() -> impl IntoView {
             set_backend_response.update(|val| {
                 val.meta.success = true;
                 val.meta.is_complete = true;
-            })
+            });
+            loaded.set(true);
         },
     );
     view! {
         <div class="ml-4 mt-4">
             <h2 class="text-base/7 font-semibold text-base-content">"Swarmy Settings"</h2>
             <DisplayBackendStatus backend_response />
+            <Show
+                when=move || loaded.get()
+                fallback=|| view! { <Loading message="Reading the settings..." /> }
+            >
             <div class="mt-6 space-y-10 border-b border-base-content/10 pb-12 sm:space-y-0 sm:divide-y sm:divide-base-content/10 sm:border-t sm:border-t-white/10 sm:pb-0">
                 <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <fieldset>
@@ -331,6 +339,7 @@ pub fn Config() -> impl IntoView {
                 </div>
                 <div class="col-span-1"></div>
             </div>
+            </Show>
         </div>
     }
 }

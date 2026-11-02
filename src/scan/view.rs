@@ -69,7 +69,7 @@ pub fn ScanDirectory() -> impl IntoView {
                         if !replay_path.is_empty() {
                             replay_path
                         } else if app_settings.get().is_remote() {
-                            "Unknown".to_string()
+                            "Not sent by the backend".to_string()
                         } else {
                             "Not set".to_string()
                         }
@@ -203,7 +203,11 @@ pub fn ScanDirectory() -> impl IntoView {
                 <Show when=move || { activity_stage.get() >= ActivityStage::OptimizeDone }>
                     <ArrowIpcStats snapshot_stats=snapshot_stats />
                 </Show>
-                <DuplicatesPanel app_settings />
+                // The remote backend finds and moves its duplicates with its own Config, in the
+                // Scan of its computer.
+                <Show when=move || !app_settings.get().is_remote()>
+                    <DuplicatesPanel app_settings />
+                </Show>
             </div>
         </div>
     }
@@ -235,8 +239,14 @@ pub fn SnapshotStatusHeader(
                 </div>
                 <div class="ml-3">
                     <p class=move || { activity_stage.get().text_class().join(" ") }>
-                        <code>{move || app_settings.get().snapshot_replay_path()}</code>
-                        ": "
+                        {move || {
+                            let settings = app_settings.get();
+                            if settings.is_remote() {
+                                format!("{} backend status: ", settings.remote_host())
+                            } else {
+                                "Backend status: ".to_string()
+                            }
+                        }}
                         {move || activity_stage.get().text_content()}
                     </p>
                 </div>

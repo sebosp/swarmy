@@ -107,7 +107,7 @@ impl ActivityStage {
         match self {
             Self::None => "Please enter a directory to scan".to_string(),
             Self::DirectoryEntered=> "Proceed to Scan.".to_string(),
-            Self::ScanInit=> "Scanning in progres...".to_string(),
+            Self::ScanInit=> "Scanning in progress...".to_string(),
             Self::ScanFailure => "Scan has finished with failure, please check the directory and permissions or the logs.".to_string(),
             Self::ScanDone => "Scan has finished, proceed to Optimize.".to_string(),
             Self::OptimizeInit=> "Data Optimization for analysis in progress.".to_string(),
