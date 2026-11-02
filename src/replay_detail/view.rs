@@ -2,7 +2,7 @@
 
 use super::notes::ReplayNotesPanel;
 use crate::components::abilities::AbilityUses;
-use crate::components::charts::{AdvantageChart, BarChart, ChartData};
+use crate::components::charts::{AdvantageChart, BarChart, ChartData, LineChart, CHART_COLORS};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
 };
@@ -144,6 +144,7 @@ pub fn ReplayDetailView() -> impl IntoView {
                                         />
                                     }
                                 })}
+                            {detail.creep.clone().map(|creep| view! { <CreepPanel creep /> })}
                             <PlayerSections
                                 players=detail.players.clone()
                                 snapshot_seconds=detail.snapshot_seconds
@@ -1427,6 +1428,124 @@ fn UnitCountsTable(counts: Vec<UnitCount>) -> impl IntoView {
                     .collect_view()}
             </tbody>
         </table>
+    }
+}
+
+/// "16% more than", "45% less than" or "as much as" the average.
+fn compared_to_average(value: f32, average: f32) -> String {
+    match CreepSummary::compared(value, average) {
+        Some(percent) if percent >= 5. => format!("{percent:.0}% more than"),
+        Some(percent) if percent <= -5. => format!("{:.0}% less than", -percent),
+        Some(_) => "about as much as".to_string(),
+        None => "while the games of the matchup average none,".to_string(),
+    }
+}
+
+/// The creep tumors the Zerg placed and the ones the opponent cleaned, against the games of the
+/// matchup in the snapshot.
+#[component]
+fn CreepPanel(creep: CreepSummary) -> impl IntoView {
+    let zerg = clean_player_name_clan_escapes(&creep.zerg);
+    let opponent = clean_player_name_clan_escapes(&creep.opponent);
+    let labels: Vec<String> = creep
+        .timeline
+        .iter()
+        .map(|minute| format_game_time(minute.minute * 60))
+        .collect();
+    let chart = |game: Vec<f64>, average: Vec<f64>, what: &'static str| {
+        let tooltips = labels
+            .iter()
+            .zip(game.iter().zip(average.iter()))
+            .map(|(time, (game, average))| {
+                format!("By {time}: {game:.0} {what} in this game, {average:.1} on average")
+            })
+            .collect();
+        ChartData::new(labels.clone())
+            .with_series("This game", game)
+            .with_series(&format!("Average {}", creep.matchup), average)
+            .with_colors(&[CHART_COLORS[0], "var(--chart-muted)"])
+            .with_tooltips(tooltips)
+            .with_curve("straight")
+    };
+    let placed = chart(
+        creep
+            .timeline
+            .iter()
+            .map(|minute| minute.placed as f64)
+            .collect(),
+        creep
+            .timeline
+            .iter()
+            .map(|minute| (minute.avg_placed as f64 * 10.).round() / 10.)
+            .collect(),
+        "tumors placed",
+    );
+    let cleaned = chart(
+        creep
+            .timeline
+            .iter()
+            .map(|minute| minute.cleaned as f64)
+            .collect(),
+        creep
+            .timeline
+            .iter()
+            .map(|minute| (minute.avg_cleaned as f64 * 10.).round() / 10.)
+            .collect(),
+        "tumors cleaned",
+    );
+    let figure = |value: String| view! { <span class="font-medium text-base-content tabular-nums">{value}</span> };
+    view! {
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
+                "Creep"
+            </h2>
+            <div class="px-2 py-1 space-y-1">
+                <p class="text-xs text-faint">
+                    {format!(
+                        "The creep tumors {zerg} placed, by the Queens and by the tumors spreading, and the ones {opponent} killed (with scans, detectors, Oracle revelations or Observers, then the army), against the {} {} games of the snapshot.",
+                        creep.games,
+                        creep.matchup,
+                    )}
+                </p>
+                <p class="text-sm text-muted">
+                    "Spread: "
+                    {figure(creep.placed.to_string())}
+                    " tumors, "
+                    {figure(format!("{:.2}", creep.placed_per_minute()))}
+                    " per minute, "
+                    {compared_to_average(creep.placed_per_minute(), creep.avg_placed_per_minute)}
+                    " the average of "
+                    {figure(format!("{:.2}", creep.avg_placed_per_minute))}
+                    "."
+                </p>
+                <p class="text-sm text-muted">
+                    "Cleanup: "
+                    {figure(creep.cleaned.to_string())}
+                    " tumors killed, "
+                    {figure(format!("{:.2}", creep.cleaned_per_minute()))}
+                    " per minute, "
+                    {compared_to_average(creep.cleaned_per_minute(), creep.avg_cleaned_per_minute)}
+                    " the average of "
+                    {figure(format!("{:.2}", creep.avg_cleaned_per_minute))}
+                    "."
+                </p>
+                {(!creep.timeline.is_empty())
+                    .then(|| {
+                        view! {
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <h3 class="text-xs font-semibold text-base-content">"Tumors placed by the end of each minute"</h3>
+                                    <LineChart data=placed.clone() class="h-40" />
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-semibold text-base-content">"Tumors cleaned by the end of each minute"</h3>
+                                    <LineChart data=cleaned.clone() class="h-40" />
+                                </div>
+                            </div>
+                        }
+                    })}
+            </div>
+        </div>
     }
 }
 

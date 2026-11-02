@@ -467,4 +467,59 @@ pub struct ReplayDetail {
     /// None for games that are not between two teams.
     #[serde(default)]
     pub win_chances: Option<WinChances>,
+    /// The creep of a 1v1 of a Zerg against a Terran or a Protoss, None otherwise.
+    #[serde(default)]
+    pub creep: Option<CreepSummary>,
+}
+
+/// The creep tumors placed by the Zerg and cleaned by the opponent by the end of a minute, and the
+/// averages of the games of the matchup that lasted that long.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct CreepMinute {
+    /// The minute that ends, 1 is 01:00.
+    pub minute: u32,
+    pub placed: u32,
+    pub cleaned: u32,
+    pub avg_placed: f32,
+    pub avg_cleaned: f32,
+}
+
+/// The creep spread of the Zerg of a 1v1 against a Terran or a Protoss, and the cleanup of the
+/// opponent: the creep tumors placed (by the Queens and by the tumors) and the ones the opponent
+/// killed, against the average of the games of the matchup in the snapshot.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct CreepSummary {
+    /// The Zerg, as stored in the replay.
+    pub zerg: String,
+    pub opponent: String,
+    /// `ZvT` or `ZvP`.
+    pub matchup: String,
+    pub game_seconds: u32,
+    pub placed: u32,
+    pub cleaned: u32,
+    /// The averages per minute of the games of the matchup.
+    pub avg_placed_per_minute: f32,
+    pub avg_cleaned_per_minute: f32,
+    /// The games of the matchup the averages are of.
+    pub games: u32,
+    pub timeline: Vec<CreepMinute>,
+}
+
+impl CreepSummary {
+    fn minutes(&self) -> f32 {
+        (self.game_seconds as f32 / 60.).max(1. / 60.)
+    }
+
+    pub fn placed_per_minute(&self) -> f32 {
+        self.placed as f32 / self.minutes()
+    }
+
+    pub fn cleaned_per_minute(&self) -> f32 {
+        self.cleaned as f32 / self.minutes()
+    }
+
+    /// How much more (positive) or less than the average of the matchup, in percent.
+    pub fn compared(value: f32, average: f32) -> Option<f32> {
+        (average > 0.).then(|| 100. * (value - average) / average)
+    }
 }

@@ -74,7 +74,15 @@ const TROUBLESHOOTING: [Entry; 2] = [
     ),
 ];
 
-const VIEWS: [Entry; 16] = [
+const VIEWS: [Entry; 17] = [
+    (
+        "Ability",
+        "One ability with energy or a cooldown, i.e. Inject Larva or Yamato Cannon, in the games \
+         of the snapshot: the share of the games of its race it is used in, the uses per game by \
+         month and by patch, by matchup, the players with the most uses per game, the games with \
+         the most uses, and the average and fastest game time of its first use. Click an ability \
+         in Replay Detail, Race Detail or the Patch Overview to open it.",
+    ),
     (
         "Progress",
         "With your Main Player Name in Config, the workers at 06:00, the income at 08:00, the \

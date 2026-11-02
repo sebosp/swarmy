@@ -315,6 +315,10 @@ pub fn try_query_replay_detail(
         Ok(usage) => crate::ability_usage::annotate(&mut detail, &usage),
         Err(err) => tracing::warn!("No ability usage: {err:?}"),
     }
+    match super::creep::creep_stats_cached(&ipc_path) {
+        Ok(stats) => super::creep::annotate(&mut detail, &stats),
+        Err(err) => tracing::warn!("No creep stats: {err:?}"),
+    }
     Ok(detail)
 }
 
