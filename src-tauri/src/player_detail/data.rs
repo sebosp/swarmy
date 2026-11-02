@@ -124,6 +124,7 @@ pub fn try_query_player_detail(
                     opponent,
                     opponent_race: normalize_race(&opponent_race),
                     won: result == "Win",
+                    tie: result == "Tie",
                     protocol_version: versions[ext_fs_id],
                 }
             },
@@ -136,11 +137,13 @@ pub fn try_query_player_detail(
     let mut by_month = BTreeMap::new();
     let mut by_version = BTreeMap::new();
     let mut wins = 0;
+    let mut ties = 0;
     for game in matches
         .iter()
         .filter(|game| seen_games.insert(game.ext_fs_id))
     {
         wins += game.won as usize;
+        ties += game.tie as usize;
         add_game(&mut races, game.race.clone(), game.won);
         add_game(&mut by_month, game.date.chars().take(7).collect(), game.won);
         add_game(&mut by_version, game.protocol_version.to_string(), game.won);
@@ -172,6 +175,7 @@ pub fn try_query_player_detail(
         player_name,
         games: game_ids.len(),
         wins,
+        ties,
         races,
         by_month: by_month.into_values().collect(),
         by_version,

@@ -50,6 +50,9 @@ pub struct PlayerMatch {
     pub opponent: String,
     pub opponent_race: String,
     pub won: bool,
+    /// A tie, rare: neither won.
+    #[serde(default)]
+    pub tie: bool,
     /// The replay protocol version (base build), 0 if the replay could not be read.
     pub protocol_version: u32,
 }
@@ -156,6 +159,9 @@ pub struct PlayerDetail {
     pub player_name: String,
     pub games: usize,
     pub wins: usize,
+    /// The ties, rare.
+    #[serde(default)]
+    pub ties: usize,
     /// The races played, most played first.
     pub races: Vec<GamesWins>,
     /// By month, oldest first.

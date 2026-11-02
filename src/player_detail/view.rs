@@ -149,15 +149,21 @@ fn PlayerHeader(detail: PlayerDetail) -> impl IntoView {
             <h1 class="text-xl font-semibold text-base-content">
                 {clean_player_name_clan_escapes(&detail.player_name)}
             </h1>
+            // The wins, and the ties only when there are any: the losses are the rest.
             <p class="text-sm text-muted">
-                {format!(
-                    "{} games, {} wins, {} losses ({}) · {}",
-                    detail.games,
-                    detail.wins,
-                    detail.games - detail.wins,
-                    win_rate(detail.wins, detail.games),
-                    races,
-                )}
+                <span class="font-medium text-base-content tabular-nums">{detail.games}</span>
+                " games, "
+                <span class="font-medium text-success tabular-nums">{detail.wins}</span>
+                {format!(" wins ({})", win_rate(detail.wins, detail.games))}
+                {(detail.ties > 0)
+                    .then(|| {
+                        view! {
+                            ", "
+                            <span class="font-medium text-warning tabular-nums">{detail.ties}</span>
+                            {if detail.ties == 1 { " tie" } else { " ties" }}
+                        }
+                    })}
+                {format!(" · {races}")}
             </p>
         </div>
     }

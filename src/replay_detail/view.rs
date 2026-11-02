@@ -18,7 +18,7 @@ use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use phosphor_leptos::{
-    Icon, IconWeight, CARET_DOUBLE_RIGHT, CARET_LEFT, CARET_RIGHT, EXPORT, LOCK_SIMPLE,
+    Icon, IconWeight, CARET_DOUBLE_RIGHT, CARET_DOWN, CARET_LEFT, CARET_RIGHT, EXPORT, LOCK_SIMPLE,
     LOCK_SIMPLE_OPEN,
 };
 use swarmy_common::*;
@@ -485,12 +485,32 @@ fn section_band<V: IntoView + 'static>(
         })
         .collect::<Vec<_>>();
     let cells = with_gutters(cells, false);
+    // The arrow collapses or expands the band, as the sections of the other views.
+    let collapsed = RwSignal::new(false);
     view! {
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
-            <h3 class="px-2 py-1 text-sm font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
+            <h3
+                class="flex items-center gap-1 px-2 py-1 text-sm font-semibold text-base-content bg-base-200/80 rounded-t-md"
+                class:border-b=move || !collapsed.get()
+                style="border-color: color-mix(in oklab, var(--color-base-content) 15%, transparent)"
+            >
+                <button
+                    type="button"
+                    class="btn btn-ghost btn-xs btn-square"
+                    aria-expanded=move || (!collapsed.get()).to_string()
+                    title=move || if collapsed.get() { "Expand this section" } else { "Collapse this section" }
+                    on:click=move |_| collapsed.update(|collapsed| *collapsed = !*collapsed)
+                >
+                    {move || {
+                        let icon = if collapsed.get() { CARET_RIGHT } else { CARET_DOWN };
+                        view! { <Icon icon=icon weight=IconWeight::Bold size="14px" /> }
+                    }}
+                </button>
                 {title}
             </h3>
-            <div class="grid" style=player_grid_style(players.len())>{cells}</div>
+            <div class="grid" class:hidden=move || collapsed.get() style=player_grid_style(players.len())>
+                {cells}
+            </div>
         </div>
     }
 }
