@@ -2,6 +2,7 @@
 
 use super::notes::ReplayNotesPanel;
 use crate::components::abilities::AbilityUses;
+use crate::components::brand_icon::BrandIcon;
 use crate::components::charts::{AdvantageChart, BarChart, ChartData, LineChart, CHART_COLORS};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
@@ -17,7 +18,8 @@ use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use phosphor_leptos::{
-    Icon, IconWeight, CARET_LEFT, CARET_RIGHT, CUBE, LOCK_SIMPLE, LOCK_SIMPLE_OPEN, STRATEGY,
+    Icon, IconWeight, CARET_DOUBLE_RIGHT, CARET_LEFT, CARET_RIGHT, EXPORT, LOCK_SIMPLE,
+    LOCK_SIMPLE_OPEN,
 };
 use swarmy_common::*;
 
@@ -109,7 +111,6 @@ pub fn ReplayDetailView() -> impl IntoView {
                     .map(|detail| {
                         view! {
                             <ReplayNavigation detail=detail.clone() error />
-                            <ReplayHeader detail=detail.clone() />
                             <ReplayNotesPanel sha256=detail.sha256.clone() />
                             <div class="flex gap-4 text-xs text-muted">
                                 <label class="flex items-center gap-1">
@@ -178,7 +179,11 @@ fn go_to_replay(ext_fs_id: Option<u64>, step: ReplayStep, error: RwSignal<Option
             query: AdjacentReplayQuery,
         }
         match invoke_json::<Option<u64>>("query_adjacent_replay", &Args { query }).await {
-            Ok(Some(ext_fs_id)) => navigation.open_replay(ext_fs_id),
+            Ok(Some(ext_fs_id)) => {
+                navigation.open_replay(ext_fs_id);
+                navigation.replay_is_latest.set(step == ReplayStep::Latest);
+            }
+            Ok(None) if step == ReplayStep::Next => navigation.replay_is_latest.set(true),
             Ok(None) if step == ReplayStep::Latest => error.set(Some(
                 "There are no replays in the snapshot, Optimize them in Scan.".to_string(),
             )),
@@ -277,58 +282,9 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
             };
         })
     });
-    view! {
-        <div class="flex flex-wrap items-center gap-3 rounded-md border border-base-content/15 bg-base-200/40 p-2 text-sm">
-            <button
-                class="btn btn-sm btn-primary"
-                title="The previous replay by date, of the locked map and players"
-                on:click=move |_| {
-                    error.set(None);
-                    go_to_replay(Some(ext_fs_id), ReplayStep::Previous, error)
-                }
-            >
-                <Icon icon=CARET_LEFT weight=IconWeight::Bold />
-                "Previous"
-            </button>
-            <button
-                class="btn btn-sm btn-primary"
-                title="The next replay by date, of the locked map and players"
-                on:click=move |_| {
-                    error.set(None);
-                    go_to_replay(Some(ext_fs_id), ReplayStep::Next, error)
-                }
-            >
-                "Next"
-                <Icon icon=CARET_RIGHT weight=IconWeight::Bold />
-            </button>
-            <button
-                class="btn btn-sm btn-ghost"
-                title="The newest replay of the snapshot, of the locked map and players"
-                on:click=move |_| {
-                    error.set(None);
-                    go_to_replay(None, ReplayStep::Latest, error)
-                }
-            >
-                "Latest"
-            </button>
-            <span class="flex items-center gap-1">
-                <LockToggle
-                    locked=map_locked
-                    on_toggle=toggle_map
-                    title="Lock the map: the previous and next replays are on this map"
-                />
-                <MapLink map_title=detail.map_title.clone() />
-            </span>
-            {players}
-        </div>
-    }
-}
-
-#[component]
-fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
+    let is_latest = navigation.replay_is_latest;
     let location = detail.replay_location.clone();
     let bevy_location = detail.replay_location.clone();
-    let ext_fs_id = detail.ext_fs_id;
     let exported = RwSignal::new(String::new());
     let export = move |_ev: MouseEvent| {
         #[derive(serde::Serialize)]
@@ -344,61 +300,97 @@ fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
             }
         });
     };
+    // One bar: the navigation, the replay with its map and players (each once, lockable), and the
+    // actions as icons, their title says what they do.
     view! {
-        <div class="flex items-start justify-between rounded-md border border-base-content/15 bg-base-200/40 p-2">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-base-content/15 bg-base-200/40 p-2 text-sm">
+            <div class="join">
+                <button
+                    class="btn btn-sm btn-primary join-item"
+                    title="The previous replay by date, of the locked map and players"
+                    on:click=move |_| {
+                        error.set(None);
+                        go_to_replay(Some(ext_fs_id), ReplayStep::Previous, error)
+                    }
+                >
+                    <Icon icon=CARET_LEFT weight=IconWeight::Bold />
+                    "Previous"
+                </button>
+                <button
+                    class="btn btn-sm btn-primary join-item"
+                    title=move || {
+                        if is_latest.get() {
+                            "This is the newest replay of the locked map and players"
+                        } else {
+                            "The next replay by date, of the locked map and players"
+                        }
+                    }
+                    disabled=move || is_latest.get()
+                    on:click=move |_| {
+                        error.set(None);
+                        go_to_replay(Some(ext_fs_id), ReplayStep::Next, error)
+                    }
+                >
+                    "Next"
+                    <Icon icon=CARET_RIGHT weight=IconWeight::Bold />
+                </button>
+                <button
+                    class="btn btn-sm btn-ghost join-item"
+                    title="The newest replay of the snapshot, of the locked map and players"
+                    disabled=move || is_latest.get()
+                    on:click=move |_| {
+                        error.set(None);
+                        go_to_replay(None, ReplayStep::Latest, error)
+                    }
+                >
+                    <Icon icon=CARET_DOUBLE_RIGHT weight=IconWeight::Bold />
+                </button>
+            </div>
             <div>
-                <h1 class="text-xl font-semibold text-base-content">
-                    <MapLink map_title=detail.map_title.clone() />
-                </h1>
-                <p class="text-sm text-muted">
+                <span class="text-base font-semibold text-base-content">
                     "Replay " <ReplayLink ext_fs_id=detail.ext_fs_id />
+                </span>
+                <span class="text-muted">
                     {format!(
-                        " · {} · {} · patch version ",
+                        " · {} · {} · patch ",
                         detail.replay_date,
                         format_game_time(detail.duration_seconds),
-                    )} <PatchLink version=detail.protocol_version />
-                </p>
-                <p class="text-sm text-muted">
-                    "Winner: "
-                    {detail
-                        .winners
-                        .into_iter()
-                        .map(|player_name| {
-                            view! {
-                                <span class="mr-2">
-                                    <ResultMarker result="Win".to_string() />
-                                    <PlayerLink player_name />
-                                </span>
-                            }
-                        })
-                        .collect_view()}
-                </p>
+                    )}
+                    <PatchLink version=detail.protocol_version />
+                </span>
             </div>
-            <div class="flex gap-2">
+            <span class="flex items-center gap-1">
+                <LockToggle
+                    locked=map_locked
+                    on_toggle=toggle_map
+                    title="Lock the map: the previous and next replays are on this map"
+                />
+                <MapLink map_title=detail.map_title.clone() />
+            </span>
+            {players}
+            <div class="ml-auto flex items-center gap-1">
+                <span class="text-xs text-muted">{move || exported.get()}</span>
                 <button
-                    class="btn btn-primary btn-sm"
-                    title="Load Rerun Preview"
+                    class="btn btn-ghost btn-sm btn-square"
+                    title="Open the replay in the Rerun preview: the units, the camera and the events over time"
                     on:click=move |_ev: MouseEvent| trigger_swarmy_rerun_on_replay(&location)
                 >
-                    <Icon icon=STRATEGY weight=IconWeight::Light />
-                    "Load Rerun Preview"
+                    <BrandIcon name="rerun" />
                 </button>
                 <button
-                    class="btn btn-primary btn-sm"
-                    title="The units born and died over time on the map, with the players, upgrades and most effective units"
+                    class="btn btn-ghost btn-sm btn-square"
+                    title="Open the replay in swarmy-bevy: the units born and died over time on the map, with the players, upgrades and most effective units"
                     on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_on_replay(&bevy_location)
                 >
-                    <Icon icon=CUBE weight=IconWeight::Light />
-                    "Load in swarmy-bevy"
+                    <BrandIcon name="bevy" />
                 </button>
                 <button
-                    class="btn btn-outline btn-sm"
-                    title="Saves the game as a single HTML page to share with a coach or a friend: the win chance, the three things to fix, the economy, the build orders and the biggest fights"
+                    class="btn btn-ghost btn-sm btn-square"
+                    title="Export a report: saves the game as a single HTML page to share with a coach or a friend, the win chance, the three things to fix, the economy, the build orders and the biggest fights"
                     on:click=export
                 >
-                    "Export report"
+                    <Icon icon=EXPORT weight=IconWeight::Light size="18px" />
                 </button>
-                <span class="text-xs text-muted self-center">{move || exported.get()}</span>
             </div>
         </div>
     }
@@ -1596,11 +1588,16 @@ fn WinChanceChart(
                     .collect::<Vec<_>>()
                     .join(", ")
             };
+            // The chance of the side ahead only, the other one is the rest.
+            let (ahead, chance) = if point.chance >= 0.5 {
+                (&first, point.chance)
+            } else {
+                (&second, 1. - point.chance)
+            };
             let mut tooltip = format!(
-                "{} · {first} {:.0}% · {second} {:.0}%",
+                "{} · {ahead} {:.0}%",
                 format_game_time(point.seconds),
-                point.chance * 100.,
-                (1. - point.chance) * 100.,
+                chance * 100.,
             );
             for (team, sign) in [(&first, 1.), (&second, -1.)] {
                 let factors = favoring(sign);
@@ -1705,11 +1702,7 @@ fn WinChanceChart(
                                                         trigger_swarmy_bevy_on_replay_at(&location, Some(start))
                                                     }
                                                 >
-                                                    <Icon
-                                                        icon=CUBE
-                                                        weight=IconWeight::Light
-                                                        prop:class="stroke-current"
-                                                    />
+                                                    <BrandIcon name="bevy" />
                                                 </button>
                                             </li>
                                         }

@@ -3,12 +3,12 @@
 use super::actions::*;
 use super::*;
 use crate::components::abilities::group_digits;
+use crate::components::brand_icon::BrandIcon;
 use crate::components::links::MapLink;
 use crate::components::loading::Loading;
 use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, CUBE};
 use reactive_stores::Store;
 use swarmy_common::*;
 
@@ -172,7 +172,7 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                                 }
                                                 title="Open in Swarmy-Bevy"
                                             >
-                                                <Icon icon=CUBE weight=IconWeight::Light prop:class="stroke-current" />
+                                                <BrandIcon name="bevy" />
                                             </button>
                                         </td>
                                     </tr>

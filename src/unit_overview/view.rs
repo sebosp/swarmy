@@ -1,6 +1,7 @@
 //! A unit with its costs, life, weapons, etc in every patch, the changes from the previous patch
 //! are marked: red up when the unit costs more, green down when it costs less.
 
+use crate::components::brand_icon::BrandIcon;
 use crate::components::charts::UnitUsageChart;
 use crate::components::links::{MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, UnitLink};
 use crate::components::loading::Loading;
@@ -12,7 +13,6 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, CUBE, STRATEGY};
 use swarmy_common::*;
 
 const RACES: [&str; 4] = ["Terran", "Zerg", "Protoss", "Other"];
@@ -357,14 +357,14 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
                             title="Load Rerun Preview"
                             on:click=move |_ev: MouseEvent| trigger_swarmy_rerun_on_replay(&rerun_location)
                         >
-                            <Icon icon=STRATEGY weight=IconWeight::Light prop:class="stroke-current" />
+                            <BrandIcon name="rerun" />
                         </button>
                         <button
                             class="btn btn-primary btn-xs b-0"
                             title="Load in swarmy-bevy: the units born and died over time on the map"
                             on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_on_replay(&bevy_location)
                         >
-                            <Icon icon=CUBE weight=IconWeight::Light prop:class="stroke-current" />
+                            <BrandIcon name="bevy" />
                         </button>
                     </td>
                 </tr>

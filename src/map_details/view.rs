@@ -1,6 +1,7 @@
 //! Leptos view for the details of a map: matchups, top players, recent games and terrain.
 
 use super::resources::{MapPicture, MapResourcesPanel};
+use crate::components::brand_icon::BrandIcon;
 use crate::components::links::{PlayerLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
 use crate::components::map_cell::{MapCell, MapHighlightContext};
@@ -10,7 +11,7 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, BINOCULARS, CUBE};
+use phosphor_leptos::{Icon, IconWeight, BINOCULARS};
 use swarmy_common::*;
 
 const HEADING_CLASS: &str = "text-base/7 font-semibold text-base-content";
@@ -159,7 +160,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                         "Scout this map"
                     </button>
                     <button class="btn btn-primary btn-sm" title="Open in Swarmy-Bevy" on:click=open_in_bevy>
-                        <Icon icon=CUBE weight=IconWeight::Light />
+                        <BrandIcon name="bevy" />
                         "Open in Swarmy-Bevy"
                     </button>
                 </div>
@@ -360,7 +361,7 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
                     title="The layers as bars on the map, each in its color, the keys F1 to F4 show or hide them"
                     on:click=open
                 >
-                    <Icon icon=CUBE weight=IconWeight::Light />
+                    <BrandIcon name="bevy" />
                     "Show in swarmy-bevy"
                 </button>
                 <span class="text-xs text-muted">{move || status.get()}</span>
@@ -475,7 +476,7 @@ fn LongRangeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoVie
                     title="All the spots as bars on the map: the height is the kills, red the most kills per siege"
                     on:click=open
                 >
-                    <Icon icon=CUBE weight=IconWeight::Light />
+                    <BrandIcon name="bevy" />
                     "Show in swarmy-bevy"
                 </button>
                 <span class="text-xs text-muted">{move || status.get()}</span>

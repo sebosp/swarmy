@@ -1,5 +1,6 @@
 pub mod abilities;
 pub mod appearance;
+pub mod brand_icon;
 pub mod charts;
 pub mod left_sidebar_menu;
 pub mod links;

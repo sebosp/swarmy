@@ -50,6 +50,8 @@ pub struct Navigation {
     pub replay_preview: RwSignal<Option<ReplayPreview>>,
     /// The ability shown in the Ability view, [`swarmy_common::TrackedAbility::ability`].
     pub ability: RwSignal<String>,
+    /// The replay shown is the newest one of the locked map and players: there is no next one.
+    pub replay_is_latest: RwSignal<bool>,
 }
 
 /// The map and players of a replay, as the view that opens it shows them.
@@ -85,11 +87,13 @@ impl Navigation {
             replay_locks: RwSignal::new(ReplayLocks::default()),
             replay_preview: RwSignal::new(None),
             ability: RwSignal::new(String::new()),
+            replay_is_latest: RwSignal::new(false),
         }
     }
 
     pub fn open_replay(&self, ext_fs_id: u64) {
         self.replay_preview.set(None);
+        self.replay_is_latest.set(false);
         self.replay_id.set(Some(ext_fs_id));
         self.active_page.set(REPLAY_DETAIL_PAGE.to_string());
     }
@@ -98,6 +102,7 @@ impl Navigation {
     pub fn open_replay_with(&self, preview: ReplayPreview) {
         let ext_fs_id = preview.ext_fs_id;
         self.replay_preview.set(Some(preview));
+        self.replay_is_latest.set(false);
         self.replay_id.set(Some(ext_fs_id));
         self.active_page.set(REPLAY_DETAIL_PAGE.to_string());
     }

@@ -448,3 +448,14 @@ thead th[aria-sort="descending"]::after {
 .scroll-gutter:hover {
   background: color-mix(in oklab, var(--color-base-content) 8%, transparent);
 }
+
+/* The logos of Rerun and Bevy as icons in the color of the text, see
+   src/components/brand_icon.rs. */
+.brand-icon {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  background-color: currentColor;
+  -webkit-mask: var(--brand-icon) center / contain no-repeat;
+  mask: var(--brand-icon) center / contain no-repeat;
+}

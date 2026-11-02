@@ -1,5 +1,6 @@
 use super::actions::*;
 use super::*;
+use crate::components::brand_icon::BrandIcon;
 use crate::components::links::{MapLink, PlayerLink, RaceLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
 use crate::navigation::use_navigation;
@@ -9,7 +10,7 @@ use chrono::Utc;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, CLIPBOARD, CUBE, FOLDER_OPEN, STRATEGY};
+use phosphor_leptos::{Icon, IconWeight, CLIPBOARD, FOLDER_OPEN};
 use reactive_stores::Store;
 use swarmy_common::*;
 
@@ -442,12 +443,7 @@ pub fn ReplayListDataTable(
                                                 }
                                                 title="Load Rerun Preview"
                                             >
-                                                <Icon
-                                                    icon=STRATEGY
-                                                    weight=IconWeight::Light
-                                                    prop:class="stroke-current"
-                                                    size="14px"
-                                                />
+                                                <BrandIcon name="rerun" />
                                             </button>
                                             <button
                                                 class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
@@ -459,12 +455,7 @@ pub fn ReplayListDataTable(
                                                 }
                                                 title="Load in swarmy-bevy: the units born and died over time on the map"
                                             >
-                                                <Icon
-                                                    icon=CUBE
-                                                    weight=IconWeight::Light
-                                                    prop:class="stroke-current"
-                                                    size="14px"
-                                                />
+                                                <BrandIcon name="bevy" />
                                             </button>
                                         </td>
                                         // The players on one line.
