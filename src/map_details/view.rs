@@ -114,8 +114,22 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
             <div>
                 <h1 class="text-xl font-semibold text-base-content">{details.title.clone()}</h1>
                 <p class="text-sm text-muted">
-                    {figure(details.num_games)}
-                    " games from "
+                    <a
+                        href="#"
+                        class="nav-link"
+                        title="Open the games of this map in the Replay List"
+                        on:click={
+                            let map_title = details.title.clone();
+                            move |ev: MouseEvent| {
+                                ev.prevent_default();
+                                navigation.open_replays(&map_title, "");
+                            }
+                        }
+                    >
+                        {figure(details.num_games)}
+                        " games"
+                    </a>
+                    " from "
                     {figure(details.min_date.clone())}
                     " to "
                     {figure(details.max_date.clone())}

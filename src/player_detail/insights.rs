@@ -43,7 +43,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
         <div class="grid grid-cols-3 gap-4">
             <Section title="Win rates" height="h-64">
                 <WinRates title="Matchup" data=insights.by_matchup.clone() />
-                <WinRates title="Game length" data=insights.by_length.iter().map(|entry| GamesWins { label: entry.label.chars().skip(3).collect(), ..entry.clone() }).collect() />
+                <WinRates title="Game length" in_order=true data=insights.by_length.iter().map(|entry| GamesWins { label: entry.label.chars().skip(3).collect(), ..entry.clone() }).collect() />
                 <WinRates title="Map" data=insights.by_map.clone() />
             </Section>
             <Section title="Tendencies" height="h-64">
@@ -197,15 +197,35 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
     }
 }
 
+/// The games and win rate by `title`, the most played first unless `in_order`, i.e. the game
+/// lengths that are in their own order. The sorted column shows its arrow, as after a click.
 #[component]
-fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
+fn WinRates(
+    title: &'static str,
+    mut data: Vec<GamesWins>,
+    #[prop(optional)] in_order: bool,
+) -> impl IntoView {
+    if !in_order {
+        data.sort_by(|a, b| b.games.cmp(&a.games));
+    }
+    let (column, direction) = if in_order {
+        ("0", "asc")
+    } else {
+        ("1", "desc")
+    };
+    let aria =
+        |idx: &str| (idx == column).then_some(if in_order { "ascending" } else { "descending" });
     view! {
-        <table class=format!("{TABLE_CLASS} mb-2")>
+        <table
+            class=format!("{TABLE_CLASS} mb-2")
+            data-sort-column=column
+            data-sort-direction=direction
+        >
             <thead>
                 <tr class="text-left text-muted">
-                    <th class="pr-2">{title}</th>
-                    <th class="pr-2 num">"Games"</th>
-                    <th>"Win rate"</th>
+                    <th class="pr-2" aria-sort=aria("0")>{title}</th>
+                    <th class="pr-2 num" aria-sort=aria("1")>"Games"</th>
+                    <th class="num" aria-sort=aria("2")>"Win rate"</th>
                 </tr>
             </thead>
             <tbody>
@@ -215,7 +235,7 @@ fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
                         <tr>
                             <td class="pr-2 text-base-content">{entry.label}</td>
                             <td class="pr-2 num">{entry.games}</td>
-                            <td>{percent(entry.wins, entry.games)}</td>
+                            <td class="num">{percent(entry.wins, entry.games)}</td>
                         </tr>
                     })
                     .collect_view()}

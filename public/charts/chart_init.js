@@ -102,6 +102,21 @@
         axisBorder: { color: t.grid },
         axisTicks: { show: false },
         tickAmount: labels.length > 24 ? 12 : undefined,
+        // The column under the pointer is outlined, not filled: a fill (gray by default) hid the
+        // bars of the same color, i.e. the games of GamesWinsChart, in some themes.
+        crosshairs: {
+          show: true,
+          width: "barWidth",
+          fill: { type: "solid", color: "transparent" },
+          stroke: { color: t.muted, width: 1, dashArray: 3 },
+          opacity: 1,
+        },
+      },
+      // The hovered and clicked marks keep their color, darkening them could blend them with the
+      // background.
+      states: {
+        hover: { filter: { type: "none" } },
+        active: { filter: { type: "none" } },
       },
       yaxis: {
         max: yMax,

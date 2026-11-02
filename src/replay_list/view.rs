@@ -309,7 +309,7 @@ fn SortHeader(
     view! {
         <th
             scope="col"
-            class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-base-content cursor-pointer select-none hover:text-primary"
+            class="sortable px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content cursor-pointer select-none hover:text-primary"
             aria-sort=aria_sort
             title="Sort by this column, click again to reverse"
             on:click=move |_| {
@@ -348,7 +348,7 @@ pub fn ReplayListDataTable(
                             <SortHeader label="Map" sort_by=ReplayListSort::Map replay_query />
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-base-content"
+                                class="px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Actions"
                             </th>
@@ -358,7 +358,7 @@ pub fn ReplayListDataTable(
                             <SortHeader label="Date" sort_by=ReplayListSort::Date replay_query />
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-base-content"
+                                class="px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Notes"
                             </th>
@@ -389,9 +389,11 @@ pub fn ReplayListDataTable(
                                                 <MapLink map_title=child.read().map_title.clone() />
                                             </span>
                                         </td>
-                                        <td>
+                                        // The actions on one row of small icon buttons, their title says what
+                                        // they do.
+                                        <td class="whitespace-nowrap">
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let value = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
@@ -404,10 +406,11 @@ pub fn ReplayListDataTable(
                                                     icon=CLIPBOARD
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
+                                                    size="14px"
                                                 />
                                             </button>
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let value = child.read().replay_location.clone();
                                                     let path = std::path::Path::new(&value).parent().unwrap();
@@ -422,10 +425,11 @@ pub fn ReplayListDataTable(
                                                     icon=FOLDER_OPEN
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
+                                                    size="14px"
                                                 />
                                             </button>
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let location = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
@@ -438,10 +442,11 @@ pub fn ReplayListDataTable(
                                                     icon=STRATEGY
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
+                                                    size="14px"
                                                 />
                                             </button>
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let location = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
@@ -454,26 +459,25 @@ pub fn ReplayListDataTable(
                                                     icon=CUBE
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
+                                                    size="14px"
                                                 />
                                             </button>
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-muted">
-                                        <ul>
-                                        { players
+                                        // The players on one line.
+                                        <td class="px-2 py-1 text-xs whitespace-nowrap text-muted">
+                                            {players
                                                 .into_iter()
-                                                .map(|(player_name, result)|
+                                                .map(|(player_name, result)| {
                                                     view! {
-                                                        <li>
+                                                        <span class="mr-3">
                                                             <ResultMarker result />
                                                             <PlayerLink player_name />
-                                                        </li>
+                                                        </span>
                                                     }
-                                                )
-                                                .collect_view()
-                                        }
-                                        </ul>
+                                                })
+                                                .collect_view()}
                                         </td>
-                                        <td class="px-2 py-2 text-xs font-mono text-muted">
+                                        <td class="px-2 py-1 text-xs font-mono text-muted">
                                             {format_game_time(child.read().duration.max(0) as u32)}
                                         </td>
                                         <td>
@@ -491,10 +495,10 @@ pub fn ReplayListDataTable(
                                                 })
                                                 .collect_view()}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-muted">
+                                        <td class="px-2 py-1 text-xs whitespace-nowrap text-muted">
                                             {format!("{}", child.read().replay_date)}
                                         </td>
-                                        <td class="px-2 py-2 text-xs text-muted">
+                                        <td class="px-2 py-1 text-xs text-muted">
                                             <span class="text-warning">
                                                 {rating_text(child.read().rating)}
                                             </span>

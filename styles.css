@@ -386,6 +386,18 @@ table:not([data-server-sort]) thead th:not([data-no-sort]) {
 table:not([data-server-sort]) thead th:not([data-no-sort]):hover {
   color: var(--color-base-content);
 }
+/* A sortable header that is not sorted shows a faint ↕, as data grids do; the sorted one its
+   direction. The replay list, sorted by the backend, marks its headers with .sortable. */
+table:not([data-server-sort]) thead th:not([data-no-sort]):not([aria-sort]):not(:empty)::after,
+thead th.sortable:not([aria-sort])::after {
+  content: " ↕";
+  font-size: 0.75em;
+  opacity: 0.35;
+}
+table:not([data-server-sort]) thead th:not([data-no-sort]):not([aria-sort]):hover::after,
+thead th.sortable:not([aria-sort]):hover::after {
+  opacity: 0.8;
+}
 thead th[aria-sort="ascending"]::after {
   content: " ▲";
   font-size: 0.7em;
