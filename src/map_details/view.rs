@@ -29,6 +29,18 @@ pub fn MapDetailsView() -> impl IntoView {
     let details = RwSignal::new(None::<MapDetails>);
     let error = RwSignal::new(None::<String>);
     let loading = RwSignal::new(false);
+    // Without a map chosen, the most played one of the snapshot.
+    if navigation.map_title.get_untracked().is_empty() {
+        spawn_local(async move {
+            if let Ok(maps) = invoke_json::<Vec<GamesWins>>("list_maps", &()).await {
+                if let Some(top) = maps.into_iter().max_by_key(|map| map.games) {
+                    if navigation.map_title.get_untracked().is_empty() {
+                        navigation.map_title.set(top.label);
+                    }
+                }
+            }
+        });
+    }
     Effect::new(move |_| {
         let map_title = navigation.map_title.get();
         if map_title.is_empty() {
@@ -58,9 +70,7 @@ pub fn MapDetailsView() -> impl IntoView {
                 on_select=Callback::new(move |title: String| navigation.open_map(&title))
             />
             <Show when=move || navigation.map_title.get().is_empty()>
-                <p class="text-sm">
-                    "Choose a map above or by clicking on its title in the Map List or Replay List."
-                </p>
+                <Loading message="Opening the most played map..." />
             </Show>
             <Show when=move || loading.get()>
                 <Loading message="Collecting the games of the map..." />

@@ -27,6 +27,7 @@ use swarmy_ui::unit_overview::view::UnitOverviewView;
 pub fn Main() -> impl IntoView {
     let navigation = Navigation::new(HOME_PAGE);
     provide_context(navigation);
+    swarmy_ui::navigation::remember_replay_list_sort(navigation);
     swarmy_ui::components::unit_icon::provide_unit_icons();
     swarmy_ui::components::appearance::install_ui_settings();
     let active_page = navigation.active_page;

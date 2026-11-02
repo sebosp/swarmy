@@ -1,4 +1,6 @@
 /// Common views.
+pub mod storage;
+
 use leptos::{leptos_dom::logging::console_log, prelude::*};
 use phosphor_leptos::{Icon, IconWeight, X_CIRCLE};
 use swarmy_common::{ApiResponse, ResponseMeta};

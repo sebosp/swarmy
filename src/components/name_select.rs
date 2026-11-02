@@ -30,10 +30,11 @@ pub fn NameSelect(
         }
     });
     view! {
-        <div class="w-64">
-            <label class="block text-sm/6 font-medium text-base-content">{label}</label>
+        // The label beside its select, on one line.
+        <label class="flex items-center gap-2 text-sm font-medium text-base-content">
+            {label}
             <select
-                class="select select-sm w-full bg-base-200 text-base-content border border-base-content/20"
+                class="select select-sm w-72 bg-base-200 text-base-content border border-base-content/20 font-normal"
                 on:change=move |ev| on_select.run(event_target_value(&ev))
             >
                 <option value="" selected=move || value.get().is_empty()>
@@ -57,6 +58,6 @@ pub fn NameSelect(
                         .collect_view()
                 }}
             </select>
-        </div>
+        </label>
     }
 }

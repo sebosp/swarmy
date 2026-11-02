@@ -27,32 +27,31 @@ pub fn StatsByMap() -> impl IntoView {
     let map_stats_store = Store::new(MapStatsDataTable::default());
     trigger_fetch_query_map_stats(map_stats_store, query(), set_backend_response);
     view! {
-        // The filters on one line, each label beside its input.
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <label class="flex items-center gap-2 text-sm text-base-content">
-                "Map"
-                <input
-                    name="map_title"
-                    class="input input-sm w-64"
-                    bind:value=map_title
-                    on:input=move |_| {
-                        trigger_fetch_query_map_stats(map_stats_store, query(), set_backend_response);
-                    }
-                    type="text"
-                />
-            </label>
-            <label class="flex items-center gap-2 text-sm text-base-content">
-                "Player"
-                <input
-                    name="player_name"
-                    class="input input-sm w-64"
-                    bind:value=player_name
-                    on:input=move |_| {
-                        trigger_fetch_query_map_stats(map_stats_store, query(), set_backend_response);
-                    }
-                    type="text"
-                />
-            </label>
+        // The search on one line, each field with what it searches by.
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-base-content">
+            <span class="font-medium">"Search:"</span>
+            <input
+                name="map_title"
+                class="input input-sm w-56"
+                placeholder="By name"
+                aria-label="Search the maps by name"
+                bind:value=map_title
+                on:input=move |_| {
+                    trigger_fetch_query_map_stats(map_stats_store, query(), set_backend_response);
+                }
+                type="search"
+            />
+            <input
+                name="player_name"
+                class="input input-sm w-56"
+                placeholder="By player"
+                aria-label="Search the maps by player"
+                bind:value=player_name
+                on:input=move |_| {
+                    trigger_fetch_query_map_stats(map_stats_store, query(), set_backend_response);
+                }
+                type="search"
+            />
         </div>
         <DisplayBackendStatus backend_response />
         <div class="col-span-10">
@@ -98,38 +97,46 @@ pub fn StatsByMap() -> impl IntoView {
 #[component]
 pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl IntoView {
     view! {
-        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-            <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table class="relative min-w-full divide-y divide-base-content/15">
+        // As wide as its columns, the sortable headers stay close to each other; the most played
+        // maps first, as the backend sends them.
+        <div class="overflow-x-auto">
+            <div class="inline-block py-2 align-middle">
+                <table
+                    class="relative w-auto divide-y divide-base-content/15"
+                    data-sort-key="map-list"
+                    data-sort-column="1"
+                    data-sort-direction="desc"
+                >
                     <thead>
                         <tr>
                             <th
                                 scope="col"
-                                class="py-3.5 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap xs:pl-0 text-base-content"
+                                class="py-2 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap xs:pl-0 text-base-content"
                             >
                                 "Map Title"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 num text-xs font-semibold text-base-content"
+                                class="px-2 py-2 num text-xs font-semibold text-base-content"
+                                aria-sort="descending"
                             >
                                 "Games"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-base-content"
+                                class="px-2 py-2 text-left text-xs font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Min Date"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-base-content"
+                                class="px-2 py-2 text-left text-xs font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Max Date"
                             </th>
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-xs font-semibold whitespace-nowrap text-base-content"
+                                class="px-2 py-2 text-left text-xs font-semibold whitespace-nowrap text-base-content"
                                 data-no-sort
                             >
                                 "Actions"

@@ -1,7 +1,7 @@
 //! Navigation between views, the views showing a replay or a player read which one from here.
 
 use leptos::prelude::*;
-use swarmy_common::{ReplayListQuery, TimeFrame};
+use swarmy_common::{ReplayListQuery, ReplayListSort, TimeFrame};
 
 pub const HOME_PAGE: &str = "Home";
 pub const TOUR_PAGE: &str = "Tour";
@@ -143,9 +143,13 @@ impl Navigation {
     /// Opens the Replay List view with the games of a map and matchup, i.e. `PvT`, the newest
     /// first.
     pub fn open_replays(&self, map_title: &str, matchup: &str) {
+        // The sort the viewer chose is kept.
+        let sort = self.replay_query.get_untracked();
         self.replay_query.set(ReplayListQuery {
             map_title: map_title.to_string(),
             matchup: matchup.to_string(),
+            sort_by: sort.sort_by,
+            descending: sort.descending,
             ..ReplayListQuery::newest_first()
         });
         self.replay_time_frame.set(TimeFrame::AllTime);
@@ -162,6 +166,25 @@ impl Navigation {
         self.player_name.set(player_name.to_string());
         self.active_page.set(PLAYER_PAGE.to_string());
     }
+}
+
+/// The key of the sort of the Replay List in the storage of the webview.
+const REPLAY_LIST_SORT_KEY: &str = "swarmy.replay_list.sort";
+
+/// Restores the sort of the Replay List the viewer chose last time, and saves it as it changes.
+pub fn remember_replay_list_sort(navigation: Navigation) {
+    if let Some((sort_by, descending)) =
+        crate::common::storage::load_json::<(ReplayListSort, bool)>(REPLAY_LIST_SORT_KEY)
+    {
+        navigation.replay_query.update(|query| {
+            query.sort_by = sort_by;
+            query.descending = descending;
+        });
+    }
+    Effect::new(move |_| {
+        let query = navigation.replay_query.get();
+        crate::common::storage::save_json(REPLAY_LIST_SORT_KEY, &(query.sort_by, query.descending));
+    });
 }
 
 /// The navigation is provided by the Main component.

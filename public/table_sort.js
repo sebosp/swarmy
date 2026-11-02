@@ -1,6 +1,8 @@
 // Sorts the rows of any table by clicking on the headers of its <thead>, ascending then
 // descending. The tables sorted by the backend, the replay list, have `data-server-sort`.
 // Leptos may add or replace the rows of a sorted table, a MutationObserver sorts them again.
+// The sort chosen is remembered in the storage of the webview, by the headers of the table (or
+// its `data-sort-key`), and applied again when a table with these headers is shown.
 (() => {
   if (window.__tableSortDone) return;
   window.__tableSortDone = true;
@@ -63,6 +65,63 @@
     tables.forEach(sortTable);
   });
 
+  // The key of a table: its data-sort-key, or the names of its columns.
+  const tableKey = (table) =>
+    "swarmy.sort." +
+    (table.dataset.sortKey ||
+      Array.from(table.querySelectorAll("thead th"))
+        .map((th) => th.textContent.replace(/[↕▲▼]/g, "").trim())
+        .join("|"));
+
+  // The storage can be missing or refuse, i.e. in a private window: the sort is not remembered.
+  const remember = (table) => {
+    try {
+      localStorage.setItem(
+        tableKey(table),
+        JSON.stringify({ column: table.dataset.sortColumn, direction: table.dataset.sortDirection }),
+      );
+    } catch (_err) {}
+  };
+  const remembered = (table) => {
+    try {
+      return JSON.parse(localStorage.getItem(tableKey(table)) || "null");
+    } catch (_err) {
+      return null;
+    }
+  };
+
+  function applySort(table, column, direction) {
+    const header = table.querySelector("thead tr")?.cells[Number(column)];
+    if (!header || header.hasAttribute("data-no-sort")) return;
+    table.dataset.sortColumn = String(column);
+    table.dataset.sortDirection = direction;
+    table.querySelectorAll("thead th").forEach((th) => th.removeAttribute("aria-sort"));
+    header.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
+    sortTable(table);
+    observer.observe(table, { childList: true, subtree: true, characterData: true });
+  }
+
+  // The tables shown: the remembered sort is applied once to each, or the one the view set
+  // (data-sort-column) is kept as the rows change.
+  const seen = new WeakSet();
+  function restoreSorts() {
+    document.querySelectorAll("table:not([data-server-sort])").forEach((table) => {
+      if (seen.has(table) || !table.tHead) return;
+      seen.add(table);
+      const saved = remembered(table);
+      if (saved && saved.column !== undefined) {
+        applySort(table, saved.column, saved.direction === "desc" ? "desc" : "asc");
+      } else if (table.dataset.sortColumn !== undefined) {
+        observer.observe(table, { childList: true, subtree: true, characterData: true });
+      }
+    });
+  }
+  let restoreTimer;
+  new MutationObserver(() => {
+    clearTimeout(restoreTimer);
+    restoreTimer = setTimeout(restoreSorts, 50);
+  }).observe(document.documentElement, { childList: true, subtree: true });
+
   document.addEventListener("click", (event) => {
     const header = event.target.closest?.("thead th");
     // Links and buttons in the headers keep working.
@@ -72,11 +131,7 @@
     const column = String(header.cellIndex);
     const direction =
       table.dataset.sortColumn === column && table.dataset.sortDirection === "asc" ? "desc" : "asc";
-    table.dataset.sortColumn = column;
-    table.dataset.sortDirection = direction;
-    table.querySelectorAll("thead th").forEach((th) => th.removeAttribute("aria-sort"));
-    header.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
-    sortTable(table);
-    observer.observe(table, { childList: true, subtree: true, characterData: true });
+    applySort(table, column, direction);
+    remember(table);
   });
 })();
