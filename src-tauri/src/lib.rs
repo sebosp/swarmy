@@ -74,7 +74,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(SetupState { majordomo_tx })
         .manage(RerunViewerState::default())
-        .manage(replay_watcher::ReplayWatcherState::default())
+        .manage(std::sync::Arc::new(
+            replay_watcher::ReplayWatcherState::default(),
+        ))
         .setup(|app| {
             tracing::info!(
                 "Starting Tauri application setup {}:{:?}",
@@ -84,7 +86,7 @@ pub fn run() {
             // Spawn setup as a non-blocking task so the windows can be
             // created and ran while it executes
             spawn(setup(majordomo_rx, app.handle().clone()));
-            replay_watcher::configure(app.handle());
+            replay_watcher::configure(std::sync::Arc::new(app.handle().clone()), false);
             remote::relay_events(app.handle().clone());
             tracing::info!(
                 "Setup function called on {}:{:?}",
@@ -111,7 +113,6 @@ pub fn run() {
                 swarmy_bevy::exec_swarmy_bevy_replay,
                 swarmy_bevy::exec_swarmy_bevy_siege_spots,
                 swarmy_bevy::exec_swarmy_bevy_map_layers,
-                replay_watcher::get_new_replays_status,
                 copy_path_to_clipboard,
                 open_folder,
                 connect_swarmy_rerun,

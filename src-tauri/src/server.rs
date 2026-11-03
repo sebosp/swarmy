@@ -44,6 +44,7 @@ pub struct ServerHost {
     majordomo_tx: mpsc::Sender<AsyncTask>,
     /// The writes of the settings store, one at a time.
     store_lock: Mutex<()>,
+    watcher: Arc<crate::replay_watcher::ReplayWatcherState>,
 }
 
 impl ServerHost {
@@ -86,7 +87,16 @@ impl SwarmyHost for ServerHost {
         let _ = self.events.send((event.to_string(), payload));
     }
 
-    fn replays_changed(&self) {}
+    fn replays_changed(&self) {
+        // The watcher counts the new replays again through its own handle of the host.
+        if let Some(host) = SERVER_HOST.get() {
+            crate::replay_watcher::refresh(host.clone());
+        }
+    }
+
+    fn replay_watcher(&self) -> Arc<crate::replay_watcher::ReplayWatcherState> {
+        self.watcher.clone()
+    }
 
     fn majordomo(&self) -> mpsc::Sender<AsyncTask> {
         self.majordomo_tx.clone()
@@ -139,6 +149,9 @@ pub async fn serve(
     serve_on(listener, data_dir, token).await
 }
 
+/// The host of the server, for the watcher that needs its own handle of it.
+static SERVER_HOST: std::sync::OnceLock<Arc<dyn SwarmyHost>> = std::sync::OnceLock::new();
+
 async fn serve_on(
     listener: tokio::net::TcpListener,
     data_dir: Option<PathBuf>,
@@ -155,7 +168,11 @@ async fn serve_on(
         events,
         majordomo_tx,
         store_lock: Mutex::new(()),
+        watcher: Default::default(),
     });
+    // The server always watches its Replay Path, the apps that use it are told of the new replays.
+    let _ = SERVER_HOST.set(host.clone());
+    crate::replay_watcher::configure(host.clone(), true);
     MajordomoCoordinator::init_coordinator_thread(majordomo_rx, host.clone())?;
     let settings = load_stored_app_settings(host.as_ref())?;
     tracing::info!(

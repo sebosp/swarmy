@@ -53,7 +53,7 @@ pub async fn set_current_app_config(
     store.set("focus_outline", app_settings.focus_outline);
     store.save()?;
     // The watcher follows the replay path and the watch setting.
-    crate::replay_watcher::configure(&app_handle);
+    crate::replay_watcher::configure(std::sync::Arc::new(app_handle.clone()), false);
     Ok(())
 }
 

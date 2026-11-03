@@ -36,6 +36,8 @@ pub fn Config() -> impl IntoView {
     });
     // The form is shown once the stored settings are read, not with the defaults first.
     let loaded = RwSignal::new(false);
+    // Whether to show what the last Save did.
+    let show_saved = RwSignal::new(false);
     crate::settings::with_fetch_stored_app_config(
         set_app_settings,
         move |settings: AppSettings| {
@@ -168,10 +170,22 @@ pub fn Config() -> impl IntoView {
                                 prop:checked=move || watch_new_replays.get()
                                 on:change=move |ev| watch_new_replays.set(event_target_checked(&ev))
                             />
-                            "Watch the replay path for new replays"
+                            {move || {
+                                if remote_backend_url.get().trim().is_empty() {
+                                    "Watch the replay path for new replays"
+                                } else {
+                                    "Receive notifications of the new replays of the remote backend"
+                                }
+                            }}
                         </label>
                         <div class="col-span-1 text-primary">
-                            <span title="Watches the replay path in the background (inotify on Linux) and tells you when there are replays that are not in the snapshot, Optimize then only parses the new replays and the ones parsed by another version of s2protocol.">
+                            <span title=move || {
+                                if remote_backend_url.get().trim().is_empty() {
+                                    "Watches the replay path in the background (inotify on Linux) and tells you when there are replays that are not in the snapshot, Optimize then only parses the new replays and the ones parsed by another version of s2protocol."
+                                } else {
+                                    "The remote backend watches its Replay Path: tells you here when it has replays that are not in its snapshot, i.e. a game just played on that computer, and Refresh adds them."
+                                }
+                            }>
                                 <Icon
                                     icon=QUESTION
                                     weight=IconWeight::Fill
@@ -306,6 +320,16 @@ pub fn Config() -> impl IntoView {
                     <button
                         class="btn btn-primary w-full"
                         on:click=move |ev: MouseEvent| {
+                            show_saved.set(true);
+                            // The confirmation goes away by itself, an error stays.
+                            leptos::prelude::set_timeout(
+                                move || {
+                                    if backend_response.get_untracked().meta.success {
+                                        show_saved.set(false);
+                                    }
+                                },
+                                std::time::Duration::from_secs(4),
+                            );
                             ev.prevent_default();
                             trigger_set_current_app_config(
                                 AppSettings {
@@ -336,6 +360,20 @@ pub fn Config() -> impl IntoView {
                     >
                         "Save"
                     </button>
+                    // What Save did, beside it: the status at the top of the view is out of sight.
+                    <p class="mt-2 text-sm" role="status" aria-live="polite">
+                        {move || {
+                            let response = backend_response.get();
+                            (show_saved.get() && !response.message.is_empty())
+                                .then(|| {
+                                    if response.meta.success {
+                                        view! { <span class="text-success">"✓ Saved"</span> }.into_any()
+                                    } else {
+                                        view! { <span class="text-error">{response.message}</span> }.into_any()
+                                    }
+                                })
+                        }}
+                    </p>
                 </div>
                 <div class="col-span-1"></div>
             </div>
