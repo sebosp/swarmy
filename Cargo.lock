@@ -8404,7 +8404,9 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s2protocol"
-version = "5.0.1"
+version = "5.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39d380d32891565ecbc63f7f16bd54da9802e070fa048860e43de6181c99c99c"
 dependencies = [
  "arrow 59.3.2",
  "chrono",
@@ -8687,6 +8689,8 @@ dependencies = [
 [[package]]
 name = "serde_mpq"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7680758b5e96705237b450fe0150e2cf35e7bd2ff01241fc9f655736ac23e418"
 dependencies = [
  "colored",
  "nom",
@@ -8699,6 +8703,8 @@ dependencies = [
 [[package]]
 name = "serde_mpq_derive"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5417c0df7c689426e69eedb27d990a6fd059fa59a9263c77c26b4d60aa57dbb"
 dependencies = [
  "proc-macro2",
  "quote",
