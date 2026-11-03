@@ -370,13 +370,17 @@ pub fn ReplayListDataTable(
                             each=move || replay_list_store.data()
                             key=|row| { row.read().ext_fs_id }
                             children=|child| {
+                                // The winners first, then the losers.
                                 let players: Vec<(String, String)> = {
                                     let row = child.read();
-                                    row.player_list
+                                    let mut players: Vec<(String, String)> = row
+                                        .player_list
                                         .iter()
                                         .cloned()
                                         .zip(row.player_results.iter().cloned())
-                                        .collect()
+                                        .collect();
+                                    players.sort_by_key(|(_, result)| result_order(result));
+                                    players
                                 };
                                 view! {
                                     <tr>

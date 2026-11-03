@@ -267,7 +267,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                         .into_iter()
                                         .zip(game.player_results)
                                         .collect();
-                                    players.sort_by_key(|(_, result)| result != "Win");
+                                    players.sort_by_key(|(_, result)| result_order(result));
                                     let names: Vec<String> =
                                         players.iter().map(|(name, _)| name.clone()).collect();
                                     view! {

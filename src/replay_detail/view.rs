@@ -98,9 +98,9 @@ pub fn ReplayDetailView() -> impl IntoView {
             <div
                 class=move || {
                     if loading.get() {
-                        "space-y-3 opacity-40 pointer-events-none select-none transition-opacity"
+                        "space-y-3 opacity-40 pointer-events-none select-none"
                     } else {
-                        "space-y-3 transition-opacity"
+                        "space-y-3"
                     }
                 }
                 aria-busy=move || loading.get().to_string()
@@ -234,9 +234,11 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
         let map_title = map_title.clone();
         Signal::derive(move || locks.read().map_title.as_deref() == Some(map_title.as_str()))
     };
-    let players = detail
-        .players
-        .iter()
+    // The winners first, then the losers.
+    let mut ordered: Vec<&ReplayPlayerSummary> = detail.players.iter().collect();
+    ordered.sort_by_key(|summary| result_order(&summary.player.result));
+    let players = ordered
+        .into_iter()
         .map(|summary| {
             let player_name = summary.player.name.clone();
             let locked = {

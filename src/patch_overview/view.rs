@@ -18,7 +18,7 @@ fn closest_version(versions: &[u32], version: u32) -> Option<u32> {
         .min_by_key(|available| available.abs_diff(version))
 }
 
-const RACES: [&str; 4] = ["Terran", "Zerg", "Protoss", "Other"];
+const RACES: [&str; 4] = ["Terran", "Zerg", "Protoss", "Neutral"];
 
 #[component]
 pub fn PatchOverviewView() -> impl IntoView {

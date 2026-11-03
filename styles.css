@@ -459,3 +459,10 @@ thead th[aria-sort="descending"]::after {
   -webkit-mask: var(--brand-icon) center / contain no-repeat;
   mask: var(--brand-icon) center / contain no-repeat;
 }
+
+/* A chart paints inside its own box: ApexCharts draws parts of it as HTML inside the SVG, which
+   WebKitGTK repainted out of place while scrolling (the win chance floated over other data). */
+div[data-chart-values] {
+  contain: layout paint;
+  isolation: isolate;
+}

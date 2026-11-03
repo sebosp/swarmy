@@ -15,7 +15,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use swarmy_common::*;
 
-const RACES: [&str; 4] = ["Terran", "Zerg", "Protoss", "Other"];
+const RACES: [&str; 4] = ["Terran", "Zerg", "Protoss", "Neutral"];
 
 #[component]
 pub fn UnitOverviewView() -> impl IntoView {

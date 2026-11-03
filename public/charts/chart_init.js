@@ -82,6 +82,10 @@
         stackType: stackType === "100%" ? "100%" : undefined,
         animations: { enabled: true, speed: 400 },
         parentHeightOffset: 0,
+        // The charts are read by hovering them: the wheel scrolls the page, it does not zoom, and
+        // dragging does not select a range.
+        zoom: { enabled: false, allowMouseWheelZoom: false },
+        selection: { enabled: false },
       },
       theme: { mode: t.mode },
       colors,
