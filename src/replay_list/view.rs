@@ -1,5 +1,6 @@
 use super::actions::*;
 use super::*;
+use crate::components::brand_icon::BrandIcon;
 use crate::components::links::{MapLink, PlayerLink, RaceLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
 use crate::navigation::use_navigation;
@@ -9,16 +10,14 @@ use chrono::Utc;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, CLIPBOARD, CUBE, FOLDER_OPEN, STRATEGY};
+use phosphor_leptos::{Icon, IconWeight, CLIPBOARD, FOLDER_OPEN};
 use reactive_stores::Store;
 use swarmy_common::*;
 
 /// The 1v1 matchups, the races sorted as in Map Details.
 const MATCHUPS: [&str; 6] = ["PvP", "PvT", "PvZ", "TvT", "TvZ", "ZvZ"];
 
-const SELECT_CLASS: &str =
-    "select select-sm w-full bg-gray-800 text-gray-200 border border-white/20";
-const LABEL_CLASS: &str = "block text-sm/6 font-medium text-white";
+const LABEL_CLASS: &str = "block text-sm/6 font-medium text-base-content";
 
 /// A dropdown of the replay list filters, `options` are the values and their labels, the first
 /// one is the default.
@@ -271,7 +270,7 @@ pub fn ReplayList(/*active_page: RwSignal<String>*/) -> impl IntoView {
                 <Loading message="Collecting the replays of the snapshot..." />
             </Show>
             <Show when=move || backend_response.get().meta.is_complete>
-                <h2 class="text-base/7 font-semibold text-white">
+                <h2 class="text-base/7 font-semibold text-base-content">
                     {move || {
                         let total = replay_list_store.total().get();
                         let shown = replay_list_store.data().read().len();
@@ -311,7 +310,7 @@ fn SortHeader(
     view! {
         <th
             scope="col"
-            class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white cursor-pointer select-none hover:text-indigo-300"
+            class="sortable px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content cursor-pointer select-none hover:text-primary"
             aria-sort=aria_sort
             title="Sort by this column, click again to reverse"
             on:click=move |_| {
@@ -343,14 +342,14 @@ pub fn ReplayListDataTable(
     view! {
         <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-                <table class="relative min-w-full divide-y divide-white/15" data-server-sort>
+                <table class="relative min-w-full divide-y divide-base-content/15" data-server-sort>
                     <thead>
                         <tr>
                             <SortHeader label="ID" sort_by=ReplayListSort::Id replay_query />
                             <SortHeader label="Map" sort_by=ReplayListSort::Map replay_query />
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Actions"
                             </th>
@@ -360,40 +359,50 @@ pub fn ReplayListDataTable(
                             <SortHeader label="Date" sort_by=ReplayListSort::Date replay_query />
                             <th
                                 scope="col"
-                                class="px-2 py-3.5 text-left text-sm font-semibold whitespace-nowrap text-white"
+                                class="px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Notes"
                             </th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/10 bg-gray-900">
+                    <tbody class="divide-y divide-base-content/10 bg-base-100">
                         <For
                             each=move || replay_list_store.data()
                             key=|row| { row.read().ext_fs_id }
                             children=|child| {
+                                // The winners first, then the losers.
                                 let players: Vec<(String, String)> = {
                                     let row = child.read();
-                                    row.player_list
+                                    let mut players: Vec<(String, String)> = row
+                                        .player_list
                                         .iter()
                                         .cloned()
                                         .zip(row.player_results.iter().cloned())
-                                        .collect()
+                                        .collect();
+                                    players.sort_by_key(|(_, result)| result_order(result));
+                                    players
                                 };
                                 view! {
                                     <tr>
                                         <td>
                                             <span class="ps-0 pe-1 py-0 text-xs">
-                                                <ReplayLink ext_fs_id=child.read().ext_fs_id />
+                                                <ReplayLink
+                                                    ext_fs_id=child.read().ext_fs_id
+                                                    map_title=child.read().map_title.clone()
+                                                    players=child.read().player_list.clone()
+                                                />
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="px-0 py-0 text-xs text-gray-400">
+                                            <span class="px-0 py-0 text-xs text-muted">
                                                 <MapLink map_title=child.read().map_title.clone() />
                                             </span>
                                         </td>
-                                        <td>
+                                        // The actions on one row of small icon buttons, their title says what
+                                        // they do.
+                                        <td class="whitespace-nowrap">
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let value = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
@@ -406,10 +415,11 @@ pub fn ReplayListDataTable(
                                                     icon=CLIPBOARD
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
+                                                    size="14px"
                                                 />
                                             </button>
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let value = child.read().replay_location.clone();
                                                     let path = std::path::Path::new(&value).parent().unwrap();
@@ -424,10 +434,11 @@ pub fn ReplayListDataTable(
                                                     icon=FOLDER_OPEN
                                                     weight=IconWeight::Light
                                                     prop:class="stroke-current"
+                                                    size="14px"
                                                 />
                                             </button>
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let location = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
@@ -436,14 +447,10 @@ pub fn ReplayListDataTable(
                                                 }
                                                 title="Load Rerun Preview"
                                             >
-                                                <Icon
-                                                    icon=STRATEGY
-                                                    weight=IconWeight::Light
-                                                    prop:class="stroke-current"
-                                                />
+                                                <BrandIcon name="rerun" />
                                             </button>
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
                                                 on:click={
                                                     let location = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
@@ -452,30 +459,24 @@ pub fn ReplayListDataTable(
                                                 }
                                                 title="Load in swarmy-bevy: the units born and died over time on the map"
                                             >
-                                                <Icon
-                                                    icon=CUBE
-                                                    weight=IconWeight::Light
-                                                    prop:class="stroke-current"
-                                                />
+                                                <BrandIcon name="bevy" />
                                             </button>
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
-                                        <ul>
-                                        { players
+                                        // The players on one line.
+                                        <td class="px-2 py-1 text-xs whitespace-nowrap text-muted">
+                                            {players
                                                 .into_iter()
-                                                .map(|(player_name, result)|
+                                                .map(|(player_name, result)| {
                                                     view! {
-                                                        <li>
+                                                        <span class="mr-3">
                                                             <ResultMarker result />
                                                             <PlayerLink player_name />
-                                                        </li>
+                                                        </span>
                                                     }
-                                                )
-                                                .collect_view()
-                                        }
-                                        </ul>
+                                                })
+                                                .collect_view()}
                                         </td>
-                                        <td class="px-2 py-2 text-xs font-mono text-gray-400">
+                                        <td class="px-2 py-1 text-xs font-mono text-muted">
                                             {format_game_time(child.read().duration.max(0) as u32)}
                                         </td>
                                         <td>
@@ -493,11 +494,11 @@ pub fn ReplayListDataTable(
                                                 })
                                                 .collect_view()}
                                         </td>
-                                        <td class="px-2 py-2 text-xs whitespace-nowrap text-gray-400">
+                                        <td class="px-2 py-1 text-xs whitespace-nowrap text-muted">
                                             {format!("{}", child.read().replay_date)}
                                         </td>
-                                        <td class="px-2 py-2 text-xs text-gray-400">
-                                            <span class="text-yellow-400">
+                                        <td class="px-2 py-1 text-xs text-muted">
+                                            <span class="text-warning">
                                                 {rating_text(child.read().rating)}
                                             </span>
                                             {child

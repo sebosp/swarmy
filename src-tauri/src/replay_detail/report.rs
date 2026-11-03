@@ -36,7 +36,11 @@ fn color([r, g, b, _]: [u8; 4]) -> String {
 
 /// The chance of the first team as a line, the second team is its mirror, with the 50% line and
 /// the turning points as bands.
-fn win_chance_svg(chances: &WinChances, first_color: &str, second_color: &str) -> String {
+fn win_chance_svg(
+    chances: &WinChances,
+    (first_name, first_color): (&str, &str),
+    (second_name, second_color): (&str, &str),
+) -> String {
     let Some(last) = chances.points.last() else {
         return String::new();
     };
@@ -44,14 +48,17 @@ fn win_chance_svg(chances: &WinChances, first_color: &str, second_color: &str) -
     let span = (last.seconds as f32 - start).max(1.);
     let x = |seconds: u32| (seconds as f32 - start) / span * CHART_WIDTH;
     let y = |chance: f32| (1. - chance) * CHART_HEIGHT;
-    let line = |chance: fn(&WinChancePoint) -> f32| {
-        chances
-            .points
-            .iter()
-            .map(|point| format!("{:.1},{:.1}", x(point.seconds), y(chance(point))))
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
+    // One line, the chance of the second team is the rest of the first one's.
+    let line = chances
+        .points
+        .iter()
+        .map(|point| format!("{:.1},{:.1}", x(point.seconds), y(point.chance)))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mid = CHART_HEIGHT / 2.;
+    // The area between the line and the middle, the color of the first team above the middle,
+    // the one of the second below.
+    let area = format!("0,{mid:.1} {line} {CHART_WIDTH:.1},{mid:.1}");
     let bands: String = chances
         .turning_points
         .iter()
@@ -65,17 +72,20 @@ fn win_chance_svg(chances: &WinChances, first_color: &str, second_color: &str) -
         .collect();
     format!(
         r##"<svg viewBox="0 -10 {w} {h}" width="100%" role="img" aria-label="Win chance over the game">
-{bands}<line x1="0" y1="{mid}" x2="{CHART_WIDTH}" y2="{mid}" stroke="#9ca3af" stroke-dasharray="4 4"/>
-<polyline points="{first}" fill="none" stroke="{first_color}" stroke-width="2"/>
-<polyline points="{second}" fill="none" stroke="{second_color}" stroke-width="2" opacity="0.6"/>
+<clipPath id="above"><rect x="0" y="0" width="{CHART_WIDTH}" height="{mid}"/></clipPath>
+<clipPath id="below"><rect x="0" y="{mid}" width="{CHART_WIDTH}" height="{mid}"/></clipPath>
+{bands}<polygon points="{area}" fill="{first_color}" opacity="0.35" clip-path="url(#above)"/>
+<polygon points="{area}" fill="{second_color}" opacity="0.35" clip-path="url(#below)"/>
+<line x1="0" y1="{mid}" x2="{CHART_WIDTH}" y2="{mid}" stroke="#9ca3af"/>
+<polyline points="{line}" fill="none" stroke="currentColor" stroke-width="2"/>
+<text x="4" y="12" font-size="11" fill="#9ca3af">▲ {first_name} ahead</text>
+<text x="4" y="{bottom_label}" font-size="11" fill="#9ca3af">▼ {second_name} ahead</text>
 <text x="0" y="{label}" font-size="11" fill="#9ca3af">{start_time}</text>
 <text x="{CHART_WIDTH}" y="{label}" font-size="11" fill="#9ca3af" text-anchor="end">{end_time}</text>
 </svg>"##,
         w = CHART_WIDTH,
         h = CHART_HEIGHT + 30.,
-        mid = CHART_HEIGHT / 2.,
-        first = line(|point| point.chance),
-        second = line(|point| 1. - point.chance),
+        bottom_label = CHART_HEIGHT - 4.,
         label = CHART_HEIGHT + 16.,
         start_time = time(start as u32),
         end_time = time(last.seconds),
@@ -230,8 +240,8 @@ pub fn render_report(detail: &ReplayDetail) -> String {
                 second = teams(&chances.second_team),
                 svg = win_chance_svg(
                     chances,
-                    &team_color(&chances.first_team),
-                    &team_color(&chances.second_team)
+                    (&teams(&chances.first_team), &team_color(&chances.first_team)),
+                    (&teams(&chances.second_team), &team_color(&chances.second_team)),
                 ),
             )
         })

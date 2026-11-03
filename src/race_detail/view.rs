@@ -11,7 +11,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 /// The units shown, the most played first.
 const UNITS_SHOWN: usize = 30;
@@ -25,13 +25,13 @@ fn win_percent(entry: &GamesWins) -> f64 {
 fn WinRate(wins: usize, games: usize) -> impl IntoView {
     let percent = 100. * wins as f64 / games.max(1) as f64;
     let color = if games == 0 {
-        "text-gray-500"
+        "text-faint"
     } else if percent >= 52. {
-        "text-green-400"
+        "text-success"
     } else if percent <= 48. {
-        "text-red-400"
+        "text-error"
     } else {
-        "text-gray-300"
+        "text-muted"
     };
     view! {
         <span class=format!("font-mono {color}") title=format!("{wins} wins out of {games} games")>
@@ -46,12 +46,12 @@ fn section<V: IntoView + 'static>(
     content: V,
 ) -> impl IntoView {
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 {title}
             </h2>
             <div class="p-2 space-y-1">
-                <p class="text-xs text-gray-500">{description}</p>
+                <p class="text-xs text-faint">{description}</p>
                 {content}
             </div>
         </div>
@@ -83,8 +83,8 @@ pub fn RaceDetailView() -> impl IntoView {
     });
     view! {
         <div class="p-2 space-y-2 overflow-y-auto">
-            <h1 class="text-xl font-semibold text-white">"Race Detail"</h1>
-            <p class="text-xs text-gray-500">
+            <h1 class="text-xl font-semibold text-base-content">"Race Detail"</h1>
+            <p class="text-xs text-faint">
                 "The games of a race in the snapshot: its matchups, the maps it wins the most on, the units it makes and the abilities with energy or a cooldown it uses."
             </p>
             <div class="flex items-center gap-2">
@@ -126,7 +126,7 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
     let mirror = format!("{letter}v{letter}");
     let units: Vec<RaceUnitStats> = detail.units.iter().take(UNITS_SHOWN).cloned().collect();
     view! {
-        <p class="text-sm text-gray-300">
+        <p class="text-sm text-muted">
             {format!("{} games of {} players.", detail.player_games, detail.race)}
         </p>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -141,7 +141,7 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
                                 .iter()
                                 .map(|matchup| view! {
                                     <tr>
-                                        <td class="pr-3 text-white">{matchup.label.clone()}</td>
+                                        <td class="pr-3 text-base-content">{matchup.label.clone()}</td>
                                         <td><WinRate wins=matchup.wins games=matchup.games /></td>
                                     </tr>
                                 })
@@ -178,7 +178,7 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
             view! {
                 <table class=TABLE_CLASS>
                     <thead>
-                        <tr class="text-left text-gray-300">
+                        <tr class="text-left text-muted">
                             <th class="pr-3">"Map"</th>
                             <th class="pr-3">"Overall"</th>
                             {detail
@@ -189,7 +189,7 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
                                 .collect_view()}
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/5">
+                    <tbody class="divide-y divide-base-content/5">
                         {detail
                             .maps
                             .iter()
@@ -227,7 +227,7 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
             view! {
                 <table class=TABLE_CLASS>
                     <thead>
-                        <tr class="text-left text-gray-300">
+                        <tr class="text-left text-muted">
                             <th class="pr-3">"Unit"</th>
                             <th class="pr-3 text-right">"Games"</th>
                             <th class="pr-3 text-right">"Made per game"</th>
@@ -235,17 +235,17 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
                             <th class="pr-3">"Win rate"</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/5">
+                    <tbody class="divide-y divide-base-content/5">
                         {units
                             .into_iter()
                             .map(|unit| view! {
                                 <tr>
                                     <td class="pr-3 py-1"><UnitLink unit_name=unit.unit.clone() /></td>
-                                    <td class="pr-3 py-1 text-right font-mono">
+                                    <td class="pr-3 py-1 num">
                                         {format!("{:.0}%", 100. * unit.games as f64 / detail.player_games.max(1) as f64)}
                                     </td>
-                                    <td class="pr-3 py-1 text-right font-mono text-white">{format!("{:.1}", unit.born_per_game())}</td>
-                                    <td class="pr-3 py-1 text-right font-mono">{format!("{:.2}", unit.kills_per_unit())}</td>
+                                    <td class="pr-3 py-1 num text-base-content">{format!("{:.1}", unit.born_per_game())}</td>
+                                    <td class="pr-3 py-1 num">{format!("{:.2}", unit.kills_per_unit())}</td>
                                     <td class="pr-3 py-1"><WinRate wins=unit.wins games=unit.games /></td>
                                 </tr>
                             })

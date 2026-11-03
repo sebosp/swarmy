@@ -4,7 +4,7 @@
 // containers, the `div[data-chart-values]`, when they are added or their data changes.
 //
 // The container attributes:
-// - data-name: BarChart or LineChart.
+// - data-name: BarChart, LineChart or AdvantageChart.
 // - data-chart-values: a JSON array of numbers, or of arrays of numbers for several series.
 // - data-chart-labels: a JSON array of the x axis labels.
 // - data-chart-series-names: a JSON array with the name of each series.
@@ -14,19 +14,33 @@
 // - data-chart-y-max: the maximum of the y axis, so that several charts share the scale.
 // - data-chart-value-suffix: appended to the values, i.e. "%".
 // - data-chart-curve: the curve of the lines, "smooth" by default, "straight" or "stepline".
+//
+// An AdvantageChart is one line around an even middle, as the evaluation graph of a chess game:
+// its values go from -50 (the second side wins for sure) to 50 (the first one does), the area
+// between the line and the middle has the first color above it and the second one below.
 (() => {
   if (window.__chartInitDone) return;
   window.__chartInitDone = true;
   const chartInstances = new Map();
   const chartMetadata = new Map();
 
-  // Swarmy is dark only, the colors match the tailwind gray palette.
-  const THEME = {
-    mode: "dark",
-    foreground: "#d1d5db",
-    muted: "#9ca3af",
-    grid: "#374151",
-    palette: ["#6366f1", "#22c55e", "#0ea5e9", "#eab308", "#a855f7"],
+  // The colors of the theme picked in Config, the --chart-* variables of styles.css: read when a
+  // chart renders, the charts render again when the theme changes.
+  const cssVar = (name, fallback) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  };
+  const theme = () => ({
+    mode: cssVar("color-scheme", "dark") === "light" ? "light" : "dark",
+    foreground: cssVar("--chart-fg", "#d1d5db"),
+    muted: cssVar("--chart-muted", "#9ca3af"),
+    grid: cssVar("--chart-grid", "#374151"),
+    palette: [1, 2, 3, 4, 5, 6, 7, 8].map((idx) => cssVar(`--chart-${idx}`, "#6366f1")),
+  });
+  // A `var(--chart-N)` given as a series color, ApexCharts needs the computed color.
+  const resolveColor = (color) => {
+    const match = /^var\((--[\w-]+)\)$/.exec(String(color).trim());
+    return match ? cssVar(match[1], "#6366f1") : color;
   };
 
   const parse = (value, fallback) => {
@@ -50,8 +64,9 @@
 
   function commonOptions(container, type) {
     const { series, showLegend } = chartSeries(container);
+    const t = theme();
     const labels = parse(container.dataset.chartLabels, []);
-    const colors = parse(container.dataset.chartColors, null) || THEME.palette;
+    const colors = (parse(container.dataset.chartColors, null) || t.palette).map(resolveColor);
     const tooltips = parse(container.dataset.chartTooltips, null);
     const suffix = container.dataset.chartValueSuffix || "";
     const yMax = container.dataset.chartYMax ? Number(container.dataset.chartYMax) : undefined;
@@ -67,8 +82,12 @@
         stackType: stackType === "100%" ? "100%" : undefined,
         animations: { enabled: true, speed: 400 },
         parentHeightOffset: 0,
+        // The charts are read by hovering them: the wheel scrolls the page, it does not zoom, and
+        // dragging does not select a range.
+        zoom: { enabled: false, allowMouseWheelZoom: false },
+        selection: { enabled: false },
       },
-      theme: { mode: THEME.mode },
+      theme: { mode: t.mode },
       colors,
       dataLabels: { enabled: false },
       legend: {
@@ -77,26 +96,41 @@
         horizontalAlign: "left",
         fontSize: "11px",
         fontFamily: "inherit",
-        labels: { colors: THEME.foreground },
+        labels: { colors: t.foreground },
         markers: { size: 4 },
         itemMargin: { horizontal: 8 },
       },
       xaxis: {
         categories: labels,
-        labels: { style: { colors: THEME.muted, fontSize: "10px" }, hideOverlappingLabels: true, rotate: 0 },
-        axisBorder: { color: THEME.grid },
+        labels: { style: { colors: t.muted, fontSize: "10px" }, hideOverlappingLabels: true, rotate: 0 },
+        axisBorder: { color: t.grid },
         axisTicks: { show: false },
         tickAmount: labels.length > 24 ? 12 : undefined,
+        // The column under the pointer is outlined, not filled: a fill (gray by default) hid the
+        // bars of the same color, i.e. the games of GamesWinsChart, in some themes.
+        crosshairs: {
+          show: true,
+          width: "barWidth",
+          fill: { type: "solid", color: "transparent" },
+          stroke: { color: t.muted, width: 1, dashArray: 3 },
+          opacity: 1,
+        },
+      },
+      // The hovered and clicked marks keep their color, darkening them could blend them with the
+      // background.
+      states: {
+        hover: { filter: { type: "none" } },
+        active: { filter: { type: "none" } },
       },
       yaxis: {
         max: yMax,
         min: 0,
         forceNiceScale: true,
-        labels: { style: { colors: THEME.muted, fontSize: "10px" }, formatter: (value) => `${Math.round(value)}${suffix}` },
+        labels: { style: { colors: t.muted, fontSize: "10px" }, formatter: (value) => `${Math.round(value)}${suffix}` },
       },
-      grid: { borderColor: THEME.grid, strokeDashArray: 2, padding: { top: -10, bottom: 0 } },
+      grid: { borderColor: t.grid, strokeDashArray: 2, padding: { top: -10, bottom: 0 } },
       tooltip: {
-        theme: THEME.mode,
+        theme: t.mode,
         shared: true,
         intersect: false,
         custom: tooltips
@@ -125,6 +159,54 @@
     },
   };
 
+  // The offset of the middle in the gradient of the area: the gradient spans the box of the area,
+  // from its highest value, or the middle, down to its lowest value, or the middle.
+  const middleOffset = (values) => {
+    const top = Math.max(0, ...values);
+    const bottom = Math.min(0, ...values);
+    return top === bottom ? 100 : (top / (top - bottom)) * 100;
+  };
+
+  builders.advantage = (container) => {
+    const options = commonOptions(container, "area");
+    const t = theme();
+    const values = options.series[0]?.data ?? [];
+    const [above, below] = options.colors;
+    const middle = middleOffset(values);
+    options.colors = [t.foreground];
+    options.stroke = { curve: "smooth", width: 2, colors: [t.foreground] };
+    options.markers = { size: 0, hover: { size: 5 } };
+    options.plotOptions = { area: { fillTo: "origin" } };
+    options.fill = {
+      type: "gradient",
+      gradient: {
+        type: "vertical",
+        colorStops: [
+          { offset: 0, color: above, opacity: 0.45 },
+          { offset: middle, color: above, opacity: 0.15 },
+          { offset: middle, color: below, opacity: 0.15 },
+          { offset: 100, color: below, opacity: 0.45 },
+        ],
+      },
+    };
+    // The chance of the side ahead: 100% at both edges, 50% in the middle.
+    options.yaxis = {
+      ...options.yaxis,
+      min: -50,
+      max: 50,
+      tickAmount: 4,
+      forceNiceScale: false,
+      labels: {
+        ...options.yaxis.labels,
+        showDuplicates: true,
+        formatter: (value) => `${Math.round(50 + Math.abs(value))}%`,
+      },
+    };
+    options.annotations = { yaxis: [{ y: 0, borderColor: t.muted, strokeDashArray: 0, opacity: 1 }] };
+    options.legend.show = false;
+    return options;
+  };
+
   function initChart(container) {
     if (!container.id) {
       container.id = "apex-auto-" + Math.random().toString(36).slice(2, 9);
@@ -135,8 +217,11 @@
       chartInstances.delete(id);
     }
     const type = container.dataset.name?.replace(/Chart$/, "").toLowerCase();
+    // The charts animate once, when they appear: not when the window is resized or zoomed.
+    const animate = !container.dataset.chartInitialized;
     const options = builders[type]?.(container);
     if (!options || typeof ApexCharts === "undefined") return;
+    options.chart.animations.enabled = animate;
     const chart = new ApexCharts(container, options);
     chart.render();
     chartInstances.set(id, chart);
@@ -195,12 +280,23 @@
     startObserver();
   }
 
+  // The charts are drawn again with the colors of a new theme (the app sets data-theme, also
+  // when the preference of the desktop changes with Follow the system) and for a new size.
+  const rerender = () => {
+    chartMetadata.clear();
+    checkAndInitCharts();
+  };
+  let renderedTheme = document.documentElement.dataset.theme;
+  new MutationObserver(() => {
+    const current = document.documentElement.dataset.theme;
+    if (current === renderedTheme) return;
+    renderedTheme = current;
+    rerender();
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
   let resizeTimeout;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-      chartMetadata.clear();
-      checkAndInitCharts();
-    }, 250);
+    resizeTimeout = setTimeout(rerender, 250);
   });
 })();

@@ -10,6 +10,7 @@ pub mod common;
 pub use common::*;
 pub mod map_stats;
 pub use map_stats::*;
+pub mod ability_detail;
 pub mod ability_usage;
 #[cfg(test)]
 mod bench_queries;
@@ -73,7 +74,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(SetupState { majordomo_tx })
         .manage(RerunViewerState::default())
-        .manage(replay_watcher::ReplayWatcherState::default())
+        .manage(std::sync::Arc::new(
+            replay_watcher::ReplayWatcherState::default(),
+        ))
         .setup(|app| {
             tracing::info!(
                 "Starting Tauri application setup {}:{:?}",
@@ -83,7 +86,7 @@ pub fn run() {
             // Spawn setup as a non-blocking task so the windows can be
             // created and ran while it executes
             spawn(setup(majordomo_rx, app.handle().clone()));
-            replay_watcher::configure(app.handle());
+            replay_watcher::configure(std::sync::Arc::new(app.handle().clone()), false);
             remote::relay_events(app.handle().clone());
             tracing::info!(
                 "Setup function called on {}:{:?}",
@@ -102,13 +105,14 @@ pub fn run() {
             tauri::generate_handler![
                 get_current_app_config,
                 set_current_app_config,
+                settings::get_ui_settings,
+                settings::zoom_step,
                 settings::pick_folder,
                 remote::check_remote_backend,
                 swarmy_bevy::exec_swarmy_bevy_map_caches,
                 swarmy_bevy::exec_swarmy_bevy_replay,
                 swarmy_bevy::exec_swarmy_bevy_siege_spots,
                 swarmy_bevy::exec_swarmy_bevy_map_layers,
-                replay_watcher::get_new_replays_status,
                 copy_path_to_clipboard,
                 open_folder,
                 connect_swarmy_rerun,
@@ -127,6 +131,18 @@ pub fn run() {
             ],
         ))
         .plugin(tauri_plugin_store::Builder::default().build())
+        // The zoom of the last session, before the first view is shown: the webview loads its
+        // page at 100%.
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                match settings::load_stored_app_settings(webview.app_handle()) {
+                    Ok(settings) => {
+                        settings::apply_zoom(webview.app_handle(), settings.zoom_percent)
+                    }
+                    Err(err) => tracing::warn!("Unable to read the zoom of the settings: {err}"),
+                }
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {

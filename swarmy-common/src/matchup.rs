@@ -33,6 +33,16 @@ pub fn matchup_label(race: &str, other_race: &str) -> String {
 }
 
 /// Whether both races of a matchup label are the same, i.e. `ZvZ`.
+/// The order of the players of a game in a list: the winners first, then the losers, then the
+/// others (a tie, a game without a result); the order of the replay within each.
+pub fn result_order(result: &str) -> u8 {
+    match result {
+        "Win" => 0,
+        "Loss" => 1,
+        _ => 2,
+    }
+}
+
 pub fn is_mirror_matchup(label: &str) -> bool {
     match label.split_once('v') {
         Some((race, other_race)) => race == other_race,

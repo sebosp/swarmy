@@ -8,6 +8,7 @@ use crate::components::links::{
 };
 use crate::components::loading::Loading;
 use crate::components::name_select::NameSelect;
+use crate::components::section::Panel;
 use crate::components::units::UnitsTable;
 use crate::navigation::use_navigation;
 use crate::*;
@@ -22,8 +23,8 @@ const MIN_PRODUCED_FOR_EFFECTIVENESS: usize = 10;
 /// The rows shown in the units table.
 const TOP_UNITS: usize = 15;
 
-const HEADING_CLASS: &str = "text-base/7 font-semibold text-white";
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const HEADING_CLASS: &str = "text-base/7 font-semibold text-base-content";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 fn win_rate(wins: usize, games: usize) -> String {
     if games == 0 {
@@ -42,7 +43,10 @@ pub fn PlayerDetailView() -> impl IntoView {
     let opponent = RwSignal::new(String::new());
     // The player compared with, empty for none.
     let compare_with = RwSignal::new(String::new());
+    // Asks for the player again, i.e. after its accounts changed.
+    let reload = RwSignal::new(0u32);
     Effect::new(move |_| {
+        reload.track();
         let player_name = navigation.player_name.get();
         if player_name.is_empty() {
             return;
@@ -92,6 +96,7 @@ pub fn PlayerDetailView() -> impl IntoView {
             <ErrorMessage error />
             {move || detail.get().map(|detail| view! {
                 <PlayerHeader detail=detail.clone() />
+                <AccountsPanel detail=detail.clone() reload />
                 {
                     let player = detail.clone();
                     move || {
@@ -146,20 +151,154 @@ fn PlayerHeader(detail: PlayerDetail) -> impl IntoView {
         .join(", ");
     view! {
         <div>
-            <h1 class="text-xl font-semibold text-white">
+            <h1 class="text-xl font-semibold text-base-content">
                 {clean_player_name_clan_escapes(&detail.player_name)}
             </h1>
-            <p class="text-sm text-gray-400">
-                {format!(
-                    "{} games, {} wins, {} losses ({}) · {}",
-                    detail.games,
-                    detail.wins,
-                    detail.games - detail.wins,
-                    win_rate(detail.wins, detail.games),
-                    races,
-                )}
+            // The wins, and the ties only when there are any: the losses are the rest.
+            <p class="text-sm text-muted">
+                <span class="font-medium text-base-content tabular-nums">{detail.games}</span>
+                " games, "
+                <span class="font-medium text-success tabular-nums">{detail.wins}</span>
+                {format!(" wins ({})", win_rate(detail.wins, detail.games))}
+                {(detail.ties > 0)
+                    .then(|| {
+                        view! {
+                            ", "
+                            <span class="font-medium text-warning tabular-nums">{detail.ties}</span>
+                            {if detail.ties == 1 { " tie" } else { " ties" }}
+                        }
+                    })}
+                {format!(" · {races}")}
             </p>
         </div>
+    }
+}
+
+/// The accounts of the player, the names they played as, and the accounts with a similar name to
+/// group with it: a player has accounts in several regions and for tournaments.
+#[component]
+fn AccountsPanel(detail: PlayerDetail, reload: RwSignal<u32>) -> impl IntoView {
+    let player = detail.player_name.clone();
+    let status = RwSignal::new(String::new());
+    let change = move |account: String, grouped: bool, player: String| {
+        #[derive(serde::Serialize)]
+        struct Args {
+            changes: Vec<PlayerAccountChange>,
+        }
+        let args = Args {
+            changes: vec![PlayerAccountChange {
+                player,
+                account,
+                grouped,
+            }],
+        };
+        spawn_local(async move {
+            match invoke_response("set_player_accounts", &args).await {
+                Ok(_) => {
+                    status.set(String::new());
+                    reload.update(|reload| *reload += 1);
+                }
+                Err(err) => status.set(err),
+            }
+        });
+    };
+    let row = move |account: PlayerAccount, action: AnyView| {
+        view! {
+            <tr>
+                <td class="pr-3 tabular-nums text-base-content" title="region-realm-id of the account">
+                    {account.account.clone()}
+                </td>
+                <td class="pr-3">{account.region()}</td>
+                <td class="pr-3 text-base-content">{account.names.join(", ")}</td>
+                <td class="pr-3 num">{account.games}</td>
+                <td>{action}</td>
+            </tr>
+        }
+    };
+    let accounts = detail
+        .accounts
+        .iter()
+        .cloned()
+        .map(|account| {
+            let action = if account.grouped_as == player {
+                let key = account.account.clone();
+                let player = player.clone();
+                view! {
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        title=format!("This account is not {player}: it is shown by its own name again")
+                        on:click=move |_| change(key.clone(), false, player.clone())
+                    >
+                        "Remove"
+                    </button>
+                }
+                .into_any()
+            } else {
+                view! { <span class="text-faint" title="Its name is the player's">"by name"</span> }.into_any()
+            };
+            row(account, action)
+        })
+        .collect_view();
+    let similar = detail
+        .similar_accounts
+        .iter()
+        .cloned()
+        .map(|account| {
+            let key = account.account.clone();
+            let player = player.clone();
+            let action = view! {
+                <button
+                    class="btn btn-primary btn-xs"
+                    title=format!("This account is {player}: its games count as {player}'s")
+                    on:click=move |_| change(key.clone(), true, player.clone())
+                >
+                    "Add"
+                </button>
+            }
+            .into_any();
+            row(account, action)
+        })
+        .collect_view();
+    let has_similar = !detail.similar_accounts.is_empty();
+    view! {
+        <Panel title="Accounts">
+            <p class="text-xs text-muted">
+                "The StarCraft II accounts of the player, with the names they played as: an account keeps its games when its name or clan tag changes. Add the other accounts of the same player, i.e. of another region or of a tournament, so that they count as one player; the accounts with the same name already do."
+            </p>
+            <table class=TABLE_CLASS data-sort-key="player-accounts">
+                <thead>
+                    <tr class="text-left text-muted">
+                        <th class="pr-3">"Account"</th>
+                        <th class="pr-3">"Region"</th>
+                        <th class="pr-3">"Names"</th>
+                        <th class="pr-3 num" aria-sort="descending">"Games"</th>
+                        <th data-no-sort></th>
+                    </tr>
+                </thead>
+                <tbody>{accounts}</tbody>
+            </table>
+            {has_similar
+                .then(|| {
+                    view! {
+                        <h3 class="mt-2 text-sm font-semibold text-base-content">
+                            {format!("Accounts with a name like {}", clean_player_name_clan_escapes(&detail.player_name))}
+                        </h3>
+                        <table class=TABLE_CLASS data-sort-key="player-similar-accounts">
+                            <thead>
+                                <tr class="text-left text-muted">
+                                    <th class="pr-3">"Account"</th>
+                                    <th class="pr-3">"Region"</th>
+                                    <th class="pr-3">"Names"</th>
+                                    <th class="pr-3 num" aria-sort="descending">"Games"</th>
+                                    <th data-no-sort></th>
+                                </tr>
+                            </thead>
+                            <tbody>{similar}</tbody>
+                        </table>
+                    }
+                })}
+            <span class="text-xs text-error">{move || status.get()}</span>
+        </Panel>
     }
 }
 
@@ -168,12 +307,12 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
     view! {
         <div>
             <h2 class=HEADING_CLASS>"Opponents"</h2>
-            <p class="text-xs text-gray-500">"Click on the record to filter the matches below."</p>
+            <p class="text-xs text-faint">"Click on the record to filter the matches below."</p>
             <table class=TABLE_CLASS>
                 <thead>
-                    <tr class="text-left text-gray-300">
+                    <tr class="text-left text-muted">
                         <th class="pr-2">"Opponent"</th>
-                        <th class="pr-2">"Games"</th>
+                        <th class="pr-2 num">"Games"</th>
                         <th class="pr-2">"W - L"</th>
                         <th>"Win rate"</th>
                     </tr>
@@ -188,13 +327,13 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
                                 move || opponent.get() == name
                             };
                             view! {
-                                <tr class:bg-gray-800=selected>
+                                <tr class:bg-base-200=selected>
                                     <td class="pr-2"><PlayerLink player_name=record.opponent.clone() /></td>
-                                    <td class="pr-2">{record.games}</td>
+                                    <td class="pr-2 num">{record.games}</td>
                                     <td class="pr-2">
                                         <a
                                             href="#"
-                                            class="hover:text-indigo-400"
+                                            class="hover:text-primary"
                                             title="Show the matches against this opponent"
                                             on:click=move |ev: MouseEvent| {
                                                 ev.prevent_default();
@@ -205,9 +344,9 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
                                                 }
                                             }
                                         >
-                                            <span class="text-green-500">{record.wins}</span>
+                                            <span class="text-success">{record.wins}</span>
                                             " - "
-                                            <span class="text-red-500">{record.games - record.wins}</span>
+                                            <span class="text-error">{record.games - record.wins}</span>
                                         </a>
                                     </td>
                                     <td>{win_rate(record.wins, record.games)}</td>
@@ -243,7 +382,7 @@ fn MatchesTable(matches: Vec<PlayerMatch>, opponent: RwSignal<String>) -> impl I
             </h2>
             <table class=TABLE_CLASS>
                 <thead>
-                    <tr class="text-left text-gray-300">
+                    <tr class="text-left text-muted">
                         <th class="pr-2">"ID"</th>
                         <th class="pr-2">"Date"</th>
                         <th class="pr-2">"Protocol"</th>
@@ -260,7 +399,7 @@ fn MatchesTable(matches: Vec<PlayerMatch>, opponent: RwSignal<String>) -> impl I
                                 <td class="pr-2"><ReplayLink ext_fs_id=game.ext_fs_id /></td>
                                 <td class="pr-2">{game.date}</td>
                                 <td class="pr-2"><PatchLink version=game.protocol_version /></td>
-                                <td class="pr-2 text-white"><MapLink map_title=game.map_title /></td>
+                                <td class="pr-2 text-base-content"><MapLink map_title=game.map_title /></td>
                                 <td class="pr-2">
                                     <ResultMarker result=if game.won { "Win" } else { "Loss" }.to_string() />
                                     <RaceLink race=game.race />

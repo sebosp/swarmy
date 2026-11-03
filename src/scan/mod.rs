@@ -62,18 +62,18 @@ impl ActivityStage {
 
     pub fn top_container_class(&self) -> &'static str {
         match self {
-            Self::None => "border-l-4 mt-1 p-1 border-gray-500 bg-gray-500/10",
-            Self::DirectoryEntered => "border-l-4 mt-1 p-1 border-blue-500 bg-blue-500/10",
+            Self::None => "border-l-4 mt-1 p-1 border-base-content/40 bg-base-content/10",
+            Self::DirectoryEntered => "border-l-4 mt-1 p-1 border-info bg-info/10",
             Self::ScanFailure
             | ActivityStage::OptimizeFailure
             | ActivityStage::DownloadingCachesFailure => {
-                "border-l-4 mt-1 p-1 border-red-500 bg-red-500/10"
+                "border-l-4 mt-1 p-1 border-error bg-error/10"
             }
             Self::ScanInit | ActivityStage::OptimizeInit | ActivityStage::DownloadingCachesInit => {
-                "border-l-4 mt-1 p-1 border-teal-500 bg-teal-500/10"
+                "border-l-4 mt-1 p-1 border-accent bg-accent/10"
             }
             Self::ScanDone | ActivityStage::OptimizeDone | ActivityStage::DownloadingCachesDone => {
-                "border-l-4 mt-1 p-1 border-green-500 bg-green-500/10"
+                "border-l-4 mt-1 p-1 border-success bg-success/10"
             }
         }
     }
@@ -82,18 +82,18 @@ impl ActivityStage {
         // TODO: For some reason I can't use format!("ext-{}-500", self.color(), it doesn't seem to
         // have effect...
         match self {
-            Self::None => "shrink-0 size-5 text-gray-500 bg/text-gray-500/10",
-            Self::DirectoryEntered => "shrink-0 size-5 text-blue-500 bg/text-blue-500/10",
+            Self::None => "shrink-0 size-5 text-faint bg/text-base-content/10",
+            Self::DirectoryEntered => "shrink-0 size-5 text-info bg/text-info/10",
             Self::ScanFailure
             | ActivityStage::OptimizeFailure
             | ActivityStage::DownloadingCachesFailure => {
-                "shrink-0 size-5 text-red-500 bg/text-red-500/10"
+                "shrink-0 size-5 text-error bg/text-error/10"
             }
             Self::ScanInit | ActivityStage::OptimizeInit | ActivityStage::DownloadingCachesInit => {
-                "shrink-0 size-5 text-teal-500 bg/text-teal-500/10"
+                "shrink-0 size-5 text-accent bg/text-accent/10"
             }
             Self::ScanDone | ActivityStage::OptimizeDone | ActivityStage::DownloadingCachesDone => {
-                "shrink-0 size-5 text-green-500 bg/text-green-500/10"
+                "shrink-0 size-5 text-success bg/text-success/10"
             }
         }
     }
@@ -107,7 +107,7 @@ impl ActivityStage {
         match self {
             Self::None => "Please enter a directory to scan".to_string(),
             Self::DirectoryEntered=> "Proceed to Scan.".to_string(),
-            Self::ScanInit=> "Scanning in progres...".to_string(),
+            Self::ScanInit=> "Scanning in progress...".to_string(),
             Self::ScanFailure => "Scan has finished with failure, please check the directory and permissions or the logs.".to_string(),
             Self::ScanDone => "Scan has finished, proceed to Optimize.".to_string(),
             Self::OptimizeInit=> "Data Optimization for analysis in progress.".to_string(),
@@ -168,7 +168,7 @@ impl From<AppSettings> for ActivityStage {
             Self::DownloadingCachesDone
         } else if source.snapshot_stats.ipc_dir_size > 0 {
             Self::OptimizeDone
-        } else if !source.replay_path.is_empty() {
+        } else if source.can_scan() {
             Self::DirectoryEntered
         } else {
             Self::None

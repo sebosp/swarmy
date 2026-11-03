@@ -46,9 +46,9 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
         });
     };
     view! {
-        <div class="mt-4 rounded-md border border-white/15 bg-gray-800/40 p-2 space-y-2">
+        <div class="mt-4 rounded-md border border-base-content/15 bg-base-200/40 p-2 space-y-2">
             <div class="flex items-center gap-3">
-                <h3 class="text-base font-semibold text-white">"Duplicates"</h3>
+                <h3 class="text-base font-semibold text-base-content">"Duplicates"</h3>
                 <button
                     class="btn btn-sm btn-primary"
                     disabled=move || busy.get()
@@ -75,19 +75,19 @@ pub fn DuplicatesPanel(app_settings: ReadSignal<AppSettings>) -> impl IntoView {
                         "Move to the duplicates folder"
                     </button>
                 </Show>
-                <span class="text-sm text-gray-400">{move || status.get()}</span>
+                <span class="text-sm text-muted">{move || status.get()}</span>
             </div>
             <Show when=move || app_settings.get().duplicates_path.is_empty()>
-                <p class="text-xs text-gray-500">
+                <p class="text-xs text-faint">
                     "Set the Duplicate Replays Folder in Config to move the duplicates out of the replay path."
                 </p>
             </Show>
             {move || duplicates.get().filter(|found| !found.is_empty()).map(|found| {
                 let more = found.len().saturating_sub(MAX_LISTED);
                 view! {
-                    <table class="min-w-full text-xs text-gray-400">
+                    <table class="min-w-full text-xs text-muted">
                         <thead>
-                            <tr class="text-left text-gray-300">
+                            <tr class="text-left text-muted">
                                 <th class="pr-2">"Duplicate"</th>
                                 <th>"Same contents as"</th>
                             </tr>

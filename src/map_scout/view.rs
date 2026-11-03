@@ -63,7 +63,7 @@ pub fn MapScoutView() -> impl IntoView {
     let input = |label: &'static str, value: RwSignal<String>, placeholder: &'static str| {
         view! {
             <div class="col-span-2">
-                <label class="block text-sm/6 font-medium text-white">{label}</label>
+                <label class="block text-sm/6 font-medium text-base-content">{label}</label>
                 <input
                     class=text_input_tailwind_classes().join(" ")
                     bind:value=value
@@ -102,7 +102,7 @@ pub fn MapScoutView() -> impl IntoView {
                 {input("Player", player_name, "Any player")}
                 {input("Unit", unit_name, "Any unit, i.e. SCV, Probe, Overlord")}
                 <div class="col-span-2">
-                    <label class="block text-sm/6 font-medium text-white">"First minutes"</label>
+                    <label class="block text-sm/6 font-medium text-base-content">"First minutes"</label>
                     <input
                         class=text_input_tailwind_classes().join(" ")
                         type="number"
@@ -117,9 +117,9 @@ pub fn MapScoutView() -> impl IntoView {
                     />
                 </div>
                 <div class="col-span-1">
-                    <label class="block text-sm/6 font-medium text-white">"Show"</label>
+                    <label class="block text-sm/6 font-medium text-base-content">"Show"</label>
                     <select
-                        class="select select-sm w-full bg-gray-800 text-gray-200 border border-white/20"
+                        class="select select-sm w-full bg-base-200 text-base-content border border-base-content/20"
                         on:change=move |ev| {
                             layer.set(match event_target_value(&ev).as_str() {
                                 "deaths" => ScoutLayer::Deaths,
@@ -137,7 +137,7 @@ pub fn MapScoutView() -> impl IntoView {
                     </button>
                 </div>
             </div>
-            <p class="text-xs text-gray-500">
+            <p class="text-xs text-faint">
                 {move || match layer.get() {
                     ScoutLayer::Commands => "The targets of the commands issued by the players",
                     ScoutLayer::Deaths => "Where the units of the players died",
@@ -150,7 +150,7 @@ pub fn MapScoutView() -> impl IntoView {
             </Show>
             <ErrorMessage error />
             {move || scout.get().map(|scout| view! {
-                <p class="text-sm text-gray-300">
+                <p class="text-sm text-muted">
                     {format!(
                         "{}: {} {} in {} games during the first {} minutes.",
                         scout.map_title,
@@ -219,19 +219,19 @@ fn ScoutMap(scout: MapScout, max_seconds: u32) -> impl IntoView {
     view! {
         <svg
             viewBox=format!("0 0 {width} {height}")
-            class="w-full max-w-4xl border border-white/10 bg-gray-950"
+            class="w-full max-w-4xl border border-base-content/10 bg-base-100"
         >
             // The map y axis goes up, the SVG one goes down.
             <g transform=format!("translate(0 {height}) scale(1 -1)")>
                 {terrain}
                 {scout_rects}
-                {start_marker(scout.own_start, "#38bdf8", "Own start location")}
-                {start_marker(scout.enemy_start, "#f87171", "Enemy start location")}
+                {start_marker(scout.own_start, "var(--color-info)", "Own start location")}
+                {start_marker(scout.enemy_start, "var(--color-error)", "Enemy start location")}
             </g>
         </svg>
-        <p class="text-xs text-gray-500">
-            <span class="text-sky-400">"○ "</span>"own start "
-            <span class="text-red-400">"○ "</span>"enemy start"
+        <p class="text-xs text-faint">
+            <span class="text-info">"○ "</span>"own start "
+            <span class="text-error">"○ "</span>"enemy start"
         </p>
     }
 }

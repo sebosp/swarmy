@@ -5,23 +5,18 @@ use crate::data::*;
 use crate::replay_detail::data::analyze_replay_cached;
 use polars::prelude::*;
 use rayon::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use swarmy_common::*;
 
 /// The players of the snapshot by games played, identified by their name without the clan tag.
-pub fn try_list_players(replay_path: String) -> Result<Vec<GamesWins>, SwarmyError> {
+/// The players of the snapshot by their accounts, see `details_with_players`.
+pub fn try_list_players(
+    replay_path: String,
+    groups: std::collections::HashMap<String, String>,
+) -> Result<Vec<GamesWins>, SwarmyError> {
     let ipc_path = build_ipc_path(&sanitize_replay_path(&replay_path)?)?;
-    let players = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?
-        .select([
-            col("player_name")
-                .str()
-                .split(lit("<sp/>"))
-                .list()
-                .last()
-                .alias("player"),
-            col("ext_fs_id"),
-            col("player_result"),
-        ])
+    let players = details_with_players(&ipc_path, &groups)?
+        .select([col("player"), col("ext_fs_id"), col("player_result")])
         .filter(col("player").neq(lit("")))
         .group_by([col("player")])
         .agg([
@@ -72,22 +67,22 @@ fn side(detail: &ReplayDetail, player_name: &str) -> Option<(u8, HeadToHeadSide)
     ))
 }
 
+/// The games of two players against each other, by their accounts (`groups`, see
+/// `details_with_players`).
 pub fn try_query_head_to_head(
     replay_path: String,
     query: HeadToHeadQuery,
+    groups: std::collections::HashMap<String, String>,
 ) -> Result<HeadToHead, SwarmyError> {
     let ipc_path = build_ipc_path(&sanitize_replay_path(&replay_path)?)?;
-    let player_name = name_without_clan(&query.player_name).to_string();
-    let opponent_name = name_without_clan(&query.opponent_name).to_string();
-    let rows = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?
+    let players = details_with_players(&ipc_path, &groups)?;
+    let player_name = resolve_player(&players, name_without_clan(&query.player_name))?;
+    let opponent_name = resolve_player(&players, name_without_clan(&query.opponent_name))?;
+    let rows = players
         .select([
             col("ext_fs_id"),
-            col("player_name")
-                .str()
-                .split(lit("<sp/>"))
-                .list()
-                .last()
-                .alias("player"),
+            col("player"),
+            col("name"),
             col("ext_fs_file_name"),
             col("title"),
             col("ext_datetime").dt().to_string("%Y-%m-%d").alias("date"),
@@ -98,27 +93,29 @@ pub fn try_query_head_to_head(
                 .or(col("player").eq(lit(opponent_name.clone()))),
         )
         .collect()?;
-    // The games with both players, the teams are checked in the analysis.
-    let mut games: BTreeMap<u64, (Vec<String>, String, String, String)> = BTreeMap::new();
-    for ((((ext_fs_id, player), file), title), date) in u64_values(&rows, "ext_fs_id")?
+    // The games with both players and the names they played as, the teams are checked in the
+    // analysis.
+    type Game = (HashMap<String, String>, String, String, String);
+    let mut games: BTreeMap<u64, Game> = BTreeMap::new();
+    for (((((ext_fs_id, player), name), file), title), date) in u64_values(&rows, "ext_fs_id")?
         .into_iter()
         .zip(str_values(&rows, "player")?)
+        .zip(str_values(&rows, "name")?)
         .zip(str_values(&rows, "ext_fs_file_name")?)
         .zip(str_values(&rows, "title")?)
         .zip(str_values(&rows, "date")?)
     {
         games
             .entry(ext_fs_id)
-            .or_insert_with(|| (vec![], file, title, date))
+            .or_insert_with(|| (HashMap::new(), file, title, date))
             .0
-            .push(player);
+            .insert(player, name);
     }
     let mut games: Vec<HeadToHeadGame> = games
         .into_par_iter()
-        .filter(|(_, (players, ..))| {
-            players.contains(&player_name) && players.contains(&opponent_name)
-        })
-        .filter_map(|(ext_fs_id, (_, file, map_title, date))| {
+        .filter_map(|(ext_fs_id, (names, file, map_title, date))| {
+            let player_as = names.get(&player_name)?.clone();
+            let opponent_as = names.get(&opponent_name)?.clone();
             let detail = match analyze_replay_cached(&file) {
                 Ok(detail) => detail,
                 Err(err) => {
@@ -126,8 +123,8 @@ pub fn try_query_head_to_head(
                     return None;
                 }
             };
-            let (player_team, player) = side(&detail, &player_name)?;
-            let (opponent_team, opponent) = side(&detail, &opponent_name)?;
+            let (player_team, player) = side(&detail, &player_as)?;
+            let (opponent_team, opponent) = side(&detail, &opponent_as)?;
             // Teammates are not head to head.
             (player_team != opponent_team).then_some(HeadToHeadGame {
                 ext_fs_id,

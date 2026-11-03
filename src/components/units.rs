@@ -37,23 +37,23 @@ pub fn UnitsTable(
     let most_effective = most_effective_unit(&units, min_produced);
     let best_trading = best_trading_unit(&units, min_produced);
     view! {
-        <p class="text-xs text-gray-300">
+        <p class="text-xs text-muted">
             "Most kills per unit: "
-            <span class="text-green-400">{most_effective.unwrap_or_else(|| "-".to_string())}</span>
+            <span class="text-success">{most_effective.unwrap_or_else(|| "-".to_string())}</span>
         </p>
-        <p class="text-xs text-gray-300" title="The minerals and vespene of the enemy units killed, divided by the minerals and vespene spent on the unit">
+        <p class="text-xs text-muted" title="The minerals and vespene of the enemy units killed, divided by the minerals and vespene spent on the unit">
             "Best trade: "
-            <span class="text-green-400">{best_trading.unwrap_or_else(|| "-".to_string())}</span>
+            <span class="text-success">{best_trading.unwrap_or_else(|| "-".to_string())}</span>
         </p>
-        <table class="min-w-full text-xs text-gray-400">
+        <table class="min-w-full text-xs text-muted">
             <thead>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-muted">
                     <th class="pr-2">"Unit"</th>
-                    <th class="pr-2">"Produced"</th>
-                    <th class="pr-2">"Kills"</th>
-                    <th class="pr-2">"Kills/unit"</th>
-                    <th class="pr-2" title="The minerals and vespene of the enemy units killed">"Value killed"</th>
-                    <th title="The value killed for each mineral and vespene spent on the unit">"Trade"</th>
+                    <th class="pr-2 num">"Produced"</th>
+                    <th class="pr-2 num">"Kills"</th>
+                    <th class="pr-2 num">"Kills/unit"</th>
+                    <th class="pr-2 num" title="The minerals and vespene of the enemy units killed">"Value killed"</th>
+                    <th class="num" title="The value killed for each mineral and vespene spent on the unit">"Trade"</th>
                 </tr>
             </thead>
             <tbody>
@@ -64,14 +64,15 @@ pub fn UnitsTable(
                         let trade = unit.trade_ratio();
                         view! {
                             <tr>
-                                <td class="pr-2 text-white"><UnitLink unit_name=unit.unit.clone() /></td>
-                                <td class="pr-2">{unit.produced}</td>
-                                <td class="pr-2">{unit.kills}</td>
-                                <td class="pr-2">{format!("{:.2}", unit.kills_per_unit())}</td>
-                                <td class="pr-2">{format_resources(unit.value_killed)}</td>
+                                <td class="pr-2 text-base-content"><UnitLink unit_name=unit.unit.clone() /></td>
+                                <td class="pr-2 num">{unit.produced}</td>
+                                <td class="pr-2 num">{unit.kills}</td>
+                                <td class="pr-2 num">{format!("{:.2}", unit.kills_per_unit())}</td>
+                                <td class="pr-2 num">{format_resources(unit.value_killed)}</td>
                                 <td
-                                    class:text-green-400=trade.is_some_and(|trade| trade >= 1.)
-                                    class:text-red-400=trade.is_some_and(|trade| trade < 1.)
+                                    class="num"
+                                    class:text-success=trade.is_some_and(|trade| trade >= 1.)
+                                    class:text-error=trade.is_some_and(|trade| trade < 1.)
                                 >
                                     {trade.map(|trade| format!("{trade:.2}x")).unwrap_or_else(|| "-".to_string())}
                                 </td>

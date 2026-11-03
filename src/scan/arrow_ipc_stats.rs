@@ -54,9 +54,9 @@ pub fn StatDescriptionItem(
     icon: &'static IconWeightData,
 ) -> impl IntoView {
     view! {
-        <div class="relative overflow-hidden rounded-lg px-4 pt-4 pb-4 shadow-sm sm:px-3 sm:pt-3 bg-gray-800/75 inset-ring inset-ring-white/10">
+        <div class="relative overflow-hidden rounded-lg px-4 pt-4 pb-4 shadow-sm sm:px-3 sm:pt-3 bg-base-200/75 inset-ring inset-ring-base-content/10">
             <dt>
-                <div class="absolute rounded-md bg-indigo-500 p-2">
+                <div class="absolute rounded-md bg-primary p-2">
                     <Icon
                         icon=icon
                         weight=IconWeight::Bold
@@ -66,13 +66,13 @@ pub fn StatDescriptionItem(
                         prop:stroke-width="1.5"
                         prop:data-slot="icon"
                         prop:aria-hidden="true"
-                        prop:class="size-6 text-white"
+                        prop:class="size-6 text-base-content"
                     />
                 </div>
-                <p class="ml-16 truncate text-sm font-medium text-gray-400">{name}</p>
+                <p class="ml-16 truncate text-sm font-medium text-muted">{name}</p>
             </dt>
             <dd class="ml-16 flex">
-                <p class="text-2xl font-semibold text-white" title=description>
+                <p class="text-2xl font-semibold text-base-content" title=description>
                     {value}
                 </p>
             </dd>
@@ -136,9 +136,31 @@ pub fn ArrowIpcStats(snapshot_stats: ReadSignal<SnapshotStats>) -> impl IntoView
                 format!("Not compatible with s2protocol {S2PROTOCOL_VERSION}, run Optimize again")
             }
         });
+    let state_message = snapshot_stats.get().snapshot_message;
+    let has_state_message = state_message.is_some();
+    let state_kind = snapshot_stats.get().snapshot_state;
+    let state_class = match state_kind {
+        SnapshotStateKind::InProgress => {
+            "mx-2 mt-2 border-l-4 p-2 border-primary bg-primary/10 text-sm text-primary"
+        }
+        SnapshotStateKind::Interrupted => {
+            "mx-2 mt-2 border-l-4 p-2 border-warning bg-warning/10 text-sm text-warning"
+        }
+        SnapshotStateKind::Missing | SnapshotStateKind::Ready => {
+            "mx-2 mt-2 border-l-4 p-2 border-base-content/40 bg-base-content/10 text-sm text-muted"
+        }
+    };
+    let state_hint = match state_kind {
+        SnapshotStateKind::InProgress => " The views show this message until it finishes, the progress is below when it runs here.",
+        SnapshotStateKind::Interrupted => " Rebuild deletes the snapshot and generates it again from all the replays, Optimize alone would keep the days already written.",
+        SnapshotStateKind::Missing | SnapshotStateKind::Ready => "",
+    };
     view! {
         <div>
-            <h3 class="text-base font-semibold text-white ml-2">Snapshot Statistics</h3>
+            <h3 class="text-base font-semibold text-base-content ml-2">Snapshot Statistics</h3>
+            <Show when=move || has_state_message>
+                <div class=state_class>{state_message.clone().unwrap_or_default()} {state_hint}</div>
+            </Show>
 
             <dl class="px-5 mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <StatDescriptionItem

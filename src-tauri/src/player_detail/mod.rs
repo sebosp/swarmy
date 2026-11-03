@@ -15,9 +15,13 @@ pub async fn query_player_detail(
     player_name: String,
 ) -> Result<ApiResponse, SwarmyError> {
     let app_config = load_stored_app_settings(host)?;
+    let groups = crate::personal_db::read_player_groups(host);
     run_query(move || {
-        ApiResponseBuilder::new()
-            .process_result(try_query_player_detail(app_config.replay_path, player_name))
+        ApiResponseBuilder::new().process_result(try_query_player_detail(
+            app_config.replay_path,
+            player_name,
+            groups,
+        ))
     })
     .await
 }
@@ -25,8 +29,9 @@ pub async fn query_player_detail(
 /// The players of the snapshot, for the player dropdowns.
 pub async fn list_players(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
     let app_config = load_stored_app_settings(host)?;
+    let groups = crate::personal_db::read_player_groups(host);
     run_query(move || {
-        ApiResponseBuilder::new().process_result(try_list_players(app_config.replay_path))
+        ApiResponseBuilder::new().process_result(try_list_players(app_config.replay_path, groups))
     })
     .await
 }
@@ -37,13 +42,17 @@ pub async fn query_head_to_head(
     opponent_name: String,
 ) -> Result<ApiResponse, SwarmyError> {
     let app_config = load_stored_app_settings(host)?;
+    let groups = crate::personal_db::read_player_groups(host);
     let query = HeadToHeadQuery {
         player_name,
         opponent_name,
     };
     run_query(move || {
-        ApiResponseBuilder::new()
-            .process_result(try_query_head_to_head(app_config.replay_path, query))
+        ApiResponseBuilder::new().process_result(try_query_head_to_head(
+            app_config.replay_path,
+            query,
+            groups,
+        ))
     })
     .await
 }

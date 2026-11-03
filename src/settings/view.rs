@@ -4,7 +4,10 @@ use leptos::{ev::MouseEvent, prelude::*};
 use phosphor_leptos::{Icon, IconWeight, FOLDER_OPEN, QUESTION};
 use swarmy_common::*;
 
-use crate::{settings::actions::trigger_set_current_app_config, DisplayBackendStatus};
+use crate::components::loading::Loading;
+use crate::{
+    settings::actions::trigger_set_current_app_config, DisplayBackendStatus, SELECT_CLASS,
+};
 
 #[component]
 pub fn Config() -> impl IntoView {
@@ -23,11 +26,19 @@ pub fn Config() -> impl IntoView {
     let notify_new_replays = RwSignal::new(false);
     let remote_backend_url = RwSignal::new("".to_string());
     let remote_backend_token = RwSignal::new("".to_string());
+    let appearance = expect_context::<crate::components::appearance::Appearance>();
+    let reduce_motion = RwSignal::new(default_reduce_motion());
+    let underline_links = RwSignal::new(false);
+    let focus_outline = RwSignal::new(false);
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
     });
-    crate::settings::with_fetch_current_app_config(
+    // The form is shown once the stored settings are read, not with the defaults first.
+    let loaded = RwSignal::new(false);
+    // Whether to show what the last Save did.
+    let show_saved = RwSignal::new(false);
+    crate::settings::with_fetch_stored_app_config(
         set_app_settings,
         move |settings: AppSettings| {
             *replay_path.write() = settings.replay_path.clone();
@@ -44,29 +55,40 @@ pub fn Config() -> impl IntoView {
             *notify_new_replays.write() = settings.notify_new_replays;
             *remote_backend_url.write() = settings.remote_backend_url.clone();
             *remote_backend_token.write() = settings.remote_backend_token.clone();
+            appearance.theme.set(settings.theme.clone());
+            appearance.zoom_percent.set(settings.zoom_percent);
+            *reduce_motion.write() = settings.reduce_motion.clone();
+            *underline_links.write() = settings.underline_links;
+            *focus_outline.write() = settings.focus_outline;
             set_backend_response.update(|val| {
                 val.meta.success = true;
                 val.meta.is_complete = true;
-            })
+            });
+            loaded.set(true);
         },
     );
     view! {
         <div class="ml-4 mt-4">
-            <h2 class="text-base/7 font-semibold text-white">"Swarmy Settings"</h2>
+            <h2 class="text-base/7 font-semibold text-base-content">"Swarmy Settings"</h2>
             <DisplayBackendStatus backend_response />
-            <div class="mt-6 space-y-10 border-b border-white/10 pb-12 sm:space-y-0 sm:divide-y sm:divide-white/10 sm:border-t sm:border-t-white/10 sm:pb-0">
+            <Show
+                when=move || loaded.get()
+                fallback=|| view! { <Loading message="Reading the settings..." /> }
+            >
+            <div class="mt-6 space-y-10 border-b border-base-content/10 pb-12 sm:space-y-0 sm:divide-y sm:divide-base-content/10 sm:border-t sm:border-t-white/10 sm:pb-0">
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <fieldset>
                     <legend class="sr-only">"Parallelism"</legend>
                     <div class="grid grid-cols-4 gap-4 py-6">
-                        <div aria-hidden="true" class="text-sm/6 font-semibold text-white">
-                            <p class="text-sm/6 font-semibold text-white">"Parallelism"</p>
-                            <p class="text-sm/6 font-semibold text-white">
+                        <div aria-hidden="true" class="text-sm/6 font-semibold text-base-content">
+                            <p class="text-sm/6 font-semibold text-base-content">"Parallelism"</p>
+                            <p class="text-sm/6 font-semibold text-base-content">
                                 " Status: "
                                 <span class=move || {
                                     if disable_parallelism.get() {
-                                        "inline-flex items-center rounded-full bg-orange-400/10 px-1.5 py-0.5 text-xs font-medium text-orange-400"
+                                        "inline-flex items-center rounded-full bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
                                     } else {
-                                        "inline-flex items-center rounded-full bg-green-400/10 px-1.5 py-0.5 text-xs font-medium text-green-400"
+                                        "inline-flex items-center rounded-full bg-success/10 px-1.5 py-0.5 text-xs font-medium text-success"
                                     }
                                 }>
                                     {move || {
@@ -92,12 +114,12 @@ pub fn Config() -> impl IntoView {
                                                 on:click=move |_| {
                                                     disable_parallelism.set(!disable_parallelism.get())
                                                 }
-                                                class="col-start-1 row-start-1 appearance-none rounded-sm border border-white/10 bg-white/5 checked:border-indigo-500 checked:bg-indigo-500 indeterminate:border-indigo-500 indeterminate:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:border-white/5 disabled:bg-white/10 disabled:checked:bg-white/10 forced-colors:appearance-auto"
+                                                class="col-start-1 row-start-1 appearance-none rounded-sm border border-base-content/10 bg-base-content/5 checked:border-primary checked:bg-primary indeterminate:border-primary indeterminate:bg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:border-base-content/5 disabled:bg-base-content/10 disabled:checked:bg-base-content/10 forced-colors:appearance-auto"
                                             />
                                             <svg
                                                 viewBox="0 0 14 14"
                                                 fill="none"
-                                                class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-white group-has-disabled:stroke-white/25"
+                                                class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-base-content group-has-disabled:stroke-base-content/25"
                                             >
                                                 <path
                                                     d="M3 8L6 11L11 3.5"
@@ -117,7 +139,7 @@ pub fn Config() -> impl IntoView {
                                         </div>
                                     </div>
                                     <div class="text-sm/6">
-                                        <label for="parallelism" class="font-medium text-white">
+                                        <label for="parallelism" class="font-medium text-base-content">
                                             "Disable Parallelism"
                                         </label>
                                     </div>
@@ -135,22 +157,35 @@ pub fn Config() -> impl IntoView {
                         </div>
                     </div>
                 </fieldset>
+                </Show>
                 <fieldset>
                     <legend class="sr-only">"New replays"</legend>
                     <div class="grid grid-cols-4 gap-4 py-6">
-                        <p class="text-sm/6 font-semibold text-white">"New replays"</p>
-                        <label class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white">
+                        <p class="text-sm/6 font-semibold text-base-content">"New replays"</p>
+                        <label class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-base-content">
                             <input
                                 id="watch_new_replays"
                                 type="checkbox"
-                                class="size-4 accent-indigo-500"
+                                class="size-4 accent-primary"
                                 prop:checked=move || watch_new_replays.get()
                                 on:change=move |ev| watch_new_replays.set(event_target_checked(&ev))
                             />
-                            "Watch the replay path for new replays"
+                            {move || {
+                                if remote_backend_url.get().trim().is_empty() {
+                                    "Watch the replay path for new replays"
+                                } else {
+                                    "Receive notifications of the new replays of the remote backend"
+                                }
+                            }}
                         </label>
                         <div class="col-span-1 text-primary">
-                            <span title="Watches the replay path in the background (inotify on Linux) and tells you when there are replays that are not in the snapshot, Optimize then only parses the new replays and the ones parsed by another version of s2protocol.">
+                            <span title=move || {
+                                if remote_backend_url.get().trim().is_empty() {
+                                    "Watches the replay path in the background (inotify on Linux) and tells you when there are replays that are not in the snapshot, Optimize then only parses the new replays and the ones parsed by another version of s2protocol."
+                                } else {
+                                    "The remote backend watches its Replay Path: tells you here when it has replays that are not in its snapshot, i.e. a game just played on that computer, and Refresh adds them."
+                                }
+                            }>
                                 <Icon
                                     icon=QUESTION
                                     weight=IconWeight::Fill
@@ -160,13 +195,13 @@ pub fn Config() -> impl IntoView {
                         </div>
                         <div></div>
                         <label
-                            class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-white"
+                            class="col-span-2 flex items-center gap-3 text-sm/6 font-medium text-base-content"
                             title="Shows a message with the name of each new replay the watcher finds, i.e. when a game ends"
                         >
                             <input
                                 id="notify_new_replays"
                                 type="checkbox"
-                                class="size-4 accent-indigo-500"
+                                class="size-4 accent-primary"
                                 prop:disabled=move || !watch_new_replays.get()
                                 prop:checked=move || notify_new_replays.get()
                                 on:change=move |ev| {
@@ -181,12 +216,42 @@ pub fn Config() -> impl IntoView {
             </div>
             <div class="grid grid-cols-4 sm:items-start sm:gap-4 sm:py-6">
                 <ConfigStringInput
+                    name="remote_backend_url"
+                    label="Remote Backend"
+                    description="A swarmy that runs the Scan, Optimize and the queries of its snapshot for this one, \
+                    for a computer that cannot handle them, i.e. http://wormgat-zt:7878. \
+                    Start it on the other computer with: swarmy --serve 0.0.0.0:7878 \
+                    The snapshot is then the one of the Replay Path of the Config of the other computer, \
+                    its Map Caches, Duplicate Replays Folder and Scan limits are set there too: \
+                    the Replay Path of this Config is only for the watcher and to open the replays here. \
+                    Leave it empty to run everything in this computer."
+                    value=remote_backend_url
+                    optional=true
+                />
+                <ConfigStringInput
+                    name="remote_backend_token"
+                    label="Remote Backend Token"
+                    description="The --token of the remote backend, or its SWARMY_SERVER_TOKEN. Empty when it has none."
+                    value=remote_backend_token
+                    optional=true
+                />
+                <CheckRemoteBackend remote_backend_url remote_backend_token />
+                <Show when=move || !remote_backend_url.get().trim().is_empty()>
+                    <div class="col-span-1"></div>
+                    <p class="col-span-2 text-sm/6 text-muted">
+                        "The Map Caches Path, the Duplicate Replays Folder, the parallelism and the limits of Scan and Optimize are the ones of the Config of the remote backend, set them on that computer."
+                    </p>
+                    <div class="col-span-1"></div>
+                </Show>
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
+                <ConfigStringInput
                     name="cache_path"
                     directory=true
                     label="Map Caches Path"
                     description="The replays only refer to their maps, to analyse the maps the Map Info caches (terrain, start locations, resources) and the maps are downloaded from Blizzard's depot servers into this directory, like StarCraft II does. swarmy-caches in your home directory by default."
                     value=cache_path
                 />
+                </Show>
                 <ConfigStringInput
                     name="main_player_name"
                     label="Main Player Name"
@@ -198,9 +263,10 @@ pub fn Config() -> impl IntoView {
                     name="replay_path"
                     directory=true
                     label="Replay Path"
-                    description="The parent path for the replay collection to analyse."
+                    description="The parent path for the replay collection to analyse. With a remote backend, the replays of this computer: the watcher follows it and the replays open from it, the snapshot is the one of the remote backend."
                     value=replay_path
                 />
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <ConfigStringInput
                     name="duplicates_path"
                     directory=true
@@ -214,26 +280,10 @@ pub fn Config() -> impl IntoView {
                     optional=true
                     warning=true
                 />
-                <ConfigStringInput
-                    name="remote_backend_url"
-                    label="Remote Backend"
-                    description="A swarmy that runs the Scan, Optimize and the queries of its snapshot for this one, \
-                    for a computer that cannot handle them, i.e. http://wormgat-zt:7878. \
-                    Start it on the other computer with: swarmy --serve 0.0.0.0:7878 \
-                    The snapshot is then the one of the Replay Path of the Config of the other computer, \
-                    the paths of this Config are only used to open the replays here. \
-                    Leave it empty to run everything in this computer."
-                    value=remote_backend_url
-                    optional=true
-                />
-                <ConfigStringInput
-                    name="remote_backend_token"
-                    label="Remote Backend Token"
-                    description="The --token of the remote backend, or its SWARMY_SERVER_TOKEN. Empty when it has none."
-                    value=remote_backend_token
-                    optional=true
-                />
-                <CheckRemoteBackend remote_backend_url remote_backend_token />
+                </Show>
+                <ConfigAppearance />
+                <ConfigAccessibility reduce_motion underline_links focus_outline />
+                <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <ConfigNumberInput
                     name="scan_max_files"
                     label="Max number of files to Scan"
@@ -264,11 +314,22 @@ pub fn Config() -> impl IntoView {
                     description="Helps skip new replays that may be considered corrupt/unsupported. Set to 0 to disable filter."
                     value=max_version
                 />
+                </Show>
                 <div class="col-span-1"></div>
                 <div class="col-span-2">
                     <button
                         class="btn btn-primary w-full"
                         on:click=move |ev: MouseEvent| {
+                            show_saved.set(true);
+                            // The confirmation goes away by itself, an error stays.
+                            leptos::prelude::set_timeout(
+                                move || {
+                                    if backend_response.get_untracked().meta.success {
+                                        show_saved.set(false);
+                                    }
+                                },
+                                std::time::Duration::from_secs(4),
+                            );
                             ev.prevent_default();
                             trigger_set_current_app_config(
                                 AppSettings {
@@ -286,6 +347,11 @@ pub fn Config() -> impl IntoView {
                                     notify_new_replays: notify_new_replays.get(),
                                     remote_backend_url: remote_backend_url.get(),
                                     remote_backend_token: remote_backend_token.get(),
+                                    zoom_percent: appearance.zoom_percent.get(),
+                                    theme: appearance.theme.get(),
+                                    reduce_motion: reduce_motion.get(),
+                                    underline_links: underline_links.get(),
+                                    focus_outline: focus_outline.get(),
                                     ..Default::default()
                                 },
                                 set_backend_response,
@@ -294,9 +360,24 @@ pub fn Config() -> impl IntoView {
                     >
                         "Save"
                     </button>
+                    // What Save did, beside it: the status at the top of the view is out of sight.
+                    <p class="mt-2 text-sm" role="status" aria-live="polite">
+                        {move || {
+                            let response = backend_response.get();
+                            (show_saved.get() && !response.message.is_empty())
+                                .then(|| {
+                                    if response.meta.success {
+                                        view! { <span class="text-success">"✓ Saved"</span> }.into_any()
+                                    } else {
+                                        view! { <span class="text-error">{response.message}</span> }.into_any()
+                                    }
+                                })
+                        }}
+                    </p>
                 </div>
                 <div class="col-span-1"></div>
             </div>
+            </Show>
         </div>
     }
 }
@@ -311,7 +392,7 @@ pub fn ConfigNumberInput(
     let (is_invalid_number, set_is_invalid_number) = signal(false);
     view! {
         <div class="mt-2 col-span-1 sm:mt-0">
-            <label class="block text-sm/6 font-medium text-white sm:pt-1.5">{label}</label>
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">{label}</label>
         </div>
         <div class="mt-2 col-span-2 sm:mt-0">
             <input
@@ -320,9 +401,9 @@ pub fn ConfigNumberInput(
                 aria-describedby=move || format!("{}-description", name)
                 class=move || {
                     if is_invalid_number.get() {
-                        "block w-full rounded-md bg-white/5 px-3 py-1.5 text-red-400 outline-1 -outline-offset-1 outline-red-500/50 placeholder:text-red-400/70 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 sm:pr-9 sm:max-w-xs sm:text-sm/6"
+                        "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-error outline-1 -outline-offset-1 outline-error/50 placeholder:text-error/70 focus:outline-2 focus:-outline-offset-2 focus:outline-error sm:pr-9 sm:max-w-xs sm:text-sm/6"
                     } else {
-                        "block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:max-w-xs sm:text-sm/6"
+                        "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-faint focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:max-w-xs sm:text-sm/6"
                     }
                 }
                 on:input=move |ev| {
@@ -341,9 +422,9 @@ pub fn ConfigNumberInput(
                 id=move || format!("{}-description", name)
                 class=move || {
                     if is_invalid_number.get() {
-                        "mt-2 text-sm text-red-400"
+                        "mt-2 text-sm text-error"
                     } else {
-                        "mt-2 text-sm/6 text-gray-400"
+                        "mt-2 text-sm/6 text-muted"
                     }
                 }
             >
@@ -401,7 +482,7 @@ pub fn ConfigStringInput(
     };
     view! {
         <div class="mt-2 col-span-1 sm:mt-0">
-            <label class="block text-sm/6 font-medium text-white sm:pt-1.5">{label}</label>
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">{label}</label>
         </div>
         <div class="mt-2 col-span-2 sm:mt-0">
             <div class="flex gap-2">
@@ -411,9 +492,9 @@ pub fn ConfigStringInput(
                     aria-describedby=move || format!("{}-description", name)
                     class=move || {
                         if is_missing() {
-                            "block w-full rounded-md bg-white/5 px-3 py-1.5 text-red-400 outline-1 -outline-offset-1 outline-red-500/50 placeholder:text-red-400/70 focus:outline-2 focus:-outline-offset-2 focus:outline-red-400 sm:pr-9 sm:text-sm/6"
+                            "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-error outline-1 -outline-offset-1 outline-error/50 placeholder:text-error/70 focus:outline-2 focus:-outline-offset-2 focus:outline-error sm:pr-9 sm:text-sm/6"
                         } else {
-                            "block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
+                            "block w-full rounded-md bg-base-content/5 px-3 py-1.5 text-base text-base-content outline-1 -outline-offset-1 outline-base-content/10 placeholder:text-faint focus:outline-2 focus:-outline-offset-2 focus:outline-primary sm:text-sm/6"
                         }
                     }
                     on:input=move |ev| {
@@ -446,9 +527,9 @@ pub fn ConfigStringInput(
                 id=move || format!("{}-description", name)
                 class=move || {
                     if is_missing() {
-                        "mt-2 text-sm/6 text-red-400"
+                        "mt-2 text-sm/6 text-error"
                     } else {
-                        "mt-2 text-sm/6 text-gray-400"
+                        "mt-2 text-sm/6 text-muted"
                     }
                 }
             >
@@ -464,12 +545,12 @@ pub fn ConfigStringInput(
         </div>
         {if warning {
             view! {
-                <div class="col-span-1 text-amber-400">
+                <div class="col-span-1 text-warning">
                     <span class="group relative inline-block" tabindex="0" aria-label=description>
                         <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
                         <span
                             role="tooltip"
-                            class="invisible absolute right-0 top-7 z-20 w-96 max-w-[80vw] whitespace-pre-line rounded-md border border-amber-500/60 bg-amber-950 px-3 py-2 text-sm text-amber-100 shadow-lg group-hover:visible group-focus:visible"
+                            class="invisible absolute right-0 top-7 z-20 w-96 max-w-[80vw] whitespace-pre-line rounded-md border border-warning/60 bg-base-200 px-3 py-2 text-sm text-warning shadow-lg group-hover:visible group-focus:visible"
                         >
                             {description}
                         </span>
@@ -487,6 +568,137 @@ pub fn ConfigStringInput(
             }
                 .into_any()
         }}
+    }
+}
+
+/// A row of the Config grid: the label, the control and the help icon with its explanation.
+#[component]
+fn ConfigRow(label: &'static str, help: &'static str, children: Children) -> impl IntoView {
+    view! {
+        <div class="col-span-1">
+            <label class="block text-sm/6 font-medium text-base-content sm:pt-1.5">{label}</label>
+        </div>
+        <div class="col-span-2">{children()}</div>
+        <div class="col-span-1 text-primary">
+            <span title=help>
+                <Icon icon=QUESTION weight=IconWeight::Fill prop:class="stroke-current" />
+            </span>
+        </div>
+    }
+}
+
+/// A `<select>` of `(id, label)` options bound to the signal of the id, `on_pick` runs with each
+/// change, i.e. to apply the option at once.
+#[component]
+fn OptionSelect(
+    options: &'static [(&'static str, &'static str)],
+    value: RwSignal<String>,
+    on_pick: impl Fn() + 'static,
+) -> impl IntoView {
+    view! {
+        <select
+            class=format!("{SELECT_CLASS} max-w-xs")
+            on:change=move |ev| {
+                value.set(event_target_value(&ev));
+                on_pick();
+            }
+        >
+            {options
+                .iter()
+                .map(|(id, label)| {
+                    view! {
+                        <option value=*id selected=move || value.get() == *id>
+                            {*label}
+                        </option>
+                    }
+                })
+                .collect_view()}
+        </select>
+    }
+}
+
+/// The theme and the zoom: the theme is applied as it is picked and saved with Save, the zoom is
+/// saved as it changes, as Ctrl+= and Ctrl+- do.
+#[component]
+fn ConfigAppearance() -> impl IntoView {
+    let appearance = expect_context::<crate::components::appearance::Appearance>();
+    let zoom = move |steps: i32| crate::components::appearance::zoom_step(steps, appearance);
+    view! {
+        <ConfigRow
+            label="Theme"
+            help="The colors of the interface, applied as you pick them and kept with Save. Follow the system picks Swarmy or Light from the light or dark preference of your desktop."
+        >
+            <OptionSelect options=THEMES value=appearance.theme on_pick=|| () />
+        </ConfigRow>
+        <ConfigRow
+            label="Zoom"
+            help="The size of the whole interface, text, charts and icons, from 50% to 250%. Ctrl+= and Ctrl+- change it in any view, Ctrl+0 resets it; it is saved as it changes."
+        >
+            <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-outline btn-sm" title="Zoom out, Ctrl+-" on:click=move |_| zoom(-1)>
+                    "−"
+                </button>
+                <span class="w-14 text-center text-sm text-base-content">
+                    {move || format!("{}%", appearance.zoom_percent.get())}
+                </span>
+                <button type="button" class="btn btn-outline btn-sm" title="Zoom in, Ctrl+=" on:click=move |_| zoom(1)>
+                    "+"
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" title="Back to 100%, Ctrl+0" on:click=move |_| zoom(0)>
+                    "Reset"
+                </button>
+            </div>
+        </ConfigRow>
+    }
+}
+
+/// The accessibility options, applied as they are picked and kept with Save. The chart colors are
+/// safe for color vision deficiencies in every theme, the zoom is the text size, see above.
+#[component]
+fn ConfigAccessibility(
+    reduce_motion: RwSignal<String>,
+    underline_links: RwSignal<bool>,
+    focus_outline: RwSignal<bool>,
+) -> impl IntoView {
+    let apply = move || {
+        crate::components::appearance::apply_accessibility(
+            &reduce_motion.get_untracked(),
+            underline_links.get_untracked(),
+            focus_outline.get_untracked(),
+        )
+    };
+    let toggle = move |label: &'static str, flag: RwSignal<bool>| {
+        view! {
+            <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content">
+                <input
+                    type="checkbox"
+                    class="toggle toggle-sm"
+                    prop:checked=move || flag.get()
+                    on:change=move |ev| {
+                        flag.set(event_target_checked(&ev));
+                        apply();
+                    }
+                />
+                {label}
+            </label>
+        }
+    };
+    view! {
+        <ConfigRow
+            label="Motion"
+            help="Reduce stops the animations and transitions, i.e. the spinners and the sliding panels. Follow the system uses the Reduce animations setting of your desktop."
+        >
+            <OptionSelect options=REDUCE_MOTION_OPTIONS value=reduce_motion on_pick=apply />
+        </ConfigRow>
+        <ConfigRow
+            label="Links and focus"
+            help="The names that open another view are underlined with dots; underlined links also show them as solid underlines. The focus outline shows which element the keyboard is on, also after a click."
+        >
+            <div class="flex flex-col gap-2">
+                {toggle("Underline the links, not only on hover", underline_links)}
+                {toggle("Always show the focus outline", focus_outline)}
+            </div>
+        </ConfigRow>
     }
 }
 
@@ -532,10 +744,10 @@ fn CheckRemoteBackend(
             </button>
             {move || match status.get() {
                 Some(Ok(message)) => {
-                    view! { <span class="text-sm/6 text-green-400">{message}</span> }.into_any()
+                    view! { <span class="text-sm/6 text-success">{message}</span> }.into_any()
                 }
                 Some(Err(err)) => {
-                    view! { <span class="text-sm/6 text-red-400">{err}</span> }.into_any()
+                    view! { <span class="text-sm/6 text-error">{err}</span> }.into_any()
                 }
                 None => ().into_any(),
             }}

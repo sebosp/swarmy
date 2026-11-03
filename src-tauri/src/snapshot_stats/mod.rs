@@ -2,6 +2,9 @@
 use crate::data::scan_snapshot_ipc;
 use crate::host::SwarmyHost;
 use polars::prelude::*;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use swarmy_common::*;
 
 pub async fn get_snapshot_metadata(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
@@ -17,6 +20,43 @@ pub async fn get_snapshot_metadata(host: &dyn SwarmyHost) -> Result<ApiResponse,
         .build())
 }
 
+/// The last state check of a snapshot, see [`snapshot_unavailable`].
+struct SnapshotStateCheck {
+    root: PathBuf,
+    checked_at: Instant,
+    message: Option<String>,
+}
+
+static LAST_STATE_CHECK: Mutex<Option<SnapshotStateCheck>> = Mutex::new(None);
+
+/// How long a state check is reused: the views send several queries at once, and the check
+/// reads the metadata of every day partition of the snapshot.
+const STATE_CHECK_TTL: Duration = Duration::from_secs(3);
+
+/// Why the snapshot at the directory cannot be queried: being created (by this swarmy or another
+/// one, i.e. the app and the remote backend of the same computer), interrupted or missing. None
+/// when it is ready.
+pub fn snapshot_unavailable(root: &Path) -> Option<String> {
+    let mut last = LAST_STATE_CHECK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(check) = last.as_ref() {
+        if check.root == root && check.checked_at.elapsed() < STATE_CHECK_TTL {
+            return check.message.clone();
+        }
+    }
+    let message = s2protocol::snapshot::snapshot_state(root).message();
+    if let Some(message) = &message {
+        tracing::info!("The snapshot queries are refused: {message}");
+    }
+    *last = Some(SnapshotStateCheck {
+        root: root.to_path_buf(),
+        checked_at: Instant::now(),
+        message: message.clone(),
+    });
+    message
+}
+
 /// Gets the list of maps from the details.ipc file
 pub fn try_get_snapshot_metadata(
     replay_path: String,
@@ -27,18 +67,21 @@ pub fn try_get_snapshot_metadata(
     let ipc_path = format!("{}/{}", replay_path, IPC_DIR);
     tracing::info!("Getting snapshot metadata from: {}", ipc_path);
     let root = std::path::Path::new(&ipc_path);
-    let metadata = s2protocol::snapshot::SnapshotMetadata::read_from_dir(root).ok();
-    // The metadata has the sizes of the files of all the day partitions.
-    let ipc_dir_size = match &metadata {
-        Some(metadata) => metadata.files.iter().map(|file| file.bytes).sum(),
-        None => {
-            let mut ipc_dir_size = 0;
-            for entry in std::fs::read_dir(root)? {
-                ipc_dir_size += entry?.metadata()?.len();
-            }
-            ipc_dir_size
+    // Being created or interrupted: the files cannot be read, only the state is told.
+    let state = s2protocol::snapshot::snapshot_state(root);
+    let metadata = match state {
+        s2protocol::snapshot::SnapshotState::Ready(metadata) => metadata,
+        other => {
+            return Ok(SnapshotStats {
+                snapshot_state: SnapshotStateKind::from(&other),
+                snapshot_message: other.message(),
+                replay_path,
+                ..Default::default()
+            });
         }
     };
+    // The metadata has the sizes of the files of all the day partitions.
+    let ipc_dir_size = metadata.files.iter().map(|file| file.bytes).sum();
     let mut caches_size = 0;
     let mut num_caches = 0;
     if std::path::Path::new(&file_cache_path).exists() {
@@ -51,10 +94,7 @@ pub fn try_get_snapshot_metadata(
             num_caches += 1;
         }
     }
-    let date_modified = match &metadata {
-        Some(metadata) => metadata.created_at.into(),
-        None => std::fs::metadata(root.join(DETAILS_IPC))?.modified()?,
-    };
+    let date_modified = metadata.created_at.into();
     let details_query = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?;
 
     // Date range from the details.ipc file
@@ -93,11 +133,12 @@ pub fn try_get_snapshot_metadata(
         num_maps,
         num_caches,
         caches_size,
-        is_compatible: metadata
-            .as_ref()
-            .is_some_and(|metadata| metadata.is_compatible()),
-        partitions: metadata.as_ref().map_or(0, |metadata| metadata.partitions),
-        added_replays: metadata.as_ref().map_or(0, |metadata| metadata.added),
-        s2protocol_version: metadata.map(|metadata| metadata.s2protocol_version),
+        is_compatible: metadata.is_compatible(),
+        snapshot_state: SnapshotStateKind::Ready,
+        snapshot_message: None,
+        replay_path,
+        partitions: metadata.partitions,
+        added_replays: metadata.added,
+        s2protocol_version: Some(metadata.s2protocol_version),
     })
 }

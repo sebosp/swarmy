@@ -50,6 +50,13 @@ pub struct PlayerMatch {
     pub opponent: String,
     pub opponent_race: String,
     pub won: bool,
+    /// A tie, rare: neither won.
+    #[serde(default)]
+    pub tie: bool,
+    /// The name of the player in this game, without the clan tag: one of the names of the
+    /// accounts of the player.
+    #[serde(default)]
+    pub played_as: String,
     /// The replay protocol version (base build), 0 if the replay could not be read.
     pub protocol_version: u32,
 }
@@ -156,6 +163,15 @@ pub struct PlayerDetail {
     pub player_name: String,
     pub games: usize,
     pub wins: usize,
+    /// The ties, rare.
+    #[serde(default)]
+    pub ties: usize,
+    /// The accounts of the player: grouped under this name, or the one account of the name.
+    #[serde(default)]
+    pub accounts: Vec<PlayerAccount>,
+    /// The accounts with a name like the player's that are not grouped with it, to add.
+    #[serde(default)]
+    pub similar_accounts: Vec<PlayerAccount>,
     /// The races played, most played first.
     pub races: Vec<GamesWins>,
     /// By month, oldest first.
@@ -208,4 +224,39 @@ pub struct HeadToHead {
     pub player_name: String,
     pub opponent_name: String,
     pub games: Vec<HeadToHeadGame>,
+}
+
+/// An account of StarCraft II, `region-realm-id` as in the toon handle of the replays, i.e.
+/// `2-1-3141896`: its names (without the clan tag) change, the account does not.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct PlayerAccount {
+    pub account: String,
+    /// The names it played under, the most played first.
+    pub names: Vec<String>,
+    pub games: usize,
+    /// The player it is grouped under in the personal database, empty when it is not grouped.
+    pub grouped_as: String,
+}
+
+impl PlayerAccount {
+    /// The region of the account, from the first number of its key.
+    pub fn region(&self) -> &'static str {
+        match self.account.split('-').next() {
+            Some("1") => "Americas",
+            Some("2") => "Europe",
+            Some("3") => "Korea",
+            Some("5") => "China",
+            Some("6") => "SEA",
+            Some("98") => "LAN",
+            _ => "Other region",
+        }
+    }
+}
+
+/// The arguments of `set_player_account`: adds the account to the player, or removes it.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct PlayerAccountChange {
+    pub player: String,
+    pub account: String,
+    pub grouped: bool,
 }

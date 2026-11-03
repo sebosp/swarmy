@@ -217,13 +217,23 @@ fn read_goals(host: &dyn SwarmyHost) -> Result<BTreeMap<String, f64>, SwarmyErro
         .unwrap_or_default())
 }
 
-pub async fn query_progress(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
+/// The progress of `player_name`, the Main Player Name of the Config of the app that asks: with a
+/// remote backend, the Config of the backend does not have it. Empty for the backend's own.
+pub async fn query_progress(
+    host: &dyn SwarmyHost,
+    player_name: String,
+) -> Result<ApiResponse, SwarmyError> {
     let app_config = load_stored_app_settings(host)?;
     let goals = read_goals(host)?;
+    let player_name = if player_name.trim().is_empty() {
+        app_config.main_player_name
+    } else {
+        player_name.trim().to_string()
+    };
     run_query(move || {
         ApiResponseBuilder::new().process_result(try_query_progress(
             app_config.replay_path,
-            app_config.main_player_name,
+            player_name,
             goals,
         ))
     })

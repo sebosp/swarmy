@@ -1,6 +1,7 @@
 //! Swarmy Tauri Application
 
 use leptos::prelude::*;
+use swarmy_ui::ability::view::AbilityView;
 use swarmy_ui::changelog::view::Changelog;
 use swarmy_ui::components::left_sidebar_menu::LeftSideBarMenu;
 use swarmy_ui::components::new_replays::NewReplaysBanner;
@@ -26,17 +27,20 @@ use swarmy_ui::unit_overview::view::UnitOverviewView;
 pub fn Main() -> impl IntoView {
     let navigation = Navigation::new(HOME_PAGE);
     provide_context(navigation);
+    swarmy_ui::navigation::remember_replay_list_sort(navigation);
     swarmy_ui::components::unit_icon::provide_unit_icons();
+    swarmy_ui::components::appearance::install_ui_settings();
     let active_page = navigation.active_page;
 
     view! {
-        <div id="swarmy-tauri-window" class="flex w-screen h-screen bg-gray-800 rounded">
+        <div id="swarmy-tauri-window" class="flex w-screen h-screen bg-base-200 rounded">
             <LeftSideBarMenu active_page=active_page />
+            <swarmy_ui::components::appearance::ZoomToastView />
             <div class="flex flex-col grow w-full h-full min-w-0">
             <NewReplaysBanner />
             <div
                 id="swarmy-tauri-content"
-                class="flex grow w-full min-h-0 overflow-auto text-gray-400 bg-gray-900 rounded"
+                class="flex grow w-full min-h-0 overflow-auto text-muted bg-base-100 rounded"
             >
                 <Show when=move || active_page.get() == HOME_PAGE>
                     <div id="swarmy-tauri-home-content" class="flex flex-col grow min-w-0 p-2 rounded">
@@ -122,6 +126,11 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == RACE_DETAIL_PAGE>
                     <div id="swarmy-tauri-race-detail-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <RaceDetailView />
+                    </div>
+                </Show>
+                <Show when=move || active_page.get() == ABILITY_PAGE>
+                    <div id="swarmy-tauri-ability-content" class="flex flex-col grow min-w-0 p-2 rounded">
+                        <AbilityView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == PROGRESS_PAGE>

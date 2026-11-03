@@ -235,3 +235,118 @@ mod tests {
         assert_eq!(parse_event(":\n\n"), None);
     }
 }
+
+/// The directory of the files of the remote backend copied to this computer, per backend: the
+/// replays and the map caches that swarmy-bevy reads.
+pub fn local_files_dir(
+    app_handle: &AppHandle,
+    settings: &AppSettings,
+) -> Result<std::path::PathBuf, SwarmyError> {
+    let backend: String = settings
+        .remote_backend_url
+        .split_once("://")
+        .map_or(settings.remote_backend_url.as_str(), |(_, rest)| rest)
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|err| SwarmyError::Other(format!("No app data directory: {err}")))?;
+    Ok(data_dir.join("remote").join(backend))
+}
+
+/// Downloads a file of the backend to `destination`, unless it was downloaded already: the
+/// replays and the map caches do not change.
+async fn download(
+    settings: &AppSettings,
+    request: reqwest::RequestBuilder,
+    destination: &std::path::Path,
+) -> Result<(), SwarmyError> {
+    if destination.is_file() {
+        return Ok(());
+    }
+    let failed = |err: reqwest::Error| {
+        SwarmyError::Other(format!(
+            "Downloading {} from the remote backend {} failed: {err}",
+            destination.display(),
+            settings.remote_backend_url
+        ))
+    };
+    let response = request.send().await.map_err(failed)?;
+    let status = response.status();
+    let contents = response.bytes().await.map_err(failed)?;
+    if !status.is_success() {
+        // The errors of the server are the JSON of a SwarmyError, its kind and message.
+        let message = serde_json::from_slice::<Value>(&contents)
+            .ok()
+            .and_then(|err| err.get("message")?.as_str().map(str::to_string))
+            .unwrap_or_else(|| String::from_utf8_lossy(&contents).to_string());
+        return Err(SwarmyError::Other(format!(
+            "The remote backend {} did not send {}: {message}",
+            settings.remote_backend_url,
+            destination.display()
+        )));
+    }
+    if let Some(dir) = destination.parent() {
+        tokio::fs::create_dir_all(dir).await?;
+    }
+    // Written aside then renamed, an interrupted download is not taken for a complete one.
+    let partial = destination.with_extension("partial");
+    tokio::fs::write(&partial, &contents).await?;
+    tokio::fs::rename(&partial, destination).await?;
+    Ok(())
+}
+
+/// Downloads the map caches of the backend to `dir`, as `<cache id>.s2ma`.
+pub async fn download_map_caches(
+    settings: &AppSettings,
+    cache_ids: &[String],
+    dir: &std::path::Path,
+) -> Result<(), SwarmyError> {
+    for cache_id in cache_ids
+        .iter()
+        .map(|id| id.trim())
+        .filter(|id| !id.is_empty())
+    {
+        let file = dir.join(format!(
+            "{cache_id}.{}",
+            s2protocol::cache_handles::CACHE_MPQ_ARCHIVE_EXTENSION
+        ));
+        let request = request(
+            settings,
+            reqwest::Method::GET,
+            &format!("api/files/caches/{cache_id}"),
+        );
+        download(settings, request, &file).await?;
+    }
+    Ok(())
+}
+
+/// Downloads a replay of the backend, `replay` is its path on the backend, to `dir`. The file
+/// keeps its name, after a hash of the path on the backend so that two replays with the same name
+/// do not collide.
+pub async fn download_replay(
+    settings: &AppSettings,
+    replay: &str,
+    dir: &std::path::Path,
+) -> Result<std::path::PathBuf, SwarmyError> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    replay.hash(&mut hasher);
+    let name = std::path::Path::new(replay)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| "replay.SC2Replay".to_string());
+    let file = dir.join(format!("{:016x}-{name}", hasher.finish()));
+    let request =
+        request(settings, reqwest::Method::GET, "api/files/replay").query(&[("path", replay)]);
+    download(settings, request, &file).await?;
+    Ok(file)
+}

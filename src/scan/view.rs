@@ -10,7 +10,7 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, DATABASE};
+use phosphor_leptos::{Icon, IconWeight, ARROWS_CLOCKWISE, ARROW_COUNTER_CLOCKWISE, DATABASE};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
 use s2protocol::dir_stats::SC2ReplaysDirStats;
@@ -48,37 +48,74 @@ pub fn ScanDirectory() -> impl IntoView {
         },
     );
     let dir_stats_data = Store::new(SC2ReplaysDirStatsTable::from(SC2ReplaysDirStats::default()));
+    let open_config = move |ev: MouseEvent| {
+        ev.prevent_default();
+        navigation.active_page.set("Config".to_string());
+    };
+    // A snapshot to refresh, or to rebuild.
+    let has_snapshot =
+        move || snapshot_stats.get().num_games > 0 || snapshot_stats.get().ipc_dir_size > 0;
 
     view! {
         <div class="grid grid-cols-10">
             <div class="col-span-5 pl-1">
                 // The replay path is changed in Config only, an input here would not be saved.
-                <p class="block text-sm/6 font-medium text-white">"Replay Path"</p>
-                <p id="scan-directory-path" class="text-sm font-mono text-gray-200 break-all">
+                <p class="block text-sm/6 font-medium text-base-content">
                     {move || {
-                        let replay_path = app_settings.get().replay_path;
-                        if replay_path.is_empty() { "Not set".to_string() } else { replay_path }
+                        let settings = app_settings.get();
+                        if settings.is_remote() {
+                            view! {
+                                "Remote Replay Path on "
+                                <a href="#" class="nav-link font-mono" title="Change the remote backend in Config" on:click=open_config>
+                                    {settings.remote_host().to_string()}
+                                </a>
+                            }
+                                .into_any()
+                        } else {
+                            "Replay Path".into_any()
+                        }
                     }}
                 </p>
-                <a
-                    href="#"
-                    class="nav-link text-xs"
-                    title="The replay path, the map caches path and the other settings are in Config"
-                    on:click=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        navigation.active_page.set("Config".to_string());
-                    }
-                >
-                    "Change it in Config"
-                </a>
+                <p id="scan-directory-path" class="text-sm font-mono text-base-content break-all">
+                    {move || {
+                        let replay_path = app_settings.get().snapshot_replay_path();
+                        if !replay_path.is_empty() {
+                            replay_path
+                        } else if app_settings.get().is_remote() {
+                            "Not sent by the backend".to_string()
+                        } else {
+                            "Not set".to_string()
+                        }
+                    }}
+                </p>
+                <p class="text-xs text-muted">
+                    {move || {
+                        let settings = app_settings.get();
+                        if !settings.is_remote() {
+                            view! { <a href="#" class="nav-link" on:click=open_config>"Change it in Config"</a> }
+                                .into_any()
+                        } else if settings.snapshot_replay_path().is_empty() {
+                            "The server runs an older swarmy that does not send its replay path, update it to 0.2.3 or later to see it here."
+                                .into_any()
+                        } else {
+                            view! {
+                                "Set in the "
+                                <a href="#" class="nav-link" on:click=open_config>"Config"</a>
+                                " of that computer, it cannot be changed from here."
+                            }
+                                .into_any()
+                        }
+                    }}
+                </p>
             </div>
-            <div class="col-span-5 justify-start ml-6 mt-6">
+            // The actions, evenly spaced on one row.
+            <div class="col-span-5 flex flex-wrap items-center gap-2 ml-6 mt-6">
                 <button
                     class=move || {
                         if activity_stage.get() > ActivityStage::None {
-                            "btn btn-primary btn-sm b-0"
+                            "btn btn-primary btn-sm"
                         } else {
-                            "btn btn-disabled btn-sm b-0 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 disabled:outline-gray-200"
+                            "btn btn-disabled btn-sm disabled:cursor-not-allowed disabled:bg-base-300 disabled:text-faint disabled:outline-base-content/20"
                         }
                     }
                     on:click=move |ev: MouseEvent| trigger_basic_scan_replay_path(
@@ -88,8 +125,8 @@ pub fn ScanDirectory() -> impl IntoView {
                         dir_stats_data,
                         set_activity_stage,
                     )
-                    disabled=move || { app_settings.get().replay_path.is_empty() }
-                    title="Initial scan for StarCraft II replays"
+                    disabled=move || { !app_settings.get().can_scan() }
+                    title="Counts the StarCraft II replays of the replay path and their players, without changing the snapshot"
                 >
                     <Icon
                         icon=(move || { activity_stage.get().icon_data() })()
@@ -98,12 +135,14 @@ pub fn ScanDirectory() -> impl IntoView {
                     />
                     "Scan"
                 </button>
+                // The same command before and after the snapshot exists: the first time it creates
+                // it, then it adds the new replays.
                 <button
                     class=move || {
-                        if !app_settings.get().replay_path.is_empty() {
+                        if app_settings.get().can_scan() {
                             "btn btn-accent btn-sm"
                         } else {
-                            "btn btn-disabled btn-sm disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 disabled:outline-gray-200"
+                            "btn btn-disabled btn-sm disabled:cursor-not-allowed disabled:bg-base-300 disabled:text-faint disabled:outline-base-content/20"
                         }
                     }
                     on:click=move |_| trigger_optimize_replay_path(
@@ -118,49 +157,74 @@ pub fn ScanDirectory() -> impl IntoView {
                             && activity_stage.get() != ActivityStage::ScanInit
                             && activity_stage.get() != ActivityStage::OptimizeInit
                     }
-                    title="Adds the replays that are not in the snapshot yet, generating Arrow files per day (may take some time). The Map Info caches of the replays are downloaded from Blizzard's depot servers first, the digest of each map version comes from them: the replays added while their caches could not be downloaded are parsed again once they can be read."
-                >
-                    <Icon icon=DATABASE weight=IconWeight::Light prop:class="stroke-current" />
-                    "Optimize and Download Caches"
-                </button>
-                // Deleting the snapshot needs a second click.
-                <button
-                    class=move || {
-                        if confirm_rebuild.get() {
-                            "btn btn-error btn-sm ml-2"
+                    title=move || {
+                        if has_snapshot() {
+                            "Adds the replays that are not in the snapshot yet and downloads their map caches, the replays already in it are kept: quick when there are few new replays."
                         } else {
-                            "btn btn-outline btn-sm ml-2"
+                            "Reads the replays into a snapshot of Arrow files per day (may take some time) and downloads their map caches from Blizzard's depot servers, the digest of each map version comes from them."
                         }
                     }
-                    on:click=move |_| {
-                        if confirm_rebuild.get() {
-                            set_confirm_rebuild.set(false);
-                            trigger_optimize_replay_path(
-                                true,
-                                app_settings,
-                                set_backend_response,
-                                set_activity_stage,
-                                set_snapshot_stats,
-                            );
-                        } else {
-                            set_confirm_rebuild.set(true);
-                        }
-                    }
-                    on:mouseleave=move |_| set_confirm_rebuild.set(false)
-                    disabled=move || {
-                        app_settings.get().replay_path.is_empty()
-                            || activity_stage.get() == ActivityStage::OptimizeInit
-                    }
-                    title="Deletes the snapshot and generates it again from all the replays"
                 >
                     {move || {
-                        if confirm_rebuild.get() {
-                            "Click again to delete and rebuild"
+                        if has_snapshot() {
+                            view! {
+                                <Icon icon=ARROWS_CLOCKWISE weight=IconWeight::Light prop:class="stroke-current" />
+                                "Refresh"
+                            }
+                                .into_any()
                         } else {
-                            "Rebuild"
+                            view! {
+                                <Icon icon=DATABASE weight=IconWeight::Light prop:class="stroke-current" />
+                                "Optimize and Download Caches"
+                            }
+                                .into_any()
                         }
                     }}
                 </button>
+                // Deleting the snapshot needs a second click; it is needed when the snapshot was
+                // written by an older s2protocol, then it stands out.
+                <Show when=has_snapshot>
+                    <button
+                        class=move || {
+                            if confirm_rebuild.get() {
+                                "btn btn-error btn-sm"
+                            } else if !snapshot_stats.get().is_compatible {
+                                "btn btn-warning btn-sm"
+                            } else {
+                                "btn btn-outline btn-sm"
+                            }
+                        }
+                        on:click=move |_| {
+                            if confirm_rebuild.get() {
+                                set_confirm_rebuild.set(false);
+                                trigger_optimize_replay_path(
+                                    true,
+                                    app_settings,
+                                    set_backend_response,
+                                    set_activity_stage,
+                                    set_snapshot_stats,
+                                );
+                            } else {
+                                set_confirm_rebuild.set(true);
+                            }
+                        }
+                        on:mouseleave=move |_| set_confirm_rebuild.set(false)
+                        disabled=move || {
+                            !app_settings.get().can_scan()
+                                || activity_stage.get() == ActivityStage::OptimizeInit
+                        }
+                        title="Deletes the snapshot and reads all the replays again: needed when the snapshot was written by an older s2protocol, much slower than Refresh"
+                    >
+                        <Icon icon=ARROW_COUNTER_CLOCKWISE weight=IconWeight::Light prop:class="stroke-current" />
+                        {move || {
+                            if confirm_rebuild.get() {
+                                "Click again to delete and rebuild"
+                            } else {
+                                "Rebuild from scratch"
+                            }
+                        }}
+                    </button>
+                </Show>
             </div>
             <DisplayBackendStatus backend_response />
             <div class="col-span-10 m-0 p-0">
@@ -172,7 +236,11 @@ pub fn ScanDirectory() -> impl IntoView {
                 <Show when=move || { activity_stage.get() >= ActivityStage::OptimizeDone }>
                     <ArrowIpcStats snapshot_stats=snapshot_stats />
                 </Show>
-                <DuplicatesPanel app_settings />
+                // The remote backend finds and moves its duplicates with its own Config, in the
+                // Scan of its computer.
+                <Show when=move || !app_settings.get().is_remote()>
+                    <DuplicatesPanel app_settings />
+                </Show>
             </div>
         </div>
     }
@@ -204,8 +272,14 @@ pub fn SnapshotStatusHeader(
                 </div>
                 <div class="ml-3">
                     <p class=move || { activity_stage.get().text_class().join(" ") }>
-                        <code>{move || app_settings.get().replay_path}</code>
-                        ": "
+                        {move || {
+                            let settings = app_settings.get();
+                            if settings.is_remote() {
+                                format!("{} backend status: ", settings.remote_host())
+                            } else {
+                                "Backend status: ".to_string()
+                            }
+                        }}
                         {move || activity_stage.get().text_content()}
                     </p>
                 </div>

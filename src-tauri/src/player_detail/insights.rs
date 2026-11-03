@@ -282,7 +282,11 @@ pub fn player_insights(
         let Some(summary) = detail
             .players
             .iter()
-            .find(|summary| name_without_clan(&summary.player.name) == player_name)
+            // The name of the game: the accounts of a player have several.
+            .find(|summary| {
+                let name = name_without_clan(&summary.player.name);
+                name == game.played_as || (game.played_as.is_empty() && name == player_name)
+            })
         else {
             continue;
         };

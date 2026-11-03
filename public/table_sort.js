@@ -1,6 +1,8 @@
 // Sorts the rows of any table by clicking on the headers of its <thead>, ascending then
 // descending. The tables sorted by the backend, the replay list, have `data-server-sort`.
 // Leptos may add or replace the rows of a sorted table, a MutationObserver sorts them again.
+// The sort chosen is remembered in the storage of the webview, by the headers of the table (or
+// its `data-sort-key`), and applied again when a table with these headers is shown.
 (() => {
   if (window.__tableSortDone) return;
   window.__tableSortDone = true;
@@ -63,6 +65,128 @@
     tables.forEach(sortTable);
   });
 
+  // The key of a table: its data-sort-key, or the names of its columns.
+  const tableKey = (table) =>
+    "swarmy.sort." +
+    (table.dataset.sortKey ||
+      Array.from(table.querySelectorAll("thead th"))
+        .map((th) => th.textContent.replace(/[↕▲▼]/g, "").trim())
+        .join("|"));
+
+  // The storage can be missing or refuse, i.e. in a private window: the sort is not remembered.
+  const remember = (table) => {
+    try {
+      localStorage.setItem(
+        tableKey(table),
+        JSON.stringify({ column: table.dataset.sortColumn, direction: table.dataset.sortDirection }),
+      );
+    } catch (_err) {}
+  };
+  const remembered = (table) => {
+    try {
+      return JSON.parse(localStorage.getItem(tableKey(table)) || "null");
+    } catch (_err) {
+      return null;
+    }
+  };
+
+  function applySort(table, column, direction) {
+    const header = table.querySelector("thead tr")?.cells[Number(column)];
+    if (!header || header.hasAttribute("data-no-sort")) return;
+    table.dataset.sortColumn = String(column);
+    table.dataset.sortDirection = direction;
+    table.querySelectorAll("thead th").forEach((th) => th.removeAttribute("aria-sort"));
+    header.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
+    sortTable(table);
+    observer.observe(table, { childList: true, subtree: true, characterData: true });
+  }
+
+  // The column the rows are already sorted by, as the view or the backend ordered them, and its
+  // direction: -1 when none, the first such column otherwise.
+  function currentOrder(table) {
+    const headers = Array.from(table.querySelector("thead tr")?.cells ?? []);
+    const rows = Array.from(table.tBodies[0]?.rows ?? []);
+    // The number columns first: a column of names in alphabetical order by chance is a weaker
+    // sign of the order than a column of counts.
+    for (const numbers of [true, false]) {
+      for (const header of headers) {
+        if (header.hasAttribute("data-no-sort") || header.textContent.trim() === "") continue;
+        const values = rows.map((row) => cellValue(row, header.cellIndex)).filter((value) => !value.empty);
+        if (values.length < 2 || values.every((value) => value.number !== undefined) !== numbers) continue;
+        const orders = values.slice(1).map((value, idx) => compare(values[idx], value));
+        if (orders.every((order) => order === 0)) continue;
+        if (orders.every((order) => order >= 0)) return { column: header.cellIndex, direction: "desc" };
+        if (orders.every((order) => order <= 0)) return { column: header.cellIndex, direction: "asc" };
+      }
+    }
+    return null;
+  }
+
+  // The default sort of a table without a sort remembered: the one the view set, else the order
+  // the rows already have, else the games (most first), else the first column.
+  function defaultSort(table) {
+    if (table.dataset.sortColumn !== undefined) {
+      return { column: table.dataset.sortColumn, direction: table.dataset.sortDirection || "asc", keep: true };
+    }
+    const preset = table.querySelector("thead th[aria-sort]");
+    if (preset) {
+      const direction = preset.getAttribute("aria-sort") === "descending" ? "desc" : "asc";
+      return { column: preset.cellIndex, direction, keep: true };
+    }
+    const current = currentOrder(table);
+    if (current) return { ...current, keep: true };
+    const headers = Array.from(table.querySelector("thead tr")?.cells ?? []);
+    const games = headers.find((th) => th.textContent.replace(/[↕▲▼]/g, "").trim() === "Games");
+    if (games) return { column: games.cellIndex, direction: "desc" };
+    const first = headers.find((th) => !th.hasAttribute("data-no-sort") && th.textContent.trim() !== "");
+    return first ? { column: first.cellIndex, direction: "asc" } : null;
+  }
+
+  // Marks the sorted column without moving the rows, they are already in its order.
+  function markSort(table, column, direction) {
+    const header = table.querySelector("thead tr")?.cells[Number(column)];
+    if (!header) return;
+    table.dataset.sortColumn = String(column);
+    table.dataset.sortDirection = direction;
+    table.querySelectorAll("thead th").forEach((th) => th.removeAttribute("aria-sort"));
+    header.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
+    observer.observe(table, { childList: true, subtree: true, characterData: true });
+  }
+
+  // The tables shown, once they have rows: the sort remembered, or the default one, is shown on
+  // its column; every table says how it is sorted.
+  const seen = new WeakSet();
+  function restoreSorts() {
+    document.querySelectorAll("table:not([data-server-sort])").forEach((table) => {
+      if (seen.has(table) || !table.tHead) return;
+      if ((table.tBodies[0]?.rows.length ?? 0) < 2) return;
+      seen.add(table);
+      const saved = remembered(table);
+      if (saved && saved.column !== undefined) {
+        applySort(table, saved.column, saved.direction === "desc" ? "desc" : "asc");
+        return;
+      }
+      const sort = defaultSort(table);
+      if (!sort) return;
+      if (sort.keep) {
+        markSort(table, sort.column, sort.direction);
+      } else {
+        applySort(table, sort.column, sort.direction);
+      }
+    });
+  }
+  let restoreTimer;
+  new MutationObserver(() => {
+    clearTimeout(restoreTimer);
+    restoreTimer = setTimeout(restoreSorts, 50);
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  // The tables already in the page when the script runs.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restoreSorts);
+  } else {
+    restoreSorts();
+  }
+
   document.addEventListener("click", (event) => {
     const header = event.target.closest?.("thead th");
     // Links and buttons in the headers keep working.
@@ -72,11 +196,7 @@
     const column = String(header.cellIndex);
     const direction =
       table.dataset.sortColumn === column && table.dataset.sortDirection === "asc" ? "desc" : "asc";
-    table.dataset.sortColumn = column;
-    table.dataset.sortDirection = direction;
-    table.querySelectorAll("thead th").forEach((th) => th.removeAttribute("aria-sort"));
-    header.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
-    sortTable(table);
-    observer.observe(table, { childList: true, subtree: true, characterData: true });
+    applySort(table, column, direction);
+    remember(table);
   });
 })();

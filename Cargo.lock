@@ -1096,6 +1096,7 @@ checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
  "axum-core",
  "bytes",
+ "form_urlencoded",
  "futures-util",
  "http",
  "http-body",
@@ -1111,6 +1112,7 @@ dependencies = [
  "serde_core",
  "serde_json",
  "serde_path_to_error",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tower",
@@ -8402,9 +8404,9 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s2protocol"
-version = "5.0.0"
+version = "5.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e82894e298d887fc0cbf4e01aeb17c787d29d73a117acd6c6acbeeafcefc044"
+checksum = "39d380d32891565ecbc63f7f16bd54da9802e070fa048860e43de6181c99c99c"
 dependencies = [
  "arrow 59.3.2",
  "chrono",
@@ -9316,7 +9318,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "swarmy"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -9360,7 +9362,7 @@ dependencies = [
 
 [[package]]
 name = "swarmy-common"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "chrono",
  "polars",
@@ -9377,7 +9379,7 @@ dependencies = [
 
 [[package]]
 name = "swarmy-ui"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "chrono",
  "console_error_panic_hook",
@@ -9395,6 +9397,7 @@ dependencies = [
  "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

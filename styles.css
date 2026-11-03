@@ -1,22 +1,359 @@
 @import "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-@plugin "daisyui";
+/* The themes, picked in Config: `data-theme` on <html>, set by src/components/appearance.rs
+   (index.html starts with swarmy, Follow the system picks swarmy or light from the preference
+   of the desktop). The views use the daisyUI semantic colors (base-100/200/300, base-content,
+   primary, ...): light and dark are daisyUI's, the other themes set the same variables below.
+   The de-emphasized text is text-muted and text-faint, and the charts read the --chart-*
+   colors, both defined once from the colors of the theme further down. */
+@plugin "daisyui" {
+  themes: light, dark;
+}
+
+/* The de-emphasized text: the body text with an opacity, the light themes with a tinted base
+   (Catppuccin Latte, Tokyo Night Day) set a color of their palette instead, the opacity fails the
+   4.5:1 contrast there. */
+@theme inline {
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+}
+:root {
+  --muted: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+  --faint: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+}
+
+/* The shape of the custom themes, daisyUI's variables, High contrast overrides the borders. */
+[data-theme="swarmy"],
+[data-theme="high-contrast"],
+[data-theme^="catppuccin-"],
+[data-theme^="tokyonight-"] {
+  --radius-selector: 0.5rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Swarmy, the look it had before the themes: Tailwind gray-900/800/700 and indigo-500. */
+[data-theme="swarmy"] {
+  color-scheme: dark;
+  --color-base-100: #111827;
+  --color-base-200: #1f2937;
+  --color-base-300: #374151;
+  --color-base-content: #ffffff;
+  --color-primary: #6366f1;
+  --color-primary-content: #ffffff;
+  --color-secondary: #a855f7;
+  --color-secondary-content: #ffffff;
+  --color-accent: #0ea5e9;
+  --color-accent-content: #0b1220;
+  --color-neutral: #374151;
+  --color-neutral-content: #e5e7eb;
+  --color-info: #38bdf8;
+  --color-info-content: #0b1220;
+  --color-success: #4ade80;
+  --color-success-content: #052e16;
+  --color-warning: #fbbf24;
+  --color-warning-content: #1f1300;
+  --color-error: #f87171;
+  --color-error-content: #1f0a0a;
+}
+
+/* High contrast, dark: black surfaces, white text, the lighter accents, thicker borders. */
+[data-theme="high-contrast"] {
+  color-scheme: dark;
+  --color-base-100: #000000;
+  --color-base-200: #0b0b0b;
+  --color-base-300: #1f1f1f;
+  --color-base-content: #ffffff;
+  --color-primary: #a5b4fc;
+  --color-primary-content: #000000;
+  --color-secondary: #e9d5ff;
+  --color-secondary-content: #000000;
+  --color-accent: #7dd3fc;
+  --color-accent-content: #000000;
+  --color-neutral: #262626;
+  --color-neutral-content: #ffffff;
+  --color-info: #7dd3fc;
+  --color-info-content: #000000;
+  --color-success: #86efac;
+  --color-success-content: #000000;
+  --color-warning: #fde047;
+  --color-warning-content: #000000;
+  --color-error: #fca5a5;
+  --color-error-content: #000000;
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.25rem;
+  --border: 2px;
+}
+
+/* Catppuccin, the palette of github.com/catppuccin (v1.8.0) with the roles of catppuccin/daisyui:
+   base/mantle/crust, text, lavender as primary, mauve, teal, surface1, sky, green, yellow, red. In
+   Latte the accents used as text are darkened to 4.5:1 on the base (WCAG AA), see the muted colors
+   below for the de-emphasized text. */
+
+[data-theme="catppuccin-latte"] {
+  color-scheme: light;
+  --color-base-100: #eff1f5;
+  --color-base-200: #e6e9ef;
+  --color-base-300: #dce0e8;
+  --color-base-content: #4c4f69;
+  --color-primary: #5667bf;
+  --color-primary-content: #ffffff;
+  --color-secondary: #8839ef;
+  --color-secondary-content: #ffffff;
+  --color-accent: #17787e;
+  --color-accent-content: #ffffff;
+  --color-neutral: #bcc0cc;
+  --color-neutral-content: #4c4f69;
+  --color-info: #0475a3;
+  --color-info-content: #ffffff;
+  --color-success: #347c1f;
+  --color-success-content: #ffffff;
+  --color-warning: #976018;
+  --color-warning-content: #ffffff;
+  --color-error: #d20f39;
+  --color-error-content: #ffffff;
+  --muted: #5c5f77;
+  --faint: #6c6f85;
+}
+
+[data-theme="catppuccin-frappe"] {
+  color-scheme: dark;
+  --color-base-100: #303446;
+  --color-base-200: #292c3c;
+  --color-base-300: #232634;
+  --color-base-content: #c6d0f5;
+  --color-primary: #babbf1;
+  --color-primary-content: #303446;
+  --color-secondary: #ca9ee6;
+  --color-secondary-content: #303446;
+  --color-accent: #81c8be;
+  --color-accent-content: #303446;
+  --color-neutral: #51576d;
+  --color-neutral-content: #c6d0f5;
+  --color-info: #99d1db;
+  --color-info-content: #303446;
+  --color-success: #a6d189;
+  --color-success-content: #303446;
+  --color-warning: #e5c890;
+  --color-warning-content: #303446;
+  --color-error: #e78284;
+  --color-error-content: #303446;
+}
+
+[data-theme="catppuccin-macchiato"] {
+  color-scheme: dark;
+  --color-base-100: #24273a;
+  --color-base-200: #1e2030;
+  --color-base-300: #181926;
+  --color-base-content: #cad3f5;
+  --color-primary: #b7bdf8;
+  --color-primary-content: #24273a;
+  --color-secondary: #c6a0f6;
+  --color-secondary-content: #24273a;
+  --color-accent: #8bd5ca;
+  --color-accent-content: #24273a;
+  --color-neutral: #494d64;
+  --color-neutral-content: #cad3f5;
+  --color-info: #91d7e3;
+  --color-info-content: #24273a;
+  --color-success: #a6da95;
+  --color-success-content: #24273a;
+  --color-warning: #eed49f;
+  --color-warning-content: #24273a;
+  --color-error: #ed8796;
+  --color-error-content: #24273a;
+}
+
+[data-theme="catppuccin-mocha"] {
+  color-scheme: dark;
+  --color-base-100: #1e1e2e;
+  --color-base-200: #181825;
+  --color-base-300: #11111b;
+  --color-base-content: #cdd6f4;
+  --color-primary: #b4befe;
+  --color-primary-content: #1e1e2e;
+  --color-secondary: #cba6f7;
+  --color-secondary-content: #1e1e2e;
+  --color-accent: #94e2d5;
+  --color-accent-content: #1e1e2e;
+  --color-neutral: #45475a;
+  --color-neutral-content: #cdd6f4;
+  --color-info: #89dceb;
+  --color-info-content: #1e1e2e;
+  --color-success: #a6e3a1;
+  --color-success-content: #1e1e2e;
+  --color-warning: #f9e2af;
+  --color-warning-content: #1e1e2e;
+  --color-error: #f38ba8;
+  --color-error-content: #1e1e2e;
+}
+
+/* Tokyo Night, the palette of folke/tokyonight.nvim: bg/bg_dark/bg_highlight, fg, blue as primary,
+   purple, teal, fg_gutter, cyan, green, yellow, red. Day has no dark neutral, its text is the fg
+   darkened for the body and the fg itself for the de-emphasized text. */
+
+[data-theme="tokyonight-night"] {
+  color-scheme: dark;
+  --color-base-100: #1a1b26;
+  --color-base-200: #16161e;
+  --color-base-300: #292e42;
+  --color-base-content: #c0caf5;
+  --color-primary: #7aa2f7;
+  --color-primary-content: #1a1b26;
+  --color-secondary: #9d7cd8;
+  --color-secondary-content: #1a1b26;
+  --color-accent: #1abc9c;
+  --color-accent-content: #1a1b26;
+  --color-neutral: #3b4261;
+  --color-neutral-content: #c0caf5;
+  --color-info: #7dcfff;
+  --color-info-content: #1a1b26;
+  --color-success: #9ece6a;
+  --color-success-content: #1a1b26;
+  --color-warning: #e0af68;
+  --color-warning-content: #1a1b26;
+  --color-error: #f7768e;
+  --color-error-content: #1a1b26;
+}
+
+[data-theme="tokyonight-storm"] {
+  color-scheme: dark;
+  --color-base-100: #24283b;
+  --color-base-200: #1f2335;
+  --color-base-300: #292e42;
+  --color-base-content: #c0caf5;
+  --color-primary: #7aa2f7;
+  --color-primary-content: #24283b;
+  --color-secondary: #9d7cd8;
+  --color-secondary-content: #24283b;
+  --color-accent: #1abc9c;
+  --color-accent-content: #24283b;
+  --color-neutral: #3b4261;
+  --color-neutral-content: #c0caf5;
+  --color-info: #7dcfff;
+  --color-info-content: #24283b;
+  --color-success: #9ece6a;
+  --color-success-content: #24283b;
+  --color-warning: #e0af68;
+  --color-warning-content: #24283b;
+  --color-error: #f7768e;
+  --color-error-content: #24283b;
+}
+
+[data-theme="tokyonight-day"] {
+  color-scheme: light;
+  --color-base-100: #e1e2e7;
+  --color-base-200: #d0d5e3;
+  --color-base-300: #c4c8da;
+  --color-base-content: #28458a;
+  --color-primary: #2264b7;
+  --color-primary-content: #ffffff;
+  --color-secondary: #7847bd;
+  --color-secondary-content: #ffffff;
+  --color-accent: #117260;
+  --color-accent-content: #ffffff;
+  --color-neutral: #a8aecb;
+  --color-neutral-content: #28458a;
+  --color-info: #006d91;
+  --color-info-content: #ffffff;
+  --color-success: #506d35;
+  --color-success-content: #ffffff;
+  --color-warning: #7a6038;
+  --color-warning-content: #ffffff;
+  --color-error: #c01e4d;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+  --muted: #3760bf;
+  --faint: #6172b0;
+}
+
+/* The accessibility options of Config, data-a11y-* on <html>, see src/components/appearance.rs.
+   Reduced motion: the setting, or the Reduce animations preference of the desktop with Follow
+   the system. */
+[data-a11y-motion="on"] *,
+[data-a11y-motion="on"] *::before,
+[data-a11y-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-a11y-motion="system"] *,
+  [data-a11y-motion="system"] *::before,
+  [data-a11y-motion="system"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+[data-a11y-links="on"] a,
+[data-a11y-links="on"] .nav-link {
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+}
+[data-a11y-focus="on"] :focus {
+  outline: 2px solid var(--color-primary) !important;
+  outline-offset: 2px;
+}
+
+/* The colors of the charts, read by public/charts/chart_init.js: the text and the grid from
+   the theme, and eight series in a fixed order (a series keeps its color when the others are
+   filtered out), one palette for the dark themes and one for the light ones, checked for color
+   vision deficiencies and for contrast on their surfaces with the dataviz palette validator. */
+:root {
+  --chart-fg: var(--color-base-content);
+  --chart-muted: var(--muted);
+  --chart-grid: var(--color-base-300);
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+}
+[data-theme="light"],
+[data-theme="catppuccin-latte"],
+[data-theme="tokyonight-day"] {
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #6250d6;
+  --chart-8: #e34948;
+}
+
 /* Scrollable sections always show their scrollbar, the webview hides it until scrolling. */
 .scroll-section {
   overflow-y: scroll;
   scrollbar-width: thin;
-  scrollbar-color: #6b7280 #1f2937;
+  scrollbar-color: color-mix(in oklab, var(--color-base-content) 45%, transparent) var(--color-base-200);
 }
 .scroll-section::-webkit-scrollbar {
   width: 8px;
 }
 .scroll-section::-webkit-scrollbar-track {
-  background: #1f2937;
+  background: var(--color-base-200);
 }
 .scroll-section::-webkit-scrollbar-thumb {
-  background: #6b7280;
+  background: color-mix(in oklab, var(--color-base-content) 45%, transparent);
   border-radius: 4px;
 }
 /* Names that open another view: dotted underline and pointer, solid underline on hover. */
@@ -24,20 +361,20 @@
   cursor: pointer;
   text-decoration-line: underline;
   text-decoration-style: dotted;
-  text-decoration-color: rgb(129 140 248 / 0.7);
+  text-decoration-color: color-mix(in oklab, var(--color-primary) 70%, transparent);
   text-underline-offset: 3px;
 }
 .nav-link:hover {
-  color: #a5b4fc;
+  color: var(--color-primary);
   text-decoration-style: solid;
-  text-decoration-color: #a5b4fc;
+  text-decoration-color: var(--color-primary);
 }
 /* The dropdowns and their open list are opaque, so they never show the text behind them. */
 select,
 select option,
 select optgroup {
-  background-color: #1f2937;
-  color: #e5e7eb;
+  background-color: var(--color-base-200);
+  color: var(--color-base-content);
   opacity: 1;
 }
 
@@ -47,7 +384,19 @@ table:not([data-server-sort]) thead th:not([data-no-sort]) {
   user-select: none;
 }
 table:not([data-server-sort]) thead th:not([data-no-sort]):hover {
-  color: white;
+  color: var(--color-base-content);
+}
+/* A sortable header that is not sorted shows a faint ↕, as data grids do; the sorted one its
+   direction. The replay list, sorted by the backend, marks its headers with .sortable. */
+table:not([data-server-sort]) thead th:not([data-no-sort]):not([aria-sort]):not(:empty)::after,
+thead th.sortable:not([aria-sort])::after {
+  content: " ↕";
+  font-size: 0.75em;
+  opacity: 0.35;
+}
+table:not([data-server-sort]) thead th:not([data-no-sort]):not([aria-sort]):hover::after,
+thead th.sortable:not([aria-sort]):hover::after {
+  opacity: 0.8;
 }
 thead th[aria-sort="ascending"]::after {
   content: " ▲";
@@ -56,4 +405,64 @@ thead th[aria-sort="ascending"]::after {
 thead th[aria-sort="descending"]::after {
   content: " ▼";
   font-size: 0.7em;
+}
+
+/* A number of a table: right aligned with digits of one width, so that the units, tens and
+   hundreds of the rows line up, whatever the number of digits. */
+@utility num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The digits of the tables have one width everywhere, the number columns are also `num`. */
+@layer base {
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* A cell of the map in Map Details: underlined with dots, hovering or focusing it highlights it
+   on the map, see src/components/map_cell.rs. */
+.map-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  cursor: crosshair;
+}
+.map-cell:hover,
+.map-cell:focus-visible {
+  color: var(--color-base-content);
+  text-decoration-style: solid;
+}
+
+/* The gutter between the players of Replay Detail: the wheel scrolls the page there, not a
+   section of a player. */
+.scroll-gutter {
+  background: color-mix(in oklab, var(--color-base-content) 4%, transparent);
+  border-inline: 1px solid color-mix(in oklab, var(--color-base-content) 12%, transparent);
+}
+.scroll-gutter:hover {
+  background: color-mix(in oklab, var(--color-base-content) 8%, transparent);
+}
+
+/* The logos of Rerun and Bevy as icons in the color of the text, see
+   src/components/brand_icon.rs. */
+.brand-icon {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  background-color: currentColor;
+  -webkit-mask: var(--brand-icon) center / contain no-repeat;
+  mask: var(--brand-icon) center / contain no-repeat;
+}
+
+/* A chart paints inside its own box: ApexCharts draws parts of it as HTML inside the SVG, which
+   WebKitGTK repainted out of place while scrolling (the win chance floated over other data). */
+div[data-chart-values] {
+  contain: layout paint;
+  isolation: isolate;
 }

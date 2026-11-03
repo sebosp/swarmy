@@ -30,6 +30,30 @@ where
     });
 }
 
+/// The stored settings only, without the stats of the snapshot: quick, also with a remote backend
+/// whose snapshot stats take a request, for the views that only need the settings.
+pub fn with_fetch_stored_app_config<F>(set_app_settings: WriteSignal<AppSettings>, update_fn: F)
+where
+    F: Fn(AppSettings) + 'static,
+{
+    spawn_local(async move {
+        // get_ui_settings answers the settings themselves, not an ApiResponse.
+        match serde_wasm_bindgen::from_value::<AppSettings>(
+            invoke_without_args("get_ui_settings").await,
+        ) {
+            Ok(config) => {
+                *set_app_settings.write() = config.clone();
+                update_fn(config);
+            }
+            Err(err) => {
+                // The settings with the snapshot stats instead, the view must not wait forever.
+                console_log(&format!("Error invoking get_ui_settings: {err:?}"));
+                with_fetch_current_app_config(set_app_settings, update_fn);
+            }
+        }
+    });
+}
+
 /// Wraps the AppSettings to send over wasm without sending each param individually
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct WrapAppSettings {

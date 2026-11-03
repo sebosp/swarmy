@@ -6,7 +6,7 @@ use crate::*;
 use leptos::prelude::*;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 /// The use of the tracked abilities by patch, it does not change until the snapshot is optimized
 /// again.
@@ -17,11 +17,20 @@ pub async fn fetch_ability_usage() -> Result<AbilityUsageTable, String> {
 /// The ability name with the cost, i.e. `Abduct` and `Energy` as a title.
 #[component]
 pub fn AbilityName(ability: String) -> impl IntoView {
+    let navigation = crate::navigation::use_navigation();
     match tracked_ability(&ability) {
         Some(tracked) => view! {
-            <span class="text-white" title=format!("{} of the {}, {}", tracked.cost.label(), tracked.unit, tracked.ability)>
+            <a
+                href="#"
+                class="nav-link text-base-content"
+                title=format!("{} of the {}, {}: open the Ability view", tracked.cost.label(), tracked.unit, tracked.ability)
+                on:click=move |ev: leptos::ev::MouseEvent| {
+                    ev.prevent_default();
+                    navigation.open_ability(tracked.ability);
+                }
+            >
                 {tracked.label}
-            </span>
+            </a>
         }
         .into_any(),
         None => view! { <span>{ability}</span> }.into_any(),
@@ -38,14 +47,14 @@ pub fn AbilityUsageRows(
 ) -> impl IntoView {
     if rows.is_empty() {
         return view! {
-            <p class="text-xs text-gray-400">"No games of the snapshot used these abilities."</p>
+            <p class="text-xs text-muted">"No games of the snapshot used these abilities."</p>
         }
         .into_any();
     }
     view! {
         <table class=TABLE_CLASS>
             <thead>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-muted">
                     {show_race.then(|| view! { <th class="pr-3">"Race"</th> })}
                     <th class="pr-3">"Ability"</th>
                     <th class="pr-3">"Unit"</th>
@@ -56,7 +65,7 @@ pub fn AbilityUsageRows(
                     <th title="The most uses per game, with at least 3 games of the race">"Top players"</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-white/5">
+            <tbody class="divide-y divide-base-content/5">
                 {rows
                     .into_iter()
                     .map(|row| {
@@ -70,9 +79,9 @@ pub fn AbilityUsageRows(
                                 <td class="pr-3 py-1"><AbilityName ability=row.ability.clone() /></td>
                                 <td class="pr-3 py-1"><UnitLink unit_name=unit.to_string() /></td>
                                 <td class="pr-3 py-1">{cost}</td>
-                                <td class="pr-3 py-1 text-right font-mono text-white">{format!("{:.2}", row.per_game())}</td>
-                                <td class="pr-3 py-1 text-right font-mono">{format!("{:.0}% of {}", row.used_percent(), row.player_games)}</td>
-                                <td class="pr-3 py-1 text-right font-mono">{format!("{:.2}", row.per_game_used())}</td>
+                                <td class="pr-3 py-1 num text-base-content">{format!("{:.2}", row.per_game())}</td>
+                                <td class="pr-3 py-1 num">{format!("{:.0}% of {}", row.used_percent(), row.player_games)}</td>
+                                <td class="pr-3 py-1 num">{format!("{:.2}", row.per_game_used())}</td>
                                 <td class="py-1">
                                     {row
                                         .top_players
@@ -100,19 +109,22 @@ pub fn AbilityUsageRows(
 pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
     if abilities.is_empty() {
         return view! {
-            <p class="text-xs text-gray-400">"No ability with energy or a cooldown used."</p>
+            <p class="text-xs text-muted">"No ability with energy or a cooldown used."</p>
         }
         .into_any();
     }
     view! {
         <table class=TABLE_CLASS>
             <thead>
-                <tr class="text-left text-gray-300">
+                <tr class="text-left text-muted">
                     <th class="pr-2">"Ability"</th>
-                    <th class="pr-2 text-right">"Uses"</th>
-                    <th class="pr-2 text-right" title="The uses per game of the players of the race in the games of the patch">"Patch avg"</th>
-                    <th class="pr-2 text-right" title="The rank of this game among the games of the race in the patch, 1 is the most uses">"Game rank"</th>
-                    <th title=format!("The rank of the player by uses per game in the patch, with at least {ABILITY_RANK_MIN_GAMES} games of the race")>"Player rank"</th>
+                    <th class="num" title="The uses in this game, ▲ when 25% or more above the patch average, ▼ when 25% or more below">"Uses"</th>
+                    <th class="pr-2"></th>
+                    <th class="pr-2 num" title="The uses per game of the players of the race in the games of the patch">"Patch avg"</th>
+                    <th class="pr-2 num" title="The rank of this game among the games of the race in the patch, 1 is the most uses">"Game rank"</th>
+                    <th class="pr-2 num" title="The share of the games of the patch with as many uses or more: 5% is a game among the 5% with the most uses">"Top"</th>
+                    <th class="pr-2 num" title=format!("The rank of the player by uses per game in the patch, with at least {ABILITY_RANK_MIN_GAMES} games of the race")>"Player rank"</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -120,27 +132,34 @@ pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
                     .into_iter()
                     .map(|ability| {
                         let average = ability.patch.as_ref().map(|patch| patch.per_game());
-                        let color = match average {
-                            Some(average) if ability.uses as f64 >= average * 1.25 => "text-green-400",
-                            Some(average) if (ability.uses as f64) < average * 0.75 => "text-red-400",
-                            _ => "text-white",
+                        // The color repeats the arrow, it is not the only cue.
+                        let (color, arrow) = match average {
+                            Some(average) if ability.uses as f64 >= average * 1.25 => ("text-success", "▲"),
+                            Some(average) if (ability.uses as f64) < average * 0.75 => ("text-error", "▼"),
+                            _ => ("text-base-content", ""),
                         };
                         let is_top = ability.is_top_player();
                         view! {
                             <tr>
                                 <td class="pr-2"><AbilityName ability=ability.ability.clone() /></td>
-                                <td class=format!("pr-2 text-right font-mono {color}")>{ability.uses}</td>
-                                <td class="pr-2 text-right font-mono">
+                                <td class=format!("num {color}")>{ability.uses}</td>
+                                <td class=format!("pr-2 pl-0.5 {color}")>{arrow}</td>
+                                <td class="pr-2 num">
                                     {average.map(|average| format!("{average:.1}")).unwrap_or_else(|| "-".to_string())}
                                 </td>
-                                <td class="pr-2 text-right font-mono">
-                                    {ability.game_rank.map(|rank| format!("{} of {} (top {:.0}%)", rank.rank, rank.of, rank.top_percent())).unwrap_or_else(|| "-".to_string())}
+                                <td class="pr-2 num">
+                                    {ability.game_rank.map(|rank| rank_of(rank.rank, rank.of)).unwrap_or_else(|| "-".to_string())}
                                 </td>
-                                <td class="font-mono">
-                                    {ability.player_rank.map(|rank| format!("{} of {}", rank.rank, rank.of)).unwrap_or_else(|| "-".to_string())}
+                                <td class="pr-2 num">
+                                    {ability.game_rank.map(|rank| top_percent(rank.top_percent())).unwrap_or_else(|| "-".to_string())}
+                                </td>
+                                <td class="pr-2 num">
+                                    {ability.player_rank.map(|rank| rank_of(rank.rank, rank.of)).unwrap_or_else(|| "-".to_string())}
+                                </td>
+                                <td>
                                     {is_top.then(|| view! {
-                                        <span class="ml-1 badge badge-xs badge-accent" title=format!("In the top {ABILITY_TOP_K} players of the patch")>
-                                            {format!("top {ABILITY_TOP_K}")}
+                                        <span class="badge badge-xs badge-accent whitespace-nowrap" title=format!("Among the {ABILITY_TOP_K} players of the patch with the most uses per game")>
+                                            {format!("top {ABILITY_TOP_K} player")}
                                         </span>
                                     })}
                                 </td>
@@ -152,4 +171,36 @@ pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
         </table>
     }
     .into_any()
+}
+
+/// A rank among others, i.e. `12 / 3,450`.
+fn rank_of(rank: usize, of: usize) -> String {
+    format!(
+        "{} / {}",
+        group_digits(rank as u64),
+        group_digits(of as u64)
+    )
+}
+
+/// The share of the games ranked as high or higher, with one decimal under 10%, so that 0.4% is
+/// not shown as 0%.
+fn top_percent(percent: f64) -> String {
+    if percent < 10. {
+        format!("{percent:.1}%")
+    } else {
+        format!("{percent:.0}%")
+    }
+}
+
+/// The digits in groups of three, i.e. `3,450`.
+pub fn group_digits(value: u64) -> String {
+    let digits = value.to_string();
+    let mut grouped = String::new();
+    for (idx, digit) in digits.chars().enumerate() {
+        if idx > 0 && (digits.len() - idx) % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(digit);
+    }
+    grouped
 }

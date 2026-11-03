@@ -1,8 +1,11 @@
 pub mod abilities;
+pub mod appearance;
+pub mod brand_icon;
 pub mod charts;
 pub mod left_sidebar_menu;
 pub mod links;
 pub mod loading;
+pub mod map_cell;
 pub mod name_select;
 pub mod new_replays;
 pub mod patch;

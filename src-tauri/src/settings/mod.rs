@@ -25,7 +25,6 @@ pub async fn set_current_app_config(
     store.set("disable_parallelism", app_settings.disable_parallelism);
     store.set("replay_path", app_settings.replay_path);
     store.set("cache_path", app_settings.cache_path);
-    store.set("disable_parallelism", app_settings.disable_parallelism);
     store.set("traverse_max_depth", app_settings.traverse_max_depth);
     store.set("scan_max_files", app_settings.scan_max_files);
     store.set("process_max_files", app_settings.process_max_files);
@@ -43,8 +42,18 @@ pub async fn set_current_app_config(
         "remote_backend_token",
         app_settings.remote_backend_token.trim(),
     );
+    // The zoom is saved and applied as it changes, see zoom_step.
+    store.set(
+        "zoom_percent",
+        clamp_zoom_percent(app_settings.zoom_percent as i64),
+    );
+    store.set("theme", app_settings.theme.trim());
+    store.set("reduce_motion", app_settings.reduce_motion.trim());
+    store.set("underline_links", app_settings.underline_links);
+    store.set("focus_outline", app_settings.focus_outline);
+    store.save()?;
     // The watcher follows the replay path and the watch setting.
-    crate::replay_watcher::configure(&app_handle);
+    crate::replay_watcher::configure(std::sync::Arc::new(app_handle.clone()), false);
     Ok(())
 }
 
@@ -105,6 +114,12 @@ pub fn app_settings_from_store(store: &Map<String, Value>) -> AppSettings {
             .trim_end_matches('/')
             .to_string()
     };
+    // One of the options, the default for an unknown one, i.e. a theme that no longer exists.
+    let option_of = |key: &str, options: &[(&str, &str)], default: fn() -> String| {
+        Some(str_of(key))
+            .filter(|value| options.iter().any(|(id, _)| id == value))
+            .unwrap_or_else(default)
+    };
     AppSettings {
         replay_path: path_of("replay_path", default_replay_path),
         cache_path: path_of("cache_path", default_cache_path),
@@ -123,7 +138,61 @@ pub fn app_settings_from_store(store: &Map<String, Value>) -> AppSettings {
             .trim_end_matches('/')
             .to_string(),
         remote_backend_token: str_of("remote_backend_token"),
+        zoom_percent: clamp_zoom_percent(i64_of("zoom_percent", default_zoom_percent() as i64)),
+        theme: option_of("theme", THEMES, default_theme),
+        reduce_motion: option_of(
+            "reduce_motion",
+            REDUCE_MOTION_OPTIONS,
+            default_reduce_motion,
+        ),
+        underline_links: bool_of("underline_links"),
+        focus_outline: bool_of("focus_outline"),
     }
+}
+
+/// The stored settings without the snapshot statistics: for the window to apply the theme, the
+/// zoom and the accessibility options as soon as it opens.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn get_ui_settings(app_handle: tauri::AppHandle) -> Result<AppSettings, SwarmyError> {
+    load_stored_app_settings(&app_handle)
+}
+
+/// Zooms the main window: the webview scales the whole interface, text, charts and icons.
+pub fn apply_zoom(app_handle: &tauri::AppHandle, zoom_percent: u32) {
+    use tauri::Manager;
+    let Some(window) = app_handle.get_webview_window("main") else {
+        return;
+    };
+    if let Err(err) = window.set_zoom(zoom_percent as f64 / 100.) {
+        tracing::warn!("Unable to zoom the window to {zoom_percent}%: {err}");
+    }
+}
+
+/// Changes the zoom by steps (Ctrl+= and Ctrl+-, `0` resets it), saves it and applies it. The
+/// message is the new zoom in percent.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn zoom_step(
+    app_handle: tauri::AppHandle,
+    steps: i32,
+) -> Result<ApiResponse, SwarmyError> {
+    let store = StoreBuilder::new(&app_handle, SETTINGS_STORE).build()?;
+    let _ = store.reload();
+    let zoom_percent = if steps == 0 {
+        default_zoom_percent()
+    } else {
+        let current = store
+            .get("zoom_percent")
+            .and_then(|value| value.as_i64())
+            .unwrap_or(default_zoom_percent() as i64);
+        clamp_zoom_percent(current + steps as i64 * ZOOM_STEP_PERCENT as i64)
+    };
+    store.set("zoom_percent", zoom_percent);
+    store.save()?;
+    apply_zoom(&app_handle, zoom_percent);
+    Ok(ApiResponseBuilder::new()
+        .with_success()
+        .with_message(zoom_percent.to_string())
+        .build())
 }
 
 /// The directory of the map caches until one is configured: `swarmy-caches` in the home

@@ -7,7 +7,7 @@ use crate::*;
 use leptos::prelude::*;
 use swarmy_common::*;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 /// The rows shown in the units and upgrades tables.
 const TOP_ROWS: usize = 10;
@@ -29,21 +29,21 @@ fn optional_time(seconds: Option<f32>) -> String {
 fn compared(value: f32, snapshot: f32) -> impl IntoView {
     let better = value >= snapshot;
     view! {
-        <span class:text-green-400=better class:text-red-400=!better>{format!("{value:.0}")}</span>
-        <span class="text-gray-500">{format!(" / {snapshot:.0}")}</span>
+        <span class:text-success=better class:text-error=!better>{format!("{value:.0}")}</span>
+        <span class="text-faint">{format!(" / {snapshot:.0}")}</span>
     }
 }
 
 #[component]
 pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
     view! {
-        <p class="text-xs text-gray-500">
+        <p class="text-xs text-faint">
             {format!("From the analysis of {} games, each replay is read once and kept in memory.", insights.analyzed_games)}
         </p>
         <div class="grid grid-cols-3 gap-4">
             <Section title="Win rates" height="h-64">
                 <WinRates title="Matchup" data=insights.by_matchup.clone() />
-                <WinRates title="Game length" data=insights.by_length.iter().map(|entry| GamesWins { label: entry.label.chars().skip(3).collect(), ..entry.clone() }).collect() />
+                <WinRates title="Game length" in_order=true data=insights.by_length.iter().map(|entry| GamesWins { label: entry.label.chars().skip(3).collect(), ..entry.clone() }).collect() />
                 <WinRates title="Map" data=insights.by_map.clone() />
             </Section>
             <Section title="Tendencies" height="h-64">
@@ -57,9 +57,9 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
                                     .iter()
                                     .map(|won| {
                                         if *won {
-                                            view! { <span class="text-green-500">"▲"</span> }.into_any()
+                                            view! { <span class="text-success">"▲"</span> }.into_any()
                                         } else {
-                                            view! { <span class="text-red-500">"▼"</span> }.into_any()
+                                            view! { <span class="text-error">"▼"</span> }.into_any()
                                         }
                                     })
                                     .collect_view()}
@@ -121,11 +121,11 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
 
         <Section title="Economy against the snapshot, same matchup (player / snapshot average)" height="h-48">
             <table class=TABLE_CLASS>
-                <thead class="sticky top-0 bg-gray-800">
-                    <tr class="text-left text-gray-300">
+                <thead class="sticky top-0 bg-base-200">
+                    <tr class="text-left text-muted">
                         <th class="pr-2">"Matchup"</th>
                         <th class="pr-2">"Time"</th>
-                        <th class="pr-2">"Games"</th>
+                        <th class="pr-2 num">"Games"</th>
                         <th class="pr-2">"Workers"</th>
                         <th class="pr-2">"Supply"</th>
                         <th class="pr-2">"Income/min"</th>
@@ -140,7 +140,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
                             <tr>
                                 <td class="pr-2 font-sans">{benchmark.matchup.clone()}</td>
                                 <td class="pr-2">{format_game_time(benchmark.minute * 60)}</td>
-                                <td class="pr-2">{format!("{} / {}", benchmark.games, benchmark.snapshot_games)}</td>
+                                <td class="pr-2 num">{format!("{} / {}", benchmark.games, benchmark.snapshot_games)}</td>
                                 <td class="pr-2">{compared(benchmark.workers, benchmark.snapshot_workers)}</td>
                                 <td class="pr-2">{compared(benchmark.supply, benchmark.snapshot_supply)}</td>
                                 <td class="pr-2">{compared(benchmark.income, benchmark.snapshot_income)}</td>
@@ -177,7 +177,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
                             .take(TOP_ROWS)
                             .map(|unit| view! {
                                 <tr>
-                                    <td class="pr-2 text-white"><UnitLink unit_name=unit.unit.clone() /></td>
+                                    <td class="pr-2 text-base-content"><UnitLink unit_name=unit.unit.clone() /></td>
                                     <td>{format!("{:.1}", unit.average)}</td>
                                 </tr>
                             })
@@ -197,15 +197,35 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
     }
 }
 
+/// The games and win rate by `title`, the most played first unless `in_order`, i.e. the game
+/// lengths that are in their own order. The sorted column shows its arrow, as after a click.
 #[component]
-fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
+fn WinRates(
+    title: &'static str,
+    mut data: Vec<GamesWins>,
+    #[prop(optional)] in_order: bool,
+) -> impl IntoView {
+    if !in_order {
+        data.sort_by(|a, b| b.games.cmp(&a.games));
+    }
+    let (column, direction) = if in_order {
+        ("0", "asc")
+    } else {
+        ("1", "desc")
+    };
+    let aria =
+        |idx: &str| (idx == column).then_some(if in_order { "ascending" } else { "descending" });
     view! {
-        <table class=format!("{TABLE_CLASS} mb-2")>
+        <table
+            class=format!("{TABLE_CLASS} mb-2")
+            data-sort-column=column
+            data-sort-direction=direction
+        >
             <thead>
-                <tr class="text-left text-gray-300">
-                    <th class="pr-2">{title}</th>
-                    <th class="pr-2">"Games"</th>
-                    <th>"Win rate"</th>
+                <tr class="text-left text-muted">
+                    <th class="pr-2" aria-sort=aria("0")>{title}</th>
+                    <th class="pr-2 num" aria-sort=aria("1")>"Games"</th>
+                    <th class="num" aria-sort=aria("2")>"Win rate"</th>
                 </tr>
             </thead>
             <tbody>
@@ -213,9 +233,9 @@ fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
                     .into_iter()
                     .map(|entry| view! {
                         <tr>
-                            <td class="pr-2 text-white">{entry.label}</td>
-                            <td class="pr-2">{entry.games}</td>
-                            <td>{percent(entry.wins, entry.games)}</td>
+                            <td class="pr-2 text-base-content">{entry.label}</td>
+                            <td class="pr-2 num">{entry.games}</td>
+                            <td class="num">{percent(entry.wins, entry.games)}</td>
                         </tr>
                     })
                     .collect_view()}
@@ -229,11 +249,11 @@ fn WinRates(title: &'static str, data: Vec<GamesWins>) -> impl IntoView {
 fn ChoiceTable(shares: Vec<ChoiceShare>, units: bool) -> impl IntoView {
     view! {
         <table class=TABLE_CLASS>
-            <thead class="sticky top-0 bg-gray-800">
-                <tr class="text-left text-gray-300">
+            <thead class="sticky top-0 bg-base-200">
+                <tr class="text-left text-muted">
                     <th class="pr-2">"Context"</th>
                     <th class="pr-2">"Choice"</th>
-                    <th class="pr-2">"Share"</th>
+                    <th class="pr-2 num">"Share"</th>
                     <th>"Win rate"</th>
                 </tr>
             </thead>
@@ -243,14 +263,14 @@ fn ChoiceTable(shares: Vec<ChoiceShare>, units: bool) -> impl IntoView {
                     .map(|share| view! {
                         <tr>
                             <td class="pr-2">{share.context}</td>
-                            <td class="pr-2 text-white">
+                            <td class="pr-2 text-base-content">
                                 {if units {
                                     view! { <UnitLink unit_name=share.choice /> }.into_any()
                                 } else {
                                     share.choice.into_any()
                                 }}
                             </td>
-                            <td class="pr-2">{format!("{} ({}/{})", percent(share.games, share.context_games), share.games, share.context_games)}</td>
+                            <td class="pr-2 num">{format!("{} ({}/{})", percent(share.games, share.context_games), share.games, share.context_games)}</td>
                             <td>{percent(share.wins, share.games)}</td>
                         </tr>
                     })
@@ -270,7 +290,7 @@ fn CountsTable(counts: Vec<UnitCount>, units: bool) -> impl IntoView {
                     .take(TOP_ROWS)
                     .map(|count| view! {
                         <tr>
-                            <td class="pr-2 text-white">
+                            <td class="pr-2 text-base-content">
                                 {if units {
                                     view! { <UnitLink unit_name=count.unit /> }.into_any()
                                 } else {
@@ -310,7 +330,7 @@ fn RatingChart(ratings: Vec<RatingPoint>) -> impl IntoView {
         );
     view! {
         <Section title="Rating" height="h-40">
-            <p class="text-xs text-gray-400">
+            <p class="text-xs text-muted">
                 {format!("From {} to {}, between {min} and {max}", ratings[0].date, ratings[ratings.len() - 1].date)}
             </p>
             <LineChart data=chart class="h-28" />

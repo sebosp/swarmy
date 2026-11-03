@@ -1,7 +1,10 @@
 //! How to use swarmy and how its statistics are calculated.
 
 use crate::components::section::Panel;
+use crate::*;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
+use swarmy_common::*;
 
 /// A term and its explanation.
 type Entry = (&'static str, &'static str);
@@ -13,7 +16,11 @@ const GETTING_STARTED: [Entry; 5] = [
          the map caches (.s2ma files) are downloaded. On Windows the replays are by default in \
          Documents\\StarCraft II\\Accounts and the map caches in swarmy-caches in your home \
          directory. The Duplicate Replays Folder, outside of the replay path, is where Scan moves \
-         the duplicate replays.",
+         the duplicate replays. Remote Backend is the swarmy of another computer, started with \
+         --serve, that runs Scan, Optimize and the queries of its snapshot for this one. Below \
+         it, the zoom (also Ctrl+= and Ctrl+- in any view, Ctrl+0 resets), the theme (Swarmy, \
+         Light, Dark, High contrast, Catppuccin, Tokyo Night or the preference of the desktop), \
+         the motion, the link underlines and the focus outline, all kept on this computer.",
     ),
     (
         "Map caches",
@@ -67,7 +74,22 @@ const TROUBLESHOOTING: [Entry; 2] = [
     ),
 ];
 
-const VIEWS: [Entry; 16] = [
+const VIEWS: [Entry; 18] = [
+    (
+        "Player accounts",
+        "A player is its StarCraft II accounts: the games of an account count for it when its name \
+         or clan tag changes, the accounts with the same name are one player. In the Player view, \
+         Accounts lists them and the accounts with a similar name: Add groups an account of another \
+         region or of a tournament with the player, Remove separates it again.",
+    ),
+    (
+        "Ability",
+        "One ability with energy or a cooldown, i.e. Inject Larva or Yamato Cannon, in the games \
+         of the snapshot: the share of the games of its race it is used in, the uses per game by \
+         month and by patch, by matchup, the players with the most uses per game, the games with \
+         the most uses, and the average and fastest game time of its first use. Click an ability \
+         in Replay Detail, Race Detail or the Patch Overview to open it.",
+    ),
     (
         "Progress",
         "With your Main Player Name in Config, the workers at 06:00, the income at 08:00, the \
@@ -328,15 +350,15 @@ fn entries(entries: &[Entry]) -> impl IntoView + use<> {
         .map(|(term, explanation)| {
             view! {
                 <tr class="align-top">
-                    <td class="pr-4 py-1 text-white whitespace-nowrap">{*term}</td>
+                    <td class="pr-4 py-1 text-base-content whitespace-nowrap">{*term}</td>
                     <td class="py-1">{*explanation}</td>
                 </tr>
             }
         })
         .collect_view();
     view! {
-        <table class="min-w-full text-sm text-gray-400">
-            <tbody class="divide-y divide-white/5">{rows}</tbody>
+        <table class="min-w-full text-sm text-muted">
+            <tbody class="divide-y divide-base-content/5">{rows}</tbody>
         </table>
     }
 }
@@ -345,11 +367,105 @@ fn entries(entries: &[Entry]) -> impl IntoView + use<> {
 pub fn Help() -> impl IntoView {
     view! {
         <div class="max-w-5xl p-2 space-y-4">
-            <h1 class="text-xl font-semibold text-white">"Help"</h1>
+            <h1 class="text-xl font-semibold text-base-content">"Help"</h1>
             <Panel title="Getting started">{entries(&GETTING_STARTED)}</Panel>
             <Panel title="Views">{entries(&VIEWS)}</Panel>
             <Panel title="How the statistics are calculated">{entries(&LOGIC)}</Panel>
             <Panel title="Troubleshooting">{entries(&TROUBLESHOOTING)}</Panel>
+            <Panel title="Versions">
+                <VersionDependencies />
+            </Panel>
         </div>
+    }
+}
+
+/// The arguments of the check_remote_backend command.
+#[derive(serde::Serialize)]
+struct RemoteBackendArgs {
+    remote_backend_url: String,
+    remote_backend_token: String,
+}
+
+/// The versions of swarmy and of the libraries it is built with, here and, with a remote backend,
+/// in the backend: both should be the same.
+#[component]
+fn VersionDependencies() -> impl IntoView {
+    let local = RwSignal::new(AppVersions::default());
+    let remote = RwSignal::new(None::<(String, Result<AppVersions, String>)>);
+    spawn_local(async move {
+        match invoke_json::<AppVersions>("get_app_versions", &()).await {
+            Ok(versions) => local.set(versions),
+            Err(err) => leptos::logging::error!("Unable to read the versions: {err}"),
+        }
+    });
+    let (_, set_app_settings) = signal(AppSettings::default());
+    crate::settings::with_fetch_current_app_config(
+        set_app_settings,
+        move |settings: AppSettings| {
+            if !settings.is_remote() {
+                return;
+            }
+            let host = settings.remote_host().to_string();
+            let args = RemoteBackendArgs {
+                remote_backend_url: settings.remote_backend_url.clone(),
+                remote_backend_token: settings.remote_backend_token.clone(),
+            };
+            spawn_local(async move {
+                let versions = invoke_json::<AppVersions>("check_remote_backend", &args).await;
+                remote.set(Some((host, versions)));
+            });
+        },
+    );
+    let version_of = move |versions: &AppVersions, name: &str| -> String {
+        match name {
+            "swarmy" => versions.swarmy.clone(),
+            "s2protocol-rs" => versions.s2protocol.clone(),
+            "Rerun" => versions.rerun.clone(),
+            "Polars" => versions.polars.clone(),
+            _ => versions.tauri.clone(),
+        }
+    };
+    let names = ["swarmy", "s2protocol-rs", "Rerun", "Polars", "Tauri"];
+    view! {
+        <table class="text-sm">
+            <thead>
+                <tr class="text-left text-muted">
+                    <th class="pr-6 font-normal"></th>
+                    <th class="pr-6 font-normal">"This computer"</th>
+                    {move || remote.get().map(|(host, _)| view! {
+                        <th class="font-normal">{format!("Remote backend {host}")}</th>
+                    })}
+                </tr>
+            </thead>
+            <tbody>
+                {names
+                    .into_iter()
+                    .map(|name| {
+                        view! {
+                            <tr>
+                                <td class="pr-6 text-muted">{name}</td>
+                                <td class="pr-6 text-base-content">
+                                    <code>
+                                        {move || {
+                                            if name == "swarmy" && local.get().swarmy.is_empty() {
+                                                env!("CARGO_PKG_VERSION").to_string()
+                                            } else {
+                                                version_of(&local.get(), name)
+                                            }
+                                        }}
+                                    </code>
+                                </td>
+                                {move || remote.get().map(|(_, versions)| match versions {
+                                    Ok(versions) => view! {
+                                        <td class="text-base-content"><code>{version_of(&versions, name)}</code></td>
+                                    }.into_any(),
+                                    Err(_) => view! { <td class="text-error">"unreachable"</td> }.into_any(),
+                                })}
+                            </tr>
+                        }
+                    })
+                    .collect_view()}
+            </tbody>
+        </table>
     }
 }

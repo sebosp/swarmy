@@ -1,8 +1,14 @@
 /// Common views.
+pub mod storage;
+
 use leptos::{leptos_dom::logging::console_log, prelude::*};
 use phosphor_leptos::{Icon, IconWeight, X_CIRCLE};
 use swarmy_common::{ApiResponse, ResponseMeta};
 use wasm_bindgen::JsValue;
+
+/// The `<select>` of the views, i.e. the matchup of Replays, the theme of Config.
+pub const SELECT_CLASS: &str =
+    "select select-sm w-full bg-base-200 text-base-content border border-base-content/20";
 
 pub fn text_input_tailwind_classes() -> Vec<&'static str> {
     vec![
@@ -14,17 +20,17 @@ pub fn text_input_tailwind_classes() -> Vec<&'static str> {
         "outline-1",
         "-outline-offset-1",
         "sm:text-sm/6",
-        "bg-white/5",
-        "text-gray-300",
-        "outline-white/10",
-        "placeholder:text-gray-500",
+        "bg-base-content/5",
+        "text-muted",
+        "outline-base-content/10",
+        "placeholder:text-faint",
         "focus:outline-2",
         "focus:-outline-offset-2",
-        "focus:outline-indigo-500",
+        "focus:outline-primary",
         "disabled:cursor-not-allowed",
-        "disabled:bg-gray-50",
-        "disabled:text-gray-500",
-        "disabled:outline-gray-200",
+        "disabled:bg-base-300",
+        "disabled:text-faint",
+        "disabled:outline-base-content/20",
     ]
 }
 
@@ -46,14 +52,14 @@ pub fn DisplayBackendStatus(
         <Show when=move || {
             !backend_response.get().meta.success && backend_response.get().meta.is_complete
         }>
-            <div class="border-l-4 mt-1 p-2 border-red-500 bg-red-500/10">
+            <div class="border-l-4 mt-1 p-2 border-error bg-error/10">
                 <div class="flex">
-                    <div class="shrink-0 text-red-500 size-5">
+                    <div class="shrink-0 text-error size-5">
                         <Icon icon=X_CIRCLE weight=IconWeight::Bold prop:class="stroke-current" />
                     </div>
                     <div class="ml-3">
-                        <p class="text-ellipsis overflow-hidden text-sm text-red-300">
-                            <p class="text-sm text-red-300"></p>
+                        <p class="text-ellipsis overflow-hidden text-sm text-error">
+                            <p class="text-sm text-error"></p>
                             <For
                                 each=move || error_lines()
                                 key=|line| line.clone()
@@ -145,7 +151,7 @@ pub fn format_resources(resources: u32) -> String {
 pub fn ErrorMessage(error: RwSignal<Option<String>>) -> impl IntoView {
     view! {
         <Show when=move || error.get().is_some()>
-            <div class="border-l-4 mt-1 p-2 border-red-500 bg-red-500/10 text-sm text-red-300">
+            <div class="border-l-4 mt-1 p-2 border-error bg-error/10 text-sm text-error">
                 {move || error.get().unwrap_or_default()}
             </div>
         </Show>

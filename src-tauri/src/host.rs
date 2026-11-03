@@ -25,6 +25,8 @@ pub trait SwarmyHost: std::fmt::Debug + Send + Sync + 'static {
     fn replays_changed(&self);
     /// The coordinator of the long running tasks.
     fn majordomo(&self) -> mpsc::Sender<AsyncTask>;
+    /// The watcher of the replay path, see `replay_watcher`.
+    fn replay_watcher(&self) -> std::sync::Arc<crate::replay_watcher::ReplayWatcherState>;
 }
 
 impl SwarmyHost for tauri::AppHandle {
@@ -56,10 +58,16 @@ impl SwarmyHost for tauri::AppHandle {
     }
 
     fn replays_changed(&self) {
-        crate::replay_watcher::refresh(self);
+        crate::replay_watcher::refresh(std::sync::Arc::new(self.clone()));
     }
 
     fn majordomo(&self) -> mpsc::Sender<AsyncTask> {
         self.state::<crate::SetupState>().majordomo_tx.clone()
+    }
+
+    fn replay_watcher(&self) -> std::sync::Arc<crate::replay_watcher::ReplayWatcherState> {
+        self.state::<std::sync::Arc<crate::replay_watcher::ReplayWatcherState>>()
+            .inner()
+            .clone()
     }
 }

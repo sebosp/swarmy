@@ -7,7 +7,10 @@ use crate::scan::optimize_progress::TauriEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use phosphor_leptos::{Icon, IconWeight, DATABASE};
-use swarmy_common::{Lesson, NewReplaysStatus, NEW_REPLAYS_EVENT};
+use s2protocol::snapshot::SnapshotProgress;
+use swarmy_common::{
+    AppSettings, Lesson, NewReplaysStatus, NEW_REPLAYS_EVENT, OPTIMIZE_PROGRESS_EVENT,
+};
 use wasm_bindgen::prelude::*;
 
 /// Listens to the watcher for as long as the app runs.
@@ -31,6 +34,26 @@ fn listen_to_new_replays(status: RwSignal<NewReplaysStatus>) {
     });
 }
 
+/// Listens to the progress of Optimize, here or in the remote backend: `updated` is set to the
+/// replays it read when it finishes.
+fn listen_to_optimize(updated: RwSignal<Option<usize>>) {
+    let read = std::rc::Rc::new(std::cell::Cell::new(0usize));
+    let handler = Closure::<dyn FnMut(JsValue)>::new(move |event: JsValue| {
+        match serde_wasm_bindgen::from_value::<TauriEvent<SnapshotProgress>>(event) {
+            Ok(event) => match event.payload {
+                SnapshotProgress::ValidReplays { count } => read.set(count),
+                SnapshotProgress::Done { .. } => updated.set(Some(read.get())),
+                _ => {}
+            },
+            Err(err) => leptos::logging::error!("Invalid optimize progress: {err:?}"),
+        }
+    });
+    spawn_local(async move {
+        let _ = crate::listen(OPTIMIZE_PROGRESS_EVENT, &handler).await;
+        handler.forget();
+    });
+}
+
 /// The message of a new replay is shown for this long.
 const NEW_REPLAY_TOAST_SECONDS: u64 = 15;
 
@@ -40,8 +63,31 @@ const LESSON_DELAY_SECONDS: u64 = 3;
 #[component]
 pub fn NewReplaysBanner() -> impl IntoView {
     let navigation = use_navigation();
-    let status = RwSignal::new(NewReplaysStatus::default());
-    listen_to_new_replays(status);
+    let received = RwSignal::new(NewReplaysStatus::default());
+    listen_to_new_replays(received);
+    // The settings of this computer: with a remote backend the status is the one of the backend,
+    // shown when this computer asked to receive it, with the messages it asked for.
+    let settings = RwSignal::new(None::<AppSettings>);
+    Effect::new(move |_| {
+        received.track();
+        spawn_local(async move {
+            if let Ok(current) = serde_wasm_bindgen::from_value::<AppSettings>(
+                crate::invoke_without_args("get_ui_settings").await,
+            ) {
+                settings.set(Some(current));
+            }
+        });
+    });
+    let status = Memo::new(move |_| {
+        let mut status = received.get();
+        if let Some(settings) = settings.get().filter(AppSettings::is_remote) {
+            if !settings.watch_new_replays {
+                status = NewReplaysStatus::default();
+            }
+            status.notify = settings.watch_new_replays && settings.notify_new_replays;
+        }
+        status
+    });
     // With the notify_new_replays setting, each replay the watcher finds is shown for a while.
     let toast = RwSignal::new(None::<String>);
     // The most costly lesson of the Main Player Name of Config in the new replay.
@@ -89,26 +135,26 @@ pub fn NewReplaysBanner() -> impl IntoView {
         }
         current
     });
+    // What the banner says: the new replays to add, what Refresh does.
     let message = move || {
         let status = status.get();
-        let mut parts = vec![];
-        if status.new_replays > 0 {
-            parts.push(format!(
-                "{} new replays are not in the snapshot",
-                status.new_replays
-            ));
-        }
+        let mut message = match status.new_replays {
+            0 => String::new(),
+            1 => "1 new replay available. Refresh the snapshot to add it.".to_string(),
+            count => format!("{count} new replays available. Refresh the snapshot to add them."),
+        };
         if status.outdated_days > 0 {
-            parts.push(format!(
-                "{} days were parsed by another version of s2protocol",
+            message.push_str(&format!(
+                " {} days were read by an older version of swarmy, Refresh reads them again.",
                 status.outdated_days
             ));
         }
-        format!(
-            "{}. Rebuild only parses these replays, the others are kept.",
-            parts.join(", ")
-        )
+        message.trim().to_string()
     };
+    // An Optimize finished, here or in the remote backend: the views show the games they loaded,
+    // a reload shows the new ones. Not shown on Scan, which shows the result.
+    let updated = RwSignal::new(None::<usize>);
+    listen_to_optimize(updated);
     view! {
         {move || {
             toast
@@ -156,16 +202,46 @@ pub fn NewReplaysBanner() -> impl IntoView {
                 })
         }}
         <Show when=move || status.get().needs_optimize()>
-            <div class="flex items-center justify-between gap-2 px-3 py-1 text-sm text-indigo-100 bg-indigo-900/60 border-b border-indigo-500/40">
+            <div class="flex items-center justify-between gap-2 px-3 py-1 text-sm text-primary bg-primary/20 border-b border-primary/40">
                 <span>{message}</span>
                 <button
                     class="btn btn-accent btn-xs"
-                    title="Opens Scan and runs Optimize, it only adds the replays that are not in the snapshot"
+                    title="Opens Scan and adds the new replays to the snapshot, the others are kept"
                     on:click=move |_| navigation.optimize_snapshot()
                 >
                     <Icon icon=DATABASE weight=IconWeight::Light prop:class="stroke-current" />
-                    "Rebuild"
+                    "Refresh snapshot"
                 </button>
+            </div>
+        </Show>
+        <Show when=move || {
+            updated.get().is_some() && navigation.active_page.get() != crate::navigation::SCAN_PAGE
+        }>
+            <div class="flex items-center justify-between gap-2 px-3 py-1 text-sm text-success bg-success/15 border-b border-success/40">
+                <span>
+                    {move || match updated.get().unwrap_or_default() {
+                        0 => "The snapshot was updated. Reload the view to see it.".to_string(),
+                        1 => "The snapshot was updated: 1 new game. Reload the view to see it.".to_string(),
+                        games => format!("The snapshot was updated: {games} new games. Reload the view to see them."),
+                    }}
+                </span>
+                <span class="flex gap-1">
+                    <button
+                        class="btn btn-success btn-xs"
+                        title="Shows the view again with the games of the snapshot"
+                        on:click=move |_| {
+                            updated.set(None);
+                            if let Some(window) = web_sys::window() {
+                                let _ = window.location().reload();
+                            }
+                        }
+                    >
+                        "Reload view"
+                    </button>
+                    <button class="btn btn-ghost btn-xs" title="Close" on:click=move |_| updated.set(None)>
+                        "✕"
+                    </button>
+                </span>
             </div>
         </Show>
     }

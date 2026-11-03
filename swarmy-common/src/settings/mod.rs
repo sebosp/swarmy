@@ -55,12 +55,104 @@ pub struct AppSettings {
     /// The token of the remote backend, its `--token`.
     #[serde(default)]
     pub remote_backend_token: String,
+    /// The zoom of the interface in percent, 100 is the size of the system: Ctrl+= and Ctrl+-
+    /// change it, Ctrl+0 resets it.
+    #[serde(default = "default_zoom_percent")]
+    pub zoom_percent: u32,
+    /// The color theme, one of [`THEMES`].
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    /// Reduces the animations and transitions: `system` follows the preference of the desktop,
+    /// `on` and `off` override it.
+    #[serde(default = "default_reduce_motion")]
+    pub reduce_motion: String,
+    /// Underlines every link, not only on hover.
+    #[serde(default)]
+    pub underline_links: bool,
+    /// Shows the focus outline on every focused element, also with the mouse.
+    #[serde(default)]
+    pub focus_outline: bool,
+}
+
+/// The values of `reduce_motion`, `(id, label)`.
+pub const REDUCE_MOTION_OPTIONS: &[(&str, &str)] = &[
+    ("system", "Follow the system"),
+    ("on", "Reduce"),
+    ("off", "Animate"),
+];
+
+pub fn default_reduce_motion() -> String {
+    "system".to_string()
+}
+
+pub const ZOOM_MIN_PERCENT: u32 = 50;
+pub const ZOOM_MAX_PERCENT: u32 = 250;
+pub const ZOOM_STEP_PERCENT: u32 = 10;
+
+pub fn default_zoom_percent() -> u32 {
+    100
+}
+
+/// The theme swarmy had before the themes, the dark gray and indigo one.
+pub const DEFAULT_THEME: &str = "swarmy";
+
+pub fn default_theme() -> String {
+    DEFAULT_THEME.to_string()
+}
+
+/// Follows the light or dark preference of the system, `swarmy` when dark, `light` when light.
+pub const SYSTEM_THEME: &str = "system";
+
+/// The themes of the interface, `(id, label)`: the ids are the daisyUI themes of styles.css.
+pub const THEMES: &[(&str, &str)] = &[
+    (DEFAULT_THEME, "Swarmy, dark gray and indigo"),
+    (SYSTEM_THEME, "Follow the system, Swarmy or Light"),
+    ("light", "Light"),
+    ("dark", "Dark"),
+    ("high-contrast", "High contrast, dark"),
+    ("catppuccin-latte", "Catppuccin Latte (light)"),
+    ("catppuccin-frappe", "Catppuccin Frappé"),
+    ("catppuccin-macchiato", "Catppuccin Macchiato"),
+    ("catppuccin-mocha", "Catppuccin Mocha"),
+    ("tokyonight-day", "Tokyo Night Day (light)"),
+    ("tokyonight-storm", "Tokyo Night Storm"),
+    ("tokyonight-night", "Tokyo Night Night"),
+];
+
+/// The zoom clamped to its bounds, in steps.
+pub fn clamp_zoom_percent(percent: i64) -> u32 {
+    let percent = percent.clamp(ZOOM_MIN_PERCENT as i64, ZOOM_MAX_PERCENT as i64) as u32;
+    percent / ZOOM_STEP_PERCENT * ZOOM_STEP_PERCENT
 }
 
 impl AppSettings {
     /// Whether the queries of the snapshot run in a remote backend.
     pub fn is_remote(&self) -> bool {
         !self.remote_backend_url.trim().is_empty()
+    }
+
+    /// The host and port of the remote backend, i.e. `wormgat-zt:7878` of `http://wormgat-zt:7878`.
+    pub fn remote_host(&self) -> &str {
+        let url = self.remote_backend_url.trim();
+        url.split_once("://")
+            .map_or(url, |(_, rest)| rest)
+            .trim_end_matches('/')
+    }
+
+    /// Whether Scan and Optimize can run: the remote backend uses the replay path of its own
+    /// Config, this computer needs one.
+    pub fn can_scan(&self) -> bool {
+        self.is_remote() || !self.replay_path.is_empty()
+    }
+
+    /// The replay path of the snapshot: the one of the remote backend when one is set, as its
+    /// snapshot stats tell, empty until they are loaded.
+    pub fn snapshot_replay_path(&self) -> String {
+        if self.is_remote() {
+            self.snapshot_stats.replay_path.clone()
+        } else {
+            self.replay_path.clone()
+        }
     }
 }
 

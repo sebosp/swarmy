@@ -23,10 +23,13 @@ fn sort_columns(sort_by: ReplayListSort) -> Vec<&'static str> {
 
 /// The replays that match the query, `replays` are the sha256 of the replays to keep, from the
 /// notes, tags and messages of the personal database, none to keep all of them.
+/// `groups` are the accounts grouped under a player (personal database), so that the search of a
+/// player finds the games of all its accounts.
 pub fn try_query_replay_list(
     replay_path: String,
     query: ReplayListQuery,
     replays: Option<std::collections::HashSet<String>>,
+    groups: &std::collections::HashMap<String, String>,
 ) -> Result<ReplayList, SwarmyError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
@@ -61,16 +64,24 @@ pub fn try_query_replay_list(
         details_query = details_query.filter(col("ext_protocol_version").eq(lit(protocol_version)));
     }
     if !query.player_name.is_empty() {
-        // Keep all the players of the games in which a player matches.
-        details_query = details_query.filter(
-            col("player_name")
+        // The games of the players or of the names that match, with all their players: a player
+        // is its accounts, the search of Clem finds the games his accounts played as LiquidClem.
+        let search = query.player_name.to_lowercase();
+        let matches = |column: &str| {
+            col(column)
                 .str()
                 .to_lowercase()
                 .str()
-                .contains_literal(lit(query.player_name.to_lowercase()))
-                .any(true)
-                .over([col("ext_fs_id")])?,
-        );
+                .contains_literal(lit(search.clone()))
+        };
+        let games = details_with_players(&ipc_path, groups)?
+            .filter(matches("player").or(matches("name")))
+            .select([col("ext_fs_id")])
+            .unique(None, UniqueKeepStrategy::Any)
+            .collect()?;
+        let games = games.column("ext_fs_id")?.as_materialized_series().clone();
+        details_query =
+            details_query.filter(col("ext_fs_id").is_in(lit(games).implode(false), false));
     }
     let mut games = details_query
         .with_column(race_letter_expr("player_race").alias("race_letter"))

@@ -7,7 +7,18 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use swarmy_common::{GamesWins, UnitMonthUsage};
 
 /// The colors of the series, tailwind indigo-500, green-500, sky-500, yellow-500, purple-500.
-pub const CHART_COLORS: [&str; 5] = ["#6366f1", "#22c55e", "#0ea5e9", "#eab308", "#a855f7"];
+/// The series colors of the theme, `--chart-N` of styles.css, in a fixed order: a series keeps
+/// its color when the others are filtered out.
+pub const CHART_COLORS: [&str; 8] = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+    "var(--chart-6)",
+    "var(--chart-7)",
+    "var(--chart-8)",
+];
 
 /// A unique id per chart, so that the charts are destroyed when their container is removed.
 fn next_chart_id(kind: &str) -> String {
@@ -139,6 +150,17 @@ pub fn LineChart(data: ChartData, #[prop(default = "h-48")] class: &'static str)
     view! { <ApexChart name="LineChart" data class /> }
 }
 
+/// One line around an even middle, as the evaluation graph of a chess game: the values go from
+/// -50, the second side wins for sure, to 50, the first one does. The area between the line and
+/// the middle has the first color of `data` above it and the second one below.
+#[component]
+pub fn AdvantageChart(
+    data: ChartData,
+    #[prop(default = "h-48")] class: &'static str,
+) -> impl IntoView {
+    view! { <ApexChart name="AdvantageChart" data class /> }
+}
+
 /// The games (gray) and wins (green) of each label, i.e. per month, as bars.
 #[component]
 pub fn GamesWinsChart(data: Vec<GamesWins>) -> impl IntoView {
@@ -157,7 +179,7 @@ pub fn GamesWinsChart(data: Vec<GamesWins>) -> impl IntoView {
             data.iter().map(|entry| entry.games as f64).collect(),
         )
         .with_series("Wins", data.iter().map(|entry| entry.wins as f64).collect())
-        .with_colors(&["#4b5563", CHART_COLORS[1]])
+        .with_colors(&["var(--chart-grid)", CHART_COLORS[1]])
         .with_tooltips(tooltips);
     view! { <BarChart data=chart /> }
 }

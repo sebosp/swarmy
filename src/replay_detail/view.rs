@@ -2,7 +2,8 @@
 
 use super::notes::ReplayNotesPanel;
 use crate::components::abilities::AbilityUses;
-use crate::components::charts::{BarChart, ChartData, LineChart};
+use crate::components::brand_icon::BrandIcon;
+use crate::components::charts::{AdvantageChart, BarChart, ChartData, LineChart, CHART_COLORS};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
 };
@@ -17,7 +18,8 @@ use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use phosphor_leptos::{
-    Icon, IconWeight, CARET_LEFT, CARET_RIGHT, CUBE, LOCK_SIMPLE, LOCK_SIMPLE_OPEN, STRATEGY,
+    Icon, IconWeight, CARET_DOUBLE_RIGHT, CARET_DOWN, CARET_LEFT, CARET_RIGHT, EXPORT, LOCK_SIMPLE,
+    LOCK_SIMPLE_OPEN,
 };
 use swarmy_common::*;
 
@@ -30,7 +32,7 @@ const MIN_PRODUCED_FOR_EFFECTIVENESS: usize = 3;
 /// A side that lost this many times what the other lost made a bad trade.
 const BAD_TRADE_RATIO: f32 = 1.5;
 
-const TABLE_CLASS: &str = "min-w-full text-xs text-gray-400";
+const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 
 #[component]
 pub fn ReplayDetailView() -> impl IntoView {
@@ -69,21 +71,48 @@ pub fn ReplayDetailView() -> impl IntoView {
     view! {
         <div class="p-2 space-y-3">
             <Show when=move || navigation.replay_id.get().is_none() && error.get().is_none()>
-                <p class="text-sm">"Looking for the newest replay of the snapshot..."</p>
+                <Loading message="Analysing the latest replay of the snapshot..." />
             </Show>
             <Show when=move || loading.get()>
-                <Loading message="Analysing the replay..." />
+                {move || {
+                    let id = navigation.replay_id.get().unwrap_or_default();
+                    let message = match navigation.replay_preview.get() {
+                        Some(preview) if preview.ext_fs_id == id => format!(
+                            "Analysing replay {id} on {}: {}...",
+                            preview.map_title,
+                            preview
+                                .players
+                                .iter()
+                                .map(|name| clean_player_name_clan_escapes(name))
+                                .collect::<Vec<_>>()
+                                .join(" vs "),
+                        ),
+                        _ => format!("Analysing replay {id}..."),
+                    };
+                    view! { <Loading message /> }
+                }}
             </Show>
             <ErrorMessage error />
+            // The replay shown until the next one is analysed is grayed out and cannot be hovered,
+            // so that its charts are not read as the ones of the next replay.
+            <div
+                class=move || {
+                    if loading.get() {
+                        "space-y-3 opacity-40 pointer-events-none select-none"
+                    } else {
+                        "space-y-3"
+                    }
+                }
+                aria-busy=move || loading.get().to_string()
+            >
             {move || {
                 detail
                     .get()
                     .map(|detail| {
                         view! {
                             <ReplayNavigation detail=detail.clone() error />
-                            <ReplayHeader detail=detail.clone() />
                             <ReplayNotesPanel sha256=detail.sha256.clone() />
-                            <div class="flex gap-4 text-xs text-gray-400">
+                            <div class="flex gap-4 text-xs text-muted">
                                 <label class="flex items-center gap-1">
                                     <input
                                         type="checkbox"
@@ -116,6 +145,7 @@ pub fn ReplayDetailView() -> impl IntoView {
                                         />
                                     }
                                 })}
+                            {detail.creep.clone().map(|creep| view! { <CreepPanel creep /> })}
                             <PlayerSections
                                 players=detail.players.clone()
                                 snapshot_seconds=detail.snapshot_seconds
@@ -127,6 +157,7 @@ pub fn ReplayDetailView() -> impl IntoView {
                         }
                     })
             }}
+            </div>
         </div>
     }
 }
@@ -148,7 +179,11 @@ fn go_to_replay(ext_fs_id: Option<u64>, step: ReplayStep, error: RwSignal<Option
             query: AdjacentReplayQuery,
         }
         match invoke_json::<Option<u64>>("query_adjacent_replay", &Args { query }).await {
-            Ok(Some(ext_fs_id)) => navigation.open_replay(ext_fs_id),
+            Ok(Some(ext_fs_id)) => {
+                navigation.open_replay(ext_fs_id);
+                navigation.replay_is_latest.set(step == ReplayStep::Latest);
+            }
+            Ok(None) if step == ReplayStep::Next => navigation.replay_is_latest.set(true),
             Ok(None) if step == ReplayStep::Latest => error.set(Some(
                 "There are no replays in the snapshot, Optimize them in Scan.".to_string(),
             )),
@@ -199,9 +234,11 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
         let map_title = map_title.clone();
         Signal::derive(move || locks.read().map_title.as_deref() == Some(map_title.as_str()))
     };
-    let players = detail
-        .players
-        .iter()
+    // The winners first, then the losers.
+    let mut ordered: Vec<&ReplayPlayerSummary> = detail.players.iter().collect();
+    ordered.sort_by_key(|summary| result_order(&summary.player.result));
+    let players = ordered
+        .into_iter()
         .map(|summary| {
             let player_name = summary.player.name.clone();
             let locked = {
@@ -247,58 +284,9 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
             };
         })
     });
-    view! {
-        <div class="flex flex-wrap items-center gap-3 rounded-md border border-white/15 bg-gray-800/40 p-2 text-sm">
-            <button
-                class="btn btn-sm btn-primary"
-                title="The previous replay by date, of the locked map and players"
-                on:click=move |_| {
-                    error.set(None);
-                    go_to_replay(Some(ext_fs_id), ReplayStep::Previous, error)
-                }
-            >
-                <Icon icon=CARET_LEFT weight=IconWeight::Bold />
-                "Previous"
-            </button>
-            <button
-                class="btn btn-sm btn-primary"
-                title="The next replay by date, of the locked map and players"
-                on:click=move |_| {
-                    error.set(None);
-                    go_to_replay(Some(ext_fs_id), ReplayStep::Next, error)
-                }
-            >
-                "Next"
-                <Icon icon=CARET_RIGHT weight=IconWeight::Bold />
-            </button>
-            <button
-                class="btn btn-sm btn-ghost"
-                title="The newest replay of the snapshot, of the locked map and players"
-                on:click=move |_| {
-                    error.set(None);
-                    go_to_replay(None, ReplayStep::Latest, error)
-                }
-            >
-                "Latest"
-            </button>
-            <span class="flex items-center gap-1">
-                <LockToggle
-                    locked=map_locked
-                    on_toggle=toggle_map
-                    title="Lock the map: the previous and next replays are on this map"
-                />
-                <MapLink map_title=detail.map_title.clone() />
-            </span>
-            {players}
-        </div>
-    }
-}
-
-#[component]
-fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
+    let is_latest = navigation.replay_is_latest;
     let location = detail.replay_location.clone();
     let bevy_location = detail.replay_location.clone();
-    let ext_fs_id = detail.ext_fs_id;
     let exported = RwSignal::new(String::new());
     let export = move |_ev: MouseEvent| {
         #[derive(serde::Serialize)]
@@ -314,61 +302,97 @@ fn ReplayHeader(detail: ReplayDetail) -> impl IntoView {
             }
         });
     };
+    // One bar: the navigation, the replay with its map and players (each once, lockable), and the
+    // actions as icons, their title says what they do.
     view! {
-        <div class="flex items-start justify-between rounded-md border border-white/15 bg-gray-800/40 p-2">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-base-content/15 bg-base-200/40 p-2 text-sm">
+            <div class="join">
+                <button
+                    class="btn btn-sm btn-primary join-item"
+                    title="The previous replay by date, of the locked map and players"
+                    on:click=move |_| {
+                        error.set(None);
+                        go_to_replay(Some(ext_fs_id), ReplayStep::Previous, error)
+                    }
+                >
+                    <Icon icon=CARET_LEFT weight=IconWeight::Bold />
+                    "Previous"
+                </button>
+                <button
+                    class="btn btn-sm btn-primary join-item"
+                    title=move || {
+                        if is_latest.get() {
+                            "This is the newest replay of the locked map and players"
+                        } else {
+                            "The next replay by date, of the locked map and players"
+                        }
+                    }
+                    disabled=move || is_latest.get()
+                    on:click=move |_| {
+                        error.set(None);
+                        go_to_replay(Some(ext_fs_id), ReplayStep::Next, error)
+                    }
+                >
+                    "Next"
+                    <Icon icon=CARET_RIGHT weight=IconWeight::Bold />
+                </button>
+                <button
+                    class="btn btn-sm btn-ghost join-item"
+                    title="The newest replay of the snapshot, of the locked map and players"
+                    disabled=move || is_latest.get()
+                    on:click=move |_| {
+                        error.set(None);
+                        go_to_replay(None, ReplayStep::Latest, error)
+                    }
+                >
+                    <Icon icon=CARET_DOUBLE_RIGHT weight=IconWeight::Bold />
+                </button>
+            </div>
             <div>
-                <h1 class="text-xl font-semibold text-white">
-                    <MapLink map_title=detail.map_title.clone() />
-                </h1>
-                <p class="text-sm text-gray-400">
+                <span class="text-base font-semibold text-base-content">
                     "Replay " <ReplayLink ext_fs_id=detail.ext_fs_id />
+                </span>
+                <span class="text-muted">
                     {format!(
-                        " · {} · {} · patch version ",
+                        " · {} · {} · patch ",
                         detail.replay_date,
                         format_game_time(detail.duration_seconds),
-                    )} <PatchLink version=detail.protocol_version />
-                </p>
-                <p class="text-sm text-gray-300">
-                    "Winner: "
-                    {detail
-                        .winners
-                        .into_iter()
-                        .map(|player_name| {
-                            view! {
-                                <span class="mr-2">
-                                    <ResultMarker result="Win".to_string() />
-                                    <PlayerLink player_name />
-                                </span>
-                            }
-                        })
-                        .collect_view()}
-                </p>
+                    )}
+                    <PatchLink version=detail.protocol_version />
+                </span>
             </div>
-            <div class="flex gap-2">
+            <span class="flex items-center gap-1">
+                <LockToggle
+                    locked=map_locked
+                    on_toggle=toggle_map
+                    title="Lock the map: the previous and next replays are on this map"
+                />
+                <MapLink map_title=detail.map_title.clone() />
+            </span>
+            {players}
+            <div class="ml-auto flex items-center gap-1">
+                <span class="text-xs text-muted">{move || exported.get()}</span>
                 <button
-                    class="btn btn-primary btn-sm"
-                    title="Load Rerun Preview"
+                    class="btn btn-ghost btn-sm btn-square"
+                    title="Open the replay in the Rerun preview: the units, the camera and the events over time"
                     on:click=move |_ev: MouseEvent| trigger_swarmy_rerun_on_replay(&location)
                 >
-                    <Icon icon=STRATEGY weight=IconWeight::Light />
-                    "Load Rerun Preview"
+                    <BrandIcon name="rerun" />
                 </button>
                 <button
-                    class="btn btn-primary btn-sm"
-                    title="The units born and died over time on the map, with the players, upgrades and most effective units"
+                    class="btn btn-ghost btn-sm btn-square"
+                    title="Open the replay in swarmy-bevy: the units born and died over time on the map, with the players, upgrades and most effective units"
                     on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_on_replay(&bevy_location)
                 >
-                    <Icon icon=CUBE weight=IconWeight::Light />
-                    "Load in swarmy-bevy"
+                    <BrandIcon name="bevy" />
                 </button>
                 <button
-                    class="btn btn-outline btn-sm"
-                    title="Saves the game as a single HTML page to share with a coach or a friend: the win chance, the three things to fix, the economy, the build orders and the biggest fights"
+                    class="btn btn-ghost btn-sm btn-square"
+                    title="Export a report: saves the game as a single HTML page to share with a coach or a friend, the win chance, the three things to fix, the economy, the build orders and the biggest fights"
                     on:click=export
                 >
-                    "Export report"
+                    <Icon icon=EXPORT weight=IconWeight::Light size="18px" />
                 </button>
-                <span class="text-xs text-gray-400 self-center">{move || exported.get()}</span>
             </div>
         </div>
     }
@@ -400,9 +424,9 @@ fn base_events(summary: &ReplayPlayerSummary) -> Vec<(u32, bool, String, Option<
 fn PatchComparison(seconds: u32, average: Option<PatchAverage>) -> impl IntoView {
     average.map(|average| {
         let color = match seconds.cmp(&average.seconds) {
-            std::cmp::Ordering::Less => "text-green-400",
-            std::cmp::Ordering::Equal => "text-gray-400",
-            std::cmp::Ordering::Greater => "text-red-400",
+            std::cmp::Ordering::Less => "text-success",
+            std::cmp::Ordering::Equal => "text-muted",
+            std::cmp::Ordering::Greater => "text-error",
         };
         let title = format!(
             "The average is {} in {} games of the same patch in the snapshot",
@@ -418,13 +442,33 @@ fn PatchComparison(seconds: u32, average: Option<PatchAverage>) -> impl IntoView
 }
 
 /// The grid columns of a band, one per player.
-fn player_columns(players: usize) -> &'static str {
-    match players {
-        0 | 1 => "grid-cols-1",
-        2 => "grid-cols-2",
-        3 => "grid-cols-3",
-        _ => "grid-cols-4",
+/// The columns of the players, with a gutter between two players: the page scrolls with the
+/// wheel over a gutter, where the sections of the players would scroll themselves.
+fn player_grid_style(players: usize) -> String {
+    let columns = vec!["minmax(0,1fr)"; players.clamp(1, 4)].join(" 1.25rem ");
+    format!("grid-template-columns: {columns}")
+}
+
+/// The cells of the players with a gutter between them, see [`player_grid_style`].
+fn with_gutters(cells: Vec<AnyView>, header: bool) -> Vec<AnyView> {
+    let mut out = Vec::with_capacity(cells.len() * 2);
+    for (idx, cell) in cells.into_iter().enumerate() {
+        if idx > 0 {
+            out.push(
+                view! {
+                    <div
+                        class="scroll-gutter flex items-center justify-center text-faint text-xs select-none"
+                        title="Scroll the page here, without scrolling a section"
+                    >
+                        {header.then_some("⇕")}
+                    </div>
+                }
+                .into_any(),
+            );
+        }
+        out.push(cell);
     }
+    out
 }
 
 /// A band with the same section of every player side by side, the cells of a band share the grid
@@ -439,17 +483,36 @@ fn section_band<V: IntoView + 'static>(
         .iter()
         .map(|summary| {
             view! { <div class=format!("scroll-section min-w-0 px-2 py-1 {height}")>{content(summary)}</div> }
+                .into_any()
         })
-        .collect_view();
+        .collect::<Vec<_>>();
+    let cells = with_gutters(cells, false);
+    // The arrow collapses or expands the band, as the sections of the other views.
+    let collapsed = RwSignal::new(false);
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h3 class="px-2 py-1 text-sm font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h3
+                class="flex items-center gap-1 px-2 py-1 text-sm font-semibold text-base-content bg-base-200/80 rounded-t-md"
+                class:border-b=move || !collapsed.get()
+                style="border-color: color-mix(in oklab, var(--color-base-content) 15%, transparent)"
+            >
+                <button
+                    type="button"
+                    class="btn btn-ghost btn-xs btn-square"
+                    aria-expanded=move || (!collapsed.get()).to_string()
+                    title=move || if collapsed.get() { "Expand this section" } else { "Collapse this section" }
+                    on:click=move |_| collapsed.update(|collapsed| *collapsed = !*collapsed)
+                >
+                    {move || {
+                        let icon = if collapsed.get() { CARET_RIGHT } else { CARET_DOWN };
+                        view! { <Icon icon=icon weight=IconWeight::Bold size="14px" /> }
+                    }}
+                </button>
                 {title}
             </h3>
-            <div class=format!(
-                "grid {} divide-x divide-white/15",
-                player_columns(players.len()),
-            )>{cells}</div>
+            <div class="grid" class:hidden=move || collapsed.get() style=player_grid_style(players.len())>
+                {cells}
+            </div>
         </div>
     }
 }
@@ -471,21 +534,21 @@ fn PlayerSections(
             let [r, g, b, _] = summary.player.color;
             view! {
                 <div class="px-2 py-1">
-                    <div class="flex items-center gap-2 text-base text-white">
+                    <div class="flex items-center gap-2 text-base text-base-content">
                         <span
                             class="inline-block w-3 h-3 rounded-full"
                             style=format!("background: rgb({r},{g},{b})")
                         ></span>
                         <ResultMarker result=summary.player.result.clone() />
                         <PlayerLink player_name=summary.player.name.clone() />
-                        <span class="text-sm text-gray-400">
+                        <span class="text-sm text-muted">
                             <RaceLink race=summary.player.race.clone() />
                         </span>
                         {summary
                             .rating
                             .map(|rating| {
                                 view! {
-                                    <span class="text-xs text-gray-400">
+                                    <span class="text-xs text-muted">
                                         {format!("MMR {rating}")}
                                     </span>
                                 }
@@ -494,14 +557,17 @@ fn PlayerSections(
                     <PlayerBadges summary=summary.clone() />
                 </div>
             }
+            .into_any()
         })
-        .collect_view();
+        .collect::<Vec<_>>();
     view! {
         <div class="space-y-2">
-            <div class=format!(
-                "sticky top-0 z-10 grid {} divide-x divide-white/15 rounded-md border border-white/20 bg-gray-900",
-                player_columns(players.len()),
-            )>{player_headers}</div>
+            <div
+                class="sticky top-0 z-10 grid rounded-md border border-base-content/20 bg-base-100"
+                style=player_grid_style(players.len())
+            >
+                {with_gutters(player_headers, true)}
+            </div>
 
             {section_band(
                 view! {
@@ -513,25 +579,25 @@ fn PlayerSections(
                 &players,
                 move |summary| {
                     if summary.player.is_computer {
-                        return view! { <p class="text-xs text-gray-500">"A computer player"</p> }
+                        return view! { <p class="text-xs text-faint">"A computer player"</p> }
                             .into_any();
                     }
                     if summary.lessons.is_empty() {
-                        return view! { <p class="text-xs text-gray-500">"Nothing costly"</p> }
+                        return view! { <p class="text-xs text-faint">"Nothing costly"</p> }
                             .into_any();
                     }
                     view! {
-                        <ol class="text-xs text-gray-300 list-decimal list-inside space-y-1">
+                        <ol class="text-xs text-muted list-decimal list-inside space-y-1">
                             {summary
                                 .lessons
                                 .iter()
                                 .map(|lesson| {
                                     view! {
                                         <li>
-                                            <span class="font-semibold text-amber-300">
+                                            <span class="font-semibold text-warning">
                                                 {lesson.title.clone()}
                                             </span>
-                                            <span class="text-gray-500">
+                                            <span class="text-faint">
                                                 {format!(" ~{}: ", format_resources(lesson.cost))}
                                             </span>
                                             {lesson.detail.clone()}
@@ -557,7 +623,7 @@ fn PlayerSections(
                     let answers = summary.opening_answers.clone();
                     if answers.answers.is_empty() {
                         return view! {
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-faint">
                                 "Not a 1v1, or the opening of the opponent is played too little"
                             </p>
                         }
@@ -565,7 +631,7 @@ fn PlayerSections(
                     }
                     let own = summary.opening.join(" → ");
                     view! {
-                        <p class="text-xs text-gray-400">
+                        <p class="text-xs text-muted">
                             {format!("vs {}", answers.enemy_opening)}
                         </p>
                         <table class=TABLE_CLASS>
@@ -575,14 +641,14 @@ fn PlayerSections(
                                     .iter()
                                     .map(|answer| {
                                         let class = if answer.opening == own {
-                                            "pr-2 text-amber-300"
+                                            "pr-2 text-warning"
                                         } else {
                                             "pr-2"
                                         };
                                         view! {
                                             <tr>
                                                 <td class=class>{answer.opening.clone()}</td>
-                                                <td class="pr-2 font-mono">
+                                                <td class="pr-2 num">
                                                     {format!(
                                                         "{:.0}% of {}",
                                                         100. * answer.win_rate(),
@@ -599,8 +665,8 @@ fn PlayerSections(
                                     .map(|own| {
                                         view! {
                                             <tr title="Your opening in this game">
-                                                <td class="pr-2 text-amber-300">{own.opening.clone()}</td>
-                                                <td class="pr-2 font-mono">
+                                                <td class="pr-2 text-warning">{own.opening.clone()}</td>
+                                                <td class="pr-2 num">
                                                     {format!("{:.0}% of {}", 100. * own.win_rate(), own.games)}
                                                 </td>
                                             </tr>
@@ -619,7 +685,7 @@ fn PlayerSections(
                 &players,
                 move |summary| {
                     view! {
-                        <ul class="text-xs text-gray-400 font-mono">
+                        <ul class="text-xs text-muted font-mono">
                             {base_events(summary)
                                 .into_iter()
                                 .map(|(seconds, new_base, text, average)| {
@@ -649,7 +715,7 @@ fn PlayerSections(
                             <tbody>
                                 <tr>
                                     <td class="pr-2">"Lost"</td>
-                                    <td class="pr-2 text-red-400">
+                                    <td class="pr-2 text-error">
                                         {format!(
                                             "{} minerals, {} vespene",
                                             resources.lost.minerals,
@@ -659,7 +725,7 @@ fn PlayerSections(
                                 </tr>
                                 <tr>
                                     <td class="pr-2">"Killed"</td>
-                                    <td class="pr-2 text-green-400">
+                                    <td class="pr-2 text-success">
                                         {format!(
                                             "{} minerals, {} vespene",
                                             resources.killed.minerals,
@@ -707,7 +773,7 @@ fn PlayerSections(
                 move |summary| {
                     if summary.ability_efficiency.is_empty() {
                         return view! {
-                            <p class="text-xs text-gray-500">
+                            <p class="text-xs text-faint">
                                 "No casters, or the commands of this patch have no names yet"
                             </p>
                         }
@@ -736,7 +802,7 @@ fn PlayerSections(
                                                         efficiency.possible,
                                                     )}
                                                 </td>
-                                                <td class="pr-2 font-semibold">{format!("{share:.0}%")}</td>
+                                                <td class="pr-2 num font-semibold">{format!("{share:.0}%")}</td>
                                             </tr>
                                         }
                                     })
@@ -819,17 +885,17 @@ fn PlayerSections(
                     view! {
                         <table class=TABLE_CLASS>
                             <thead>
-                                <tr class="text-left text-gray-300">
+                                <tr class="text-left text-muted">
                                     <th class="pr-2">"Time"</th>
-                                    <th class="pr-2">"Workers"</th>
-                                    <th class="pr-2">"Supply"</th>
-                                    <th class="pr-2">"Income/min"</th>
-                                    <th>"Army value"</th>
+                                    <th class="pr-2 num">"Workers"</th>
+                                    <th class="pr-2 num">"Supply"</th>
+                                    <th class="pr-2 num">"Income/min"</th>
+                                    <th class="num">"Army value"</th>
                                 </tr>
                                 {(!summary.winner_benchmarks.is_empty())
                                     .then(|| {
                                         view! {
-                                            <tr class="text-left text-gray-500">
+                                            <tr class="text-left text-faint">
                                                 <th colspan="5" class="font-normal">
                                                     {format!(
                                                         "/ the median of the {} winners of the matchup in the patch",
@@ -840,7 +906,7 @@ fn PlayerSections(
                                         }
                                     })}
                             </thead>
-                            <tbody class="font-mono">
+                            <tbody class="tabular-nums">
                                 {summary
                                     .benchmarks
                                     .iter()
@@ -856,46 +922,50 @@ fn PlayerSections(
                                         let winner_games = summary.winner_games;
                                         let ahead = move |value: fn(&Benchmark) -> i32| {
                                             let value_of = value(benchmark);
+                                            // Each part has its width, so that the values of
+                                            // the rows line up whatever their digits.
                                             view! {
-                                                {value_of}
+                                                <span class="inline-block min-w-[5ch] text-right">
+                                                    {value_of}
+                                                </span>
                                                 {winner
                                                     .as_ref()
                                                     .map(|winner| {
                                                         view! {
                                                             <span
-                                                                class="text-gray-500"
+                                                                class="inline-block min-w-[7ch] pl-0.5 text-left text-faint"
                                                                 title=format!(
                                                                     "The median of the {winner_games} players who won this matchup in the patch",
                                                                 )
                                                             >
-                                                                {format!(" /{}", value(winner))}
+                                                                {format!("/{}", value(winner))}
                                                             </span>
                                                         }
                                                     })}
-                                                {enemy
-                                                    .is_some_and(|enemy| value_of > value(enemy))
-                                                    .then(|| {
-                                                        view! {
-                                                            <span class="text-green-500" title="Ahead of the enemy">
-                                                                " ▲"
-                                                            </span>
-                                                        }
-                                                    })}
+                                                <span class="inline-block w-[2ch] text-center text-success">
+                                                    {if enemy.is_some_and(|enemy| value_of > value(enemy)) {
+                                                        view! { <span title="Ahead of the enemy">"▲"</span> }
+                                                            .into_any()
+                                                    } else {
+                                                        // A no-break space keeps the width of the arrow.
+                                                        "\u{a0}".into_any()
+                                                    }}
+                                                </span>
                                             }
                                         };
                                         view! {
                                             <tr>
-                                                <td class="pr-2">
+                                                <td class="pr-2 tabular-nums">
                                                     {format_game_time(benchmark.minute * 60)}
                                                 </td>
-                                                <td class="pr-2">{ahead(|benchmark| benchmark.workers)}</td>
-                                                <td class="pr-2">{ahead(|benchmark| benchmark.supply)}</td>
-                                                <td class="pr-2">
+                                                <td class="pr-2 num">{ahead(|benchmark| benchmark.workers)}</td>
+                                                <td class="pr-2 num">{ahead(|benchmark| benchmark.supply)}</td>
+                                                <td class="pr-2 num">
                                                     {ahead(|benchmark| {
                                                         benchmark.minerals_rate + benchmark.vespene_rate
                                                     })}
                                                 </td>
-                                                <td>{ahead(|benchmark| benchmark.army_value)}</td>
+                                                <td class="num">{ahead(|benchmark| benchmark.army_value)}</td>
                                             </tr>
                                         }
                                     })
@@ -916,7 +986,7 @@ fn PlayerSections(
                 &players,
                 move |summary| {
                     view! {
-                        <p class="text-xs text-gray-300">
+                        <p class="text-xs text-muted">
                             {format!("{} bases", summary.bases_at_10)}
                         </p>
                         <UnitCountsTable counts=summary.army_at_10.clone() />
@@ -933,14 +1003,14 @@ fn PlayerSections(
                         + summary.bad_decisions.len();
                     view! {
                         <p
-                            class="text-xs text-gray-400"
+                            class="text-xs text-muted"
                             title="Units produced scored against the enemy army at the time, from the balance data strengths and weaknesses"
                         >
-                            <span class="text-green-500">
+                            <span class="text-success">
                                 {format!("{} good", summary.good_decisions)}
                             </span>
                             {format!(" · {} even · ", summary.even_decisions)}
-                            <span class="text-red-500">
+                            <span class="text-error">
                                 {format!("{} bad", summary.bad_decisions.len())}
                             </span>
                             {format!(" out of {total_decisions}")}
@@ -953,13 +1023,13 @@ fn PlayerSections(
                                     .map(|decision| {
                                         view! {
                                             <tr>
-                                                <td class="pr-2 font-mono">
+                                                <td class="pr-2 num">
                                                     {format_game_time(decision.seconds)}
                                                 </td>
-                                                <td class="pr-2 text-white">
+                                                <td class="pr-2 text-base-content">
                                                     <UnitLink unit_name=decision.unit.clone() />
                                                 </td>
-                                                <td class="pr-2 text-red-400">
+                                                <td class="pr-2 num text-error">
                                                     {format!("{:+.2}", decision.score)}
                                                 </td>
                                                 <td>
@@ -998,15 +1068,15 @@ fn PlayerSections(
                     view! {
                         <div class="grid grid-cols-3 gap-2">
                             <div>
-                                <p class="text-xs text-gray-300">"Killed"</p>
+                                <p class="text-xs text-muted">"Killed"</p>
                                 <UnitCountsTable counts=summary.units_killed.clone() />
                             </div>
                             <div>
-                                <p class="text-xs text-gray-300">"Lost"</p>
+                                <p class="text-xs text-muted">"Lost"</p>
                                 <UnitCountsTable counts=summary.units_lost.clone() />
                             </div>
                             <div>
-                                <p class="text-xs text-gray-300">"Killed by"</p>
+                                <p class="text-xs text-muted">"Killed by"</p>
                                 <UnitCountsTable counts=summary.killed_by.clone() />
                             </div>
                         </div>
@@ -1022,10 +1092,10 @@ fn PlayerSections(
                     let build_order = summary.build_order.clone();
                     view! {
                         <table class=TABLE_CLASS>
-                            <thead class="sticky top-0 bg-gray-800">
-                                <tr class="text-left text-gray-300">
+                            <thead class="sticky top-0 bg-base-200">
+                                <tr class="text-left text-muted">
                                     <th class="pr-2">"Time"</th>
-                                    <th class="pr-2">"Supply"</th>
+                                    <th class="pr-2 num">"Supply"</th>
                                     <th>"Unit, structure or upgrade"</th>
                                 </tr>
                             </thead>
@@ -1045,8 +1115,8 @@ fn PlayerSections(
                                                     <td class="pr-2 font-mono">
                                                         {format_game_time(entry.seconds)}
                                                     </td>
-                                                    <td class="pr-2 font-mono">{entry.supply}</td>
-                                                    <td class="text-white">
+                                                    <td class="pr-2 num">{entry.supply}</td>
+                                                    <td class="text-base-content">
                                                         {if entry.is_upgrade {
                                                             entry.name.into_any()
                                                         } else {
@@ -1074,7 +1144,7 @@ fn PlayerSections(
 /// The opening, scouting, proxy and first kill of the player.
 #[component]
 fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
-    let badge = "inline-block rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-300";
+    let badge = "inline-block rounded bg-base-300 px-1.5 py-0.5 text-xs text-muted";
     let opening = (!summary.opening.is_empty()).then(|| summary.opening.join(" → "));
     view! {
         <div class="mt-1 flex flex-wrap gap-1">
@@ -1118,7 +1188,7 @@ fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
                 .proxy
                 .map(|proxy| {
                     view! {
-                        <span class="inline-block rounded bg-orange-900 px-1.5 py-0.5 text-xs text-orange-200">
+                        <span class="inline-block rounded bg-warning/20 px-1.5 py-0.5 text-xs text-warning">
                             {format!(
                                 "Proxy: {} at {}",
                                 proxy.text,
@@ -1200,11 +1270,11 @@ fn enemy_benchmarks(
 /// The legend class of each [`FocusKind`] and its color in the focus chart.
 fn focus_color(kind: FocusKind) -> (&'static str, &'static str) {
     match kind {
-        FocusKind::Army => ("bg-red-500", "#ef4444"),
-        FocusKind::Macro => ("bg-indigo-500", "#6366f1"),
-        FocusKind::Economy => ("bg-yellow-500", "#eab308"),
-        FocusKind::Expand => ("bg-green-500", "#22c55e"),
-        FocusKind::Upgrades => ("bg-purple-500", "#a855f7"),
+        FocusKind::Army => ("bg-error", "var(--color-error)"),
+        FocusKind::Macro => ("bg-primary", "var(--color-primary)"),
+        FocusKind::Economy => ("bg-warning", "var(--color-warning)"),
+        FocusKind::Expand => ("bg-success", "var(--color-success)"),
+        FocusKind::Upgrades => ("bg-secondary", "var(--color-secondary)"),
     }
 }
 
@@ -1252,13 +1322,13 @@ fn FocusDetails(focus: PlayerFocus, chart_scale: CommandsScale) -> impl IntoView
     }
     view! {
         <p
-            class="text-xs text-gray-400"
+            class="text-xs text-muted"
             title="The units selected and commanded: army units, townhalls and production, workers, townhalls built, research"
         >
             {legend}
         </p>
         <p
-            class="text-xs text-gray-300"
+            class="text-xs text-muted"
             title="The longest time with army selections or commands and no macro, expand or upgrade action, after 02:00"
         >
             "Longest army only: "
@@ -1345,7 +1415,7 @@ fn MacroDetails(macro_summary: MacroSummary, chart_scale: CommandsScale) -> impl
                     .collect_view()}
             </tbody>
         </table>
-        <div class="mt-1 text-[10px] text-gray-500">
+        <div class="mt-1 text-[10px] text-faint">
             <div class="mb-0.5">"Commands per minute"</div>
             <BarChart data=chart class="h-32" />
         </div>
@@ -1362,16 +1432,134 @@ fn UnitCountsTable(counts: Vec<UnitCount>) -> impl IntoView {
                     .map(|count| {
                         view! {
                             <tr>
-                                <td class="pr-2 text-white">
+                                <td class="pr-2 text-base-content">
                                     <UnitLink unit_name=count.unit />
                                 </td>
-                                <td>{count.count}</td>
+                                <td class="num">{count.count}</td>
                             </tr>
                         }
                     })
                     .collect_view()}
             </tbody>
         </table>
+    }
+}
+
+/// "16% more than", "45% less than" or "as much as" the average.
+fn compared_to_average(value: f32, average: f32) -> String {
+    match CreepSummary::compared(value, average) {
+        Some(percent) if percent >= 5. => format!("{percent:.0}% more than"),
+        Some(percent) if percent <= -5. => format!("{:.0}% less than", -percent),
+        Some(_) => "about as much as".to_string(),
+        None => "while the games of the matchup average none,".to_string(),
+    }
+}
+
+/// The creep tumors the Zerg placed and the ones the opponent cleaned, against the games of the
+/// matchup in the snapshot.
+#[component]
+fn CreepPanel(creep: CreepSummary) -> impl IntoView {
+    let zerg = clean_player_name_clan_escapes(&creep.zerg);
+    let opponent = clean_player_name_clan_escapes(&creep.opponent);
+    let labels: Vec<String> = creep
+        .timeline
+        .iter()
+        .map(|minute| format_game_time(minute.minute * 60))
+        .collect();
+    let chart = |game: Vec<f64>, average: Vec<f64>, what: &'static str| {
+        let tooltips = labels
+            .iter()
+            .zip(game.iter().zip(average.iter()))
+            .map(|(time, (game, average))| {
+                format!("By {time}: {game:.0} {what} in this game, {average:.1} on average")
+            })
+            .collect();
+        ChartData::new(labels.clone())
+            .with_series("This game", game)
+            .with_series(&format!("Average {}", creep.matchup), average)
+            .with_colors(&[CHART_COLORS[0], "var(--chart-muted)"])
+            .with_tooltips(tooltips)
+            .with_curve("straight")
+    };
+    let placed = chart(
+        creep
+            .timeline
+            .iter()
+            .map(|minute| minute.placed as f64)
+            .collect(),
+        creep
+            .timeline
+            .iter()
+            .map(|minute| (minute.avg_placed as f64 * 10.).round() / 10.)
+            .collect(),
+        "tumors placed",
+    );
+    let cleaned = chart(
+        creep
+            .timeline
+            .iter()
+            .map(|minute| minute.cleaned as f64)
+            .collect(),
+        creep
+            .timeline
+            .iter()
+            .map(|minute| (minute.avg_cleaned as f64 * 10.).round() / 10.)
+            .collect(),
+        "tumors cleaned",
+    );
+    let figure = |value: String| view! { <span class="font-medium text-base-content tabular-nums">{value}</span> };
+    view! {
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
+                "Creep"
+            </h2>
+            <div class="px-2 py-1 space-y-1">
+                <p class="text-xs text-faint">
+                    {format!(
+                        "The creep tumors {zerg} placed, by the Queens and by the tumors spreading, and the ones {opponent} killed (with scans, detectors, Oracle revelations or Observers, then the army), against the {} {} games of the snapshot.",
+                        creep.games,
+                        creep.matchup,
+                    )}
+                </p>
+                <p class="text-sm text-muted">
+                    "Spread: "
+                    {figure(creep.placed.to_string())}
+                    " tumors, "
+                    {figure(format!("{:.2}", creep.placed_per_minute()))}
+                    " per minute, "
+                    {compared_to_average(creep.placed_per_minute(), creep.avg_placed_per_minute)}
+                    " the average of "
+                    {figure(format!("{:.2}", creep.avg_placed_per_minute))}
+                    "."
+                </p>
+                <p class="text-sm text-muted">
+                    "Cleanup: "
+                    {figure(creep.cleaned.to_string())}
+                    " tumors killed, "
+                    {figure(format!("{:.2}", creep.cleaned_per_minute()))}
+                    " per minute, "
+                    {compared_to_average(creep.cleaned_per_minute(), creep.avg_cleaned_per_minute)}
+                    " the average of "
+                    {figure(format!("{:.2}", creep.avg_cleaned_per_minute))}
+                    "."
+                </p>
+                {(!creep.timeline.is_empty())
+                    .then(|| {
+                        view! {
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <h3 class="text-xs font-semibold text-base-content">"Tumors placed by the end of each minute"</h3>
+                                    <LineChart data=placed.clone() class="h-40" />
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-semibold text-base-content">"Tumors cleaned by the end of each minute"</h3>
+                                    <LineChart data=cleaned.clone() class="h-40" />
+                                </div>
+                            </div>
+                        }
+                    })}
+            </div>
+        </div>
     }
 }
 
@@ -1400,7 +1588,7 @@ fn WinChanceChart(
                 let [r, g, b, _] = summary.player.color;
                 format!("rgb({r},{g},{b})")
             })
-            .unwrap_or_else(|| "#9ca3af".to_string())
+            .unwrap_or_else(|| "var(--chart-muted)".to_string())
     };
     let first = team_name(&chances.first_team);
     let second = team_name(&chances.second_team);
@@ -1422,11 +1610,16 @@ fn WinChanceChart(
                     .collect::<Vec<_>>()
                     .join(", ")
             };
+            // The chance of the side ahead only, the other one is the rest.
+            let (ahead, chance) = if point.chance >= 0.5 {
+                (&first, point.chance)
+            } else {
+                (&second, 1. - point.chance)
+            };
             let mut tooltip = format!(
-                "{} · {first} {:.0}% · {second} {:.0}%",
+                "{} · {ahead} {:.0}%",
                 format_game_time(point.seconds),
-                point.chance * 100.,
-                (1. - point.chance) * 100.,
+                chance * 100.,
             );
             for (team, sign) in [(&first, 1.), (&second, -1.)] {
                 let factors = favoring(sign);
@@ -1437,6 +1630,8 @@ fn WinChanceChart(
             tooltip
         })
         .collect();
+    // One line: the chance of the second team is the rest of the first one's, a line for each
+    // would mirror the other.
     let data = ChartData::new(
         points
             .iter()
@@ -1447,47 +1642,51 @@ fn WinChanceChart(
         &first,
         points
             .iter()
-            .map(|point| (point.chance * 100.).round() as f64)
-            .collect(),
-    )
-    .with_series(
-        &second,
-        points
-            .iter()
-            .map(|point| ((1. - point.chance) * 100.).round() as f64)
+            .map(|point| ((point.chance as f64 - 0.5) * 1000.).round() / 10.)
             .collect(),
     )
     .with_owned_colors(vec![
         team_color(&chances.first_team),
         team_color(&chances.second_team),
     ])
-    .with_tooltips(tooltips)
-    .with_y_max(100.)
-    .with_value_suffix("%");
+    .with_tooltips(tooltips);
     let empty = points.is_empty();
+    // The team names say which side of the middle is whose, the color is not the only cue.
+    let side_label = |arrow: &'static str, name: String, color: String| {
+        view! {
+            <p class="flex items-center gap-1 text-xs text-muted">
+                <span class="inline-block size-2.5 rounded-sm" style=format!("background:{color}")></span>
+                {format!("{arrow} {name} ahead")}
+            </p>
+        }
+    };
+    let above = side_label("▲", first.clone(), team_color(&chances.first_team));
+    let below = side_label("▼", second.clone(), team_color(&chances.second_team));
     let turning_points = chances.turning_points.clone();
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 "Win chance"
             </h2>
             <div class="px-2 py-1">
-                <p class="text-xs text-gray-400">
+                <p class="text-xs text-muted">
                     "Who the game favors every 30 seconds, from the army value, income, workers and resources killed of each side, \
                     as they turned out in thousands of games of the snapshot. It does not see the mistakes: \
                     a side ahead can still lose a fight, take a bad engagement or blunder the game away."
                 </p>
                 <Show when=move || empty>
-                    <p class="text-xs text-gray-500">"The game ended before 02:00."</p>
+                    <p class="text-xs text-faint">"The game ended before 02:00."</p>
                 </Show>
                 <Show when=move || !empty>
-                    <LineChart data=data.clone() />
+                    {above.clone()}
+                    <AdvantageChart data=data.clone() />
+                    {below.clone()}
                 </Show>
                 {(!turning_points.is_empty())
                     .then(|| {
                         view! {
-                            <h3 class="mt-1 text-sm font-semibold text-white">"Turning points"</h3>
-                            <ul class="text-xs text-gray-300 space-y-1">
+                            <h3 class="mt-1 text-sm font-semibold text-base-content">"Turning points"</h3>
+                            <ul class="text-xs text-muted space-y-1">
                                 {turning_points
                                     .into_iter()
                                     .map(|point| {
@@ -1510,7 +1709,7 @@ fn WinChanceChart(
                                                 <span>
                                                     {format!("{favored} +{:.0}%", point.change.abs() * 100.)}
                                                 </span>
-                                                <span class="text-gray-400">
+                                                <span class="text-muted">
                                                     {point
                                                         .engagement
                                                         .clone()
@@ -1525,11 +1724,7 @@ fn WinChanceChart(
                                                         trigger_swarmy_bevy_on_replay_at(&location, Some(start))
                                                     }
                                                 >
-                                                    <Icon
-                                                        icon=CUBE
-                                                        weight=IconWeight::Light
-                                                        prop:class="stroke-current"
-                                                    />
+                                                    <BrandIcon name="bevy" />
                                                 </button>
                                             </li>
                                         }
@@ -1548,17 +1743,17 @@ fn WinChanceChart(
 fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
     let empty = engagements.is_empty();
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 "Engagements"
             </h2>
             <div class="scroll-section max-h-96 px-2 py-1">
                 <Show when=move || empty>
-                    <p class="text-xs text-gray-500">"None"</p>
+                    <p class="text-xs text-faint">"None"</p>
                 </Show>
                 <table class=TABLE_CLASS>
-                    <thead class="sticky top-0 bg-gray-800">
-                        <tr class="text-left text-gray-300">
+                    <thead class="sticky top-0 bg-base-200">
+                        <tr class="text-left text-muted">
                             <th class="pr-2">"Time"</th>
                             <th class="pr-2">"Player"</th>
                             <th class="pr-2">"Lost"</th>
@@ -1571,7 +1766,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                             <th>"Units"</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-white/10">
+                    <tbody class="divide-y divide-base-content/10">
                         {engagements
                             .into_iter()
                             .flat_map(|engagement| {
@@ -1615,7 +1810,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                                     {bad_trade
                                                         .then(|| {
                                                             view! {
-                                                                <span class="text-red-500" title="Bad trade">
+                                                                <span class="text-error" title="Bad trade">
                                                                     "▼ "
                                                                 </span>
                                                             }
@@ -1623,7 +1818,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                                     {good_trade
                                                         .then(|| {
                                                             view! {
-                                                                <span class="text-green-500" title="Good trade">
+                                                                <span class="text-success" title="Good trade">
                                                                     "▲ "
                                                                 </span>
                                                             }
@@ -1663,13 +1858,13 @@ fn engagement_bad_trade(lost: u32, most_lost: u32, least_lost: u32) -> bool {
 fn Messages(messages: Vec<TimedEvent>) -> impl IntoView {
     let empty = messages.is_empty();
     view! {
-        <div class="rounded-md border border-white/15 bg-gray-800/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-white border-b border-white/15 bg-gray-800/80 rounded-t-md">
+        <div class="rounded-md border border-base-content/15 bg-base-200/40">
+            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 "Messages"
             </h2>
             <div class="px-2 py-1">
                 <Show when=move || empty>
-                    <p class="text-xs text-gray-500">"None"</p>
+                    <p class="text-xs text-faint">"None"</p>
                 </Show>
                 <table class=TABLE_CLASS>
                     <tbody>
@@ -1684,7 +1879,7 @@ fn Messages(messages: Vec<TimedEvent>) -> impl IntoView {
                                         <td class="pr-2">
                                             <PlayerLink player_name=event.player />
                                         </td>
-                                        <td class="text-white">{event.text}</td>
+                                        <td class="text-base-content">{event.text}</td>
                                     </tr>
                                 }
                             })

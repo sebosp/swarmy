@@ -5,8 +5,39 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-11-03",
+        &[
+            "The charts no longer zoom when the page scrolls over them, they are read by hovering.",
+            "swarmy-bevy: the free camera is back; the objects of the maps load again; the replay panel lists the winner first with a green triangle and is easier to read, a cell has one bar per player there, and a clicked bar shows its units with their icons at the bottom left.",
+            "Config: Save says Saved beside the button, or what failed.",
+            "With a remote backend, the backend watches its replays and the app shows its new replays when \"Receive notifications of the new replays of the remote backend\" is set.",
+            "The winners come first in the players of a game, then the losers. Every table shows how it is sorted when it opens, and keeps the sort you choose.",
+            "The banner says when new replays are available and when the snapshot was updated, with a button to reload the view. Progress uses the Main Player Name of this computer also with a remote backend.",
+            "The replay ids follow the time of the games (s2protocol), the players of arcade and co-op races are not counted, the units without a race are Neutral.",
+            "Players are their accounts: Clem's games count for Clem through name and clan tag changes, and Accounts in the Player view groups his accounts of other regions and tournaments; the Replay List search and the head to head follow the accounts.",
+        ],
+    ),
+    (
+        "2026-11-02",
+        &[
+            "Ability view: click an ability to see its use in the games of the snapshot, by month, patch and matchup, its top players and games, and the average and fastest time of its first use.",
+            "Replay Detail: a Creep section for ZvT and ZvP, the creep tumors the Zerg placed and the opponent cleaned, per minute and over the game, against the average of the matchup. While a replay is analysed the view says which one, with its map and players. A gutter between the players scrolls the page with the wheel.",
+            "Replay List: one line per game, small action buttons. The sortable tables show it with a faint arrow, the win rates of the Player view are sorted by games. The game count of Map Details opens its games in the Replay List. Map Scout is in an Experimental group of the menu. The hovered column of the charts is outlined, it hid the gray bars.",
+            "Map Details: the map stays in view while the sections beside it scroll, and hovering a cell, i.e. (36, 120), highlights it on the map with a line across its x, one across its y and a square on it; the cells are written (x, y) everywhere. The matchups leave out the mirrors and are sorted by games, with First race favored; Resources shows the gold mineral fields and rich geysers as counts (- when none) and the Expansions; the winner comes first in Recent games; the Siege Tank spots are Long Range Unit Spots (preview), at the bottom. Rich vespene is violet on the map. Open in Swarmy-Bevy says what happened.",
+            "swarmy-bevy with a remote backend: the replay and its map caches are copied from the backend to this computer before it opens, the siege spots and the map lessons are queried in the backend.",
+            "Home says whether the snapshot is on this computer or on a remote backend, which one and its version, the replays directory there and when the snapshot was optimized; the versions are in Help. Scan names the backend in its status and leaves out Find duplicates with a remote backend; Config shows Loading until its settings are read. Map List has its filters on one line and counts the maps and games.",
+            "The buttons of the Swarmy, High contrast, Catppuccin and Tokyo Night themes are flat again, and the toggles of Config are shown.",
+        ],
+    ),
+    (
         "2026-11-01",
         &[
+            "Config with a remote backend: the Remote Backend comes first, and while one is set the Map Caches Path, the Duplicate Replays Folder, the parallelism and the Scan limits are hidden, they are the ones of the Config of the backend. Saving Config keeps the settings (a new Remote Backend was lost when leaving Config) and says Config saved. Scan shows the Replay Path of the backend and works without a local one.",
+            "Replay Detail: the Win chance is one line around 50%, as the evaluation graph of a chess game, the area above the middle in the color of the first team and below in the one of the second. The replay shown while the next one is analysed is grayed out. The numbers of the tables are right aligned with digits of one width; in Abilities the game rank and its top share are two columns, and the top 10 players badge says so.",
+            "Map Stats: the maps without a map digest, i.e. the AI Arena ones, showed other maps on each search.",
+            "The menu: Config is next to Scan, the Tour, Help and the Changelog are at the bottom.",
+            "Zoom, themes and accessibility in Config: Ctrl+= and Ctrl+- zoom the whole interface (Ctrl+0 resets, 50% to 250%), the theme can be Swarmy, Light, Dark, High contrast, the Catppuccin and Tokyo Night variants or follow the light or dark preference of the desktop, and the motion, the link underlines and the focus outline can be set. All of it is kept on this computer. The colors of the charts are checked for color vision deficiencies in every theme.",
+            "Snapshot state: while Optimize creates the snapshot, here or in the remote backend, the views answer that the snapshot is being created instead of failing on the files being written; a snapshot whose creation was interrupted (the app was closed, the backend stopped) is reported as incomplete in Scan, with the hint to Rebuild it (s2protocol 5.0.1 keeps a locked in_progress.json in the snapshot while it writes it). Only one Optimize of a snapshot runs at a time.",
             "s2protocol 5.0.0: the replay types are read with the new serde_mpq derives, checked against Blizzard's definitions. The selection masks of more than 8 units that did not start at a byte boundary were applied to the wrong units, the unit tracking of the game events is more accurate; the clan tag of the players without one is empty instead of a NUL character; the sequence of the command manager events and a few rarely used text fields (bank, save game, cutscene events) are read correctly. Optimize parses the replays again.",
         ],
     ),
@@ -154,13 +185,13 @@ const CHANGELOG: &[(&str, &[&str])] = &[
 pub fn Changelog() -> impl IntoView {
     view! {
         <div class="max-w-3xl p-4 space-y-4">
-            <h1 class="text-2xl font-semibold text-white">"Changelog"</h1>
+            <h1 class="text-2xl font-semibold text-base-content">"Changelog"</h1>
             {CHANGELOG
                 .iter()
                 .map(|(date, changes)| view! {
                     <div>
-                        <h2 class="text-base/7 font-semibold text-white">{*date}</h2>
-                        <ul class="mt-1 list-disc list-inside text-sm text-gray-400">
+                        <h2 class="text-base/7 font-semibold text-base-content">{*date}</h2>
+                        <ul class="mt-1 list-disc list-inside text-sm text-muted">
                             {changes.iter().map(|change| view! { <li>{*change}</li> }).collect_view()}
                         </ul>
                     </div>

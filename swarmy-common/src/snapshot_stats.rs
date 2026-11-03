@@ -32,6 +32,41 @@ pub struct SnapshotStats {
     /// The replays added by the last Optimize, the others were already in the snapshot.
     #[serde(default)]
     pub added_replays: usize,
+    /// The state of the snapshot, see `s2protocol::snapshot::snapshot_state`.
+    #[serde(default)]
+    pub snapshot_state: SnapshotStateKind,
+    /// What the user should know about the state, None when the snapshot is ready.
+    #[serde(default)]
+    pub snapshot_message: Option<String>,
+    /// The replay path of the snapshot, the one of the remote backend when one is set.
+    #[serde(default)]
+    pub replay_path: String,
+}
+
+/// The kind of a `s2protocol::snapshot::SnapshotState`, without its details.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SnapshotStateKind {
+    /// No snapshot.
+    #[default]
+    Missing,
+    /// Being created, by this swarmy or another one.
+    InProgress,
+    /// The application was closed before Optimize finished.
+    Interrupted,
+    Ready,
+}
+
+impl From<&s2protocol::snapshot::SnapshotState> for SnapshotStateKind {
+    fn from(state: &s2protocol::snapshot::SnapshotState) -> Self {
+        use s2protocol::snapshot::SnapshotState;
+        match state {
+            SnapshotState::Missing => Self::Missing,
+            SnapshotState::InProgress(_) => Self::InProgress,
+            SnapshotState::Interrupted { .. } => Self::Interrupted,
+            SnapshotState::Ready(_) => Self::Ready,
+        }
+    }
 }
 
 impl Default for SnapshotStats {
@@ -49,6 +84,9 @@ impl Default for SnapshotStats {
             is_compatible: false,
             partitions: 0,
             added_replays: 0,
+            snapshot_state: SnapshotStateKind::Missing,
+            snapshot_message: None,
+            replay_path: String::new(),
         }
     }
 }

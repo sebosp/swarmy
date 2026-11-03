@@ -16,13 +16,14 @@ fn is_melee_unit(name: &str) -> bool {
     !name.contains("Gluescreen") && !name.ends_with("Dummy")
 }
 
-/// Terran, Zerg, Protoss or Other.
+/// Terran, Zerg, Protoss or Neutral, the units without a race: mineral fields, rocks, critters,
+/// Xel'Naga towers.
 pub fn race_name(unit: &VersionedBalanceUnit) -> String {
     match unit.meta.race.as_deref() {
         Some("Terr") => "Terran",
         Some("Zerg") => "Zerg",
         Some("Prot") => "Protoss",
-        _ => "Other",
+        _ => "Neutral",
     }
     .to_string()
 }

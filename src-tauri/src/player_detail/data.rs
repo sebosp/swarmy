@@ -40,14 +40,20 @@ pub fn add_game(counts: &mut BTreeMap<String, GamesWins>, label: String, won: bo
     entry.wins += won as usize;
 }
 
+/// The accounts with a name like the player's listed to group with it.
+const SIMILAR_ACCOUNTS: u32 = 20;
+
+/// The games of a player: of its accounts (`groups`, by account, from the personal database), or
+/// of the account of the name; `player_name` is a player or a name one of its accounts played as.
 pub fn try_query_player_detail(
     replay_path: String,
     player_name: String,
+    groups: HashMap<String, String>,
 ) -> Result<PlayerDetail, SwarmyError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
-    let player_name = name_without_clan(&player_name).to_string();
-    let mut details = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?;
+    let mut details = details_with_players(&ipc_path, &groups)?;
+    let player_name = resolve_player(&details, name_without_clan(&player_name))?;
     // Snapshots written before s2protocol-rs stored the protocol version in details.arrow.
     let has_protocol_version = details.collect_schema()?.contains("ext_protocol_version");
     let protocol_version = if has_protocol_version {
@@ -55,24 +61,26 @@ pub fn try_query_player_detail(
     } else {
         lit(0u32).alias("ext_protocol_version")
     };
-    let games = details
+    let player_rows = details
         .clone()
-        .filter(player_name_without_clan().eq(lit(player_name.clone())))
-        .select([
-            protocol_version,
-            col("ext_fs_id"),
-            col("player_race"),
-            col("player_result"),
-            col("player_team_id"),
-            col("title"),
-            col("ext_fs_file_name"),
-            col("ext_datetime").dt().to_string("%Y-%m-%d").alias("date"),
-        ]);
+        .filter(col("player").eq(lit(player_name.clone())));
+    let games = player_rows.clone().select([
+        protocol_version,
+        col("name").alias("played_as"),
+        col("ext_fs_id"),
+        col("player_race"),
+        col("player_result"),
+        col("player_team_id"),
+        col("title"),
+        col("ext_fs_file_name"),
+        col("ext_datetime").dt().to_string("%Y-%m-%d").alias("date"),
+    ]);
     let opponents = details
-        .filter(player_name_without_clan().neq(lit(player_name.clone())))
+        .clone()
+        .filter(col("player").neq(lit(player_name.clone())))
         .select([
             col("ext_fs_id"),
-            player_name_without_clan().alias("opponent"),
+            col("player").alias("opponent"),
             col("player_race").alias("opponent_race"),
             col("player_team_id").alias("opponent_team_id"),
         ]);
@@ -114,9 +122,14 @@ pub fn try_query_player_detail(
         .zip(str_values(&matches_df, "opponent")?)
         .zip(str_values(&matches_df, "opponent_race")?)
         .zip(str_values(&matches_df, "player_result")?)
+        .zip(str_values(&matches_df, "played_as")?)
         .map(
-            |((((((ext_fs_id, date), map_title), race), opponent), opponent_race), result)| {
+            |(
+                ((((((ext_fs_id, date), map_title), race), opponent), opponent_race), result),
+                played_as,
+            )| {
                 PlayerMatch {
+                    played_as,
                     ext_fs_id: *ext_fs_id,
                     date,
                     map_title,
@@ -124,6 +137,7 @@ pub fn try_query_player_detail(
                     opponent,
                     opponent_race: normalize_race(&opponent_race),
                     won: result == "Win",
+                    tie: result == "Tie",
                     protocol_version: versions[ext_fs_id],
                 }
             },
@@ -136,11 +150,13 @@ pub fn try_query_player_detail(
     let mut by_month = BTreeMap::new();
     let mut by_version = BTreeMap::new();
     let mut wins = 0;
+    let mut ties = 0;
     for game in matches
         .iter()
         .filter(|game| seen_games.insert(game.ext_fs_id))
     {
         wins += game.won as usize;
+        ties += game.tie as usize;
         add_game(&mut races, game.race.clone(), game.won);
         add_game(&mut by_month, game.date.chars().take(7).collect(), game.won);
         add_game(&mut by_version, game.protocol_version.to_string(), game.won);
@@ -165,13 +181,36 @@ pub fn try_query_player_detail(
     opponents.sort_by(|a, b| b.games.cmp(&a.games).then(a.opponent.cmp(&b.opponent)));
 
     let game_ids: Vec<u64> = seen_games.into_iter().collect();
-    let units = query_unit_effectiveness(&ipc_path, &player_name, &game_ids)?;
+    // The names the accounts of the player played as.
+    let names: Vec<String> = matches
+        .iter()
+        .map(|game| game.played_as.clone())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    let units = query_unit_effectiveness(&ipc_path, &names, &game_ids)?;
+    let accounts = accounts_of(player_rows, &groups, 100)?;
+    let lowercase = player_name.to_lowercase();
+    let similar_accounts = accounts_of(
+        details.filter(
+            col("player").neq(lit(player_name.clone())).and(
+                col("name")
+                    .str()
+                    .to_lowercase()
+                    .str()
+                    .contains_literal(lit(lowercase)),
+            ),
+        ),
+        &groups,
+        SIMILAR_ACCOUNTS,
+    )?;
     let insights =
         super::insights::player_insights(&ipc_path, &player_name, &matches, &files_by_id)?;
     Ok(PlayerDetail {
         player_name,
         games: game_ids.len(),
         wins,
+        ties,
         races,
         by_month: by_month.into_values().collect(),
         by_version,
@@ -179,19 +218,24 @@ pub fn try_query_player_detail(
         opponents,
         matches,
         insights,
+        accounts,
+        similar_accounts,
     })
 }
 
 /// Counts the units produced by the player and the enemy units they killed.
 fn query_unit_effectiveness(
     ipc_path: &str,
-    player_name: &str,
+    names: &[String],
     game_ids: &[u64],
 ) -> Result<Vec<UnitEffectiveness>, SwarmyError> {
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let born = scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
         .filter(
-            is_in_replays(game_ids)
-                .and(player_name_without_clan().eq(lit(player_name.to_string()))),
+            is_in_replays(game_ids).and(player_name_without_clan().is_in(
+                lit(Series::new("names".into(), names)).implode(false),
+                false,
+            )),
         )
         .select([
             col("ext_fs_id"),
@@ -267,4 +311,123 @@ fn query_unit_effectiveness(
         .map(|((unit, kills), value)| (unit, (kills as usize, value as u32)))
         .collect();
     Ok(unit_effectiveness(produced, &kills, balance))
+}
+
+#[cfg(test)]
+mod player_snapshot_tests {
+    /// Runs against a real snapshot: `SWARMY_TEST_REPLAY_PATH=~/SC2Replays/PRO cargo test -- --ignored`
+    #[test]
+    #[ignore]
+    fn it_groups_the_accounts_of_a_player() {
+        let replay_path = std::env::var("SWARMY_TEST_REPLAY_PATH").unwrap();
+        let alone = super::try_query_player_detail(
+            replay_path.clone(),
+            "Clem".to_string(),
+            Default::default(),
+        )
+        .unwrap();
+        eprintln!(
+            "alone: {} {} games, accounts {:?}",
+            alone.player_name,
+            alone.games,
+            alone
+                .accounts
+                .iter()
+                .map(|a| (&a.account, &a.names, a.games))
+                .collect::<Vec<_>>()
+        );
+        let first = alone.accounts.first().unwrap().account.clone();
+        let other = alone.similar_accounts.first().unwrap().account.clone();
+        eprintln!(
+            "similar: {:?}",
+            alone
+                .similar_accounts
+                .iter()
+                .take(5)
+                .map(|a| (&a.account, &a.names, a.games))
+                .collect::<Vec<_>>()
+        );
+        let groups = std::collections::HashMap::from([
+            (first.clone(), "Clem".to_string()),
+            (other.clone(), "Clem".to_string()),
+        ]);
+        let start = std::time::Instant::now();
+        let grouped =
+            super::try_query_player_detail(replay_path, "Clem".to_string(), groups).unwrap();
+        eprintln!(
+            "{:?} grouped: {} {} games",
+            start.elapsed(),
+            grouped.player_name,
+            grouped.games
+        );
+        assert_eq!(grouped.player_name, "Clem");
+        assert!(grouped
+            .accounts
+            .iter()
+            .any(|account| account.account == other));
+        assert!(
+            grouped
+                .accounts
+                .iter()
+                .filter(|account| account.grouped_as == "Clem")
+                .count()
+                >= 2
+        );
+        assert!(grouped.games > alone.games);
+        assert!(grouped
+            .matches
+            .iter()
+            .all(|game| !game.played_as.is_empty()));
+    }
+
+    #[test]
+    #[ignore]
+    fn it_finds_the_games_of_the_accounts_of_a_player() {
+        let replay_path = std::env::var("SWARMY_TEST_REPLAY_PATH").unwrap();
+        // The main account of LiquidClem grouped under Clem.
+        let groups =
+            std::collections::HashMap::from([("2-1-3141896".to_string(), "Clem".to_string())]);
+        let query = swarmy_common::ReplayListQuery {
+            player_name: "Clem".to_string(),
+            ..Default::default()
+        };
+        let by_name = crate::replay_list::data::try_query_replay_list(
+            replay_path.clone(),
+            query.clone(),
+            None,
+            &Default::default(),
+        )
+        .unwrap();
+        let by_player = crate::replay_list::data::try_query_replay_list(
+            replay_path.clone(),
+            query,
+            None,
+            &groups,
+        )
+        .unwrap();
+        eprintln!(
+            "replay list Clem: {} by name, {} by player",
+            by_name.total, by_player.total
+        );
+        assert!(by_player.total >= by_name.total);
+        let head_to_head = |groups: std::collections::HashMap<String, String>| {
+            crate::player_detail::head_to_head::try_query_head_to_head(
+                replay_path.clone(),
+                swarmy_common::HeadToHeadQuery {
+                    player_name: "Clem".to_string(),
+                    opponent_name: "Serral".to_string(),
+                },
+                groups,
+            )
+            .unwrap()
+            .games
+            .len()
+        };
+        let (alone, grouped) = (
+            head_to_head(Default::default()),
+            head_to_head(groups.clone()),
+        );
+        eprintln!("Clem vs Serral: {alone} games by name, {grouped} with the grouped account");
+        assert!(grouped >= alone);
+    }
 }

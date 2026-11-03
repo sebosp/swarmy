@@ -1,5 +1,6 @@
 //! The details of a single replay: build orders, expansions, kills, decisions and messages.
 
+pub mod creep;
 pub mod data;
 pub mod focus;
 pub mod lessons;

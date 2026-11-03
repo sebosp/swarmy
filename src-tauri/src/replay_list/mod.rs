@@ -46,7 +46,11 @@ fn query_replays_with_notes(
         }
         Ok(replays)
     })?;
-    let mut list = try_query_replay_list(replay_path, query, replays)?;
+    let groups = with_db(db, |conn| {
+        crate::personal_db::player_groups(conn).map_err(db_error)
+    })
+    .unwrap_or_default();
+    let mut list = try_query_replay_list(replay_path, query, replays, &groups)?;
     let sha256s: Vec<String> = list
         .replays
         .iter()
