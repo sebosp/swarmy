@@ -11,13 +11,28 @@ other swarmy apps. swarmy-bevy, a separate repository, draws the maps and replay
 
 ## Skills to load
 
-Load them before the work they cover, every time:
+Always, for any change a user sees:
 
-- **dataviz** before any chart, color of a series, stat line or legend.
-- **frontend-design** before changing the layout or the look of a view.
-- **deep-research** for questions that need sources (what helps players improve, other tools).
-- Readability and accessibility are part of every UI change: contrast in every theme, keyboard
-  focus, titles on icon buttons, color never the only cue.
+- **frontend-design**: the view must be clear to a player, not too much information at once,
+  the data first and the words quiet.
+- **dataviz**: every chart, color, stat line, legend or table of statistics, presented as the
+  best practices for statistics say (one message per chart, honest scales, labels in words).
+- **deep-research** on learning platforms (chess, aim trainers, coaching tools) when a feature
+  is about learning: swarmy is a learning platform for StarCraft II players.
+
+Every change checks, without a skill to load:
+
+- Accessibility: contrast in every theme, color never the only cue, safe for color vision
+  deficiencies (run the dataviz validator for new colors), keyboard focus, titles on icons.
+- The colors of the theme chosen in Config: success, warning and error are the daisyUI
+  `text-success`, `text-warning`, `text-error` of the theme, never a fixed green or red.
+
+## After a change of behavior
+
+Update in the same change, briefly (a line, not a log): the screenshots (`docs/screenshots`),
+the docs (`README.md`, `docs/`), `src/changelog/view.rs`, `src/help/view.rs` for a new view or
+statistic, and the wiki when it describes the changed view. Agents: write the decisions you take
+with the author here, explicitly, so that the next agent follows them.
 
 ## Interface decisions
 
@@ -90,6 +105,15 @@ Load them before the work they cover, every time:
   older swarmy that does not send its replay path, update it to 0.2.3 or later").
 - Optimize creates the snapshot and Refresh adds the new replays (the same command); Rebuild from
   scratch deletes it and reads all the replays again.
+
+### Players
+- A player is its accounts (`region-realm-id` of the toon handle), not a name: an account keeps
+  its games when its name or clan tag changes, the accounts with the same main name are one player,
+  and the accounts grouped under a player in the personal database (Player view, Accounts) count as
+  that player. Queries by player use `data::details_with_players` and its `player` column.
+- The arcade and co-op races (Primal Zerg, the commanders) are not StarCraft II races: their
+  players are left out; the units without a race are Neutral.
+- The replay ids follow the time of the games (s2protocol-rs), a Rebuild numbers them again.
 
 ## Code
 

@@ -5,6 +5,19 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-11-03",
+        &[
+            "The charts no longer zoom when the page scrolls over them, they are read by hovering.",
+            "swarmy-bevy: the free camera is back; the objects of the maps load again; the replay panel lists the winner first with a green triangle and is easier to read, a cell has one bar per player there, and a clicked bar shows its units with their icons at the bottom left.",
+            "Config: Save says Saved beside the button, or what failed.",
+            "With a remote backend, the backend watches its replays and the app shows its new replays when \"Receive notifications of the new replays of the remote backend\" is set.",
+            "The winners come first in the players of a game, then the losers. Every table shows how it is sorted when it opens, and keeps the sort you choose.",
+            "The banner says when new replays are available and when the snapshot was updated, with a button to reload the view. Progress uses the Main Player Name of this computer also with a remote backend.",
+            "The replay ids follow the time of the games (s2protocol), the players of arcade and co-op races are not counted, the units without a race are Neutral.",
+            "Players are their accounts: Clem's games count for Clem through name and clan tag changes, and Accounts in the Player view groups his accounts of other regions and tournaments; the Replay List search and the head to head follow the accounts.",
+        ],
+    ),
+    (
         "2026-11-02",
         &[
             "Ability view: click an ability to see its use in the games of the snapshot, by month, patch and matchup, its top players and games, and the average and fastest time of its first use.",
