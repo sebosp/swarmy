@@ -20,7 +20,7 @@ fn bench_queries() {
     let replays = std::env::var("SWARMY_TEST_REPLAYS").unwrap();
     let caches = std::env::var("SWARMY_TEST_CACHES").unwrap_or_default();
     let players = timed("list_players", || {
-        crate::player_detail::head_to_head::try_list_players(replays.clone())
+        crate::player_detail::head_to_head::try_list_players(replays.clone(), Default::default())
     })
     .unwrap_or_default();
     let maps = timed("list_maps", || {
@@ -39,6 +39,7 @@ fn bench_queries() {
             replays.clone(),
             ReplayListQuery::default(),
             None,
+            &Default::default(),
         )
     });
     timed("replay_list player", || {
@@ -49,6 +50,7 @@ fn bench_queries() {
                 ..Default::default()
             },
             None,
+            &Default::default(),
         )
     });
     // SWARMY_TEST_EXT_FS_ID picks the replay, i.e. one with abilities, the newest one by default.
@@ -126,10 +128,18 @@ fn bench_queries() {
         )
     });
     timed("player_detail", || {
-        crate::player_detail::data::try_query_player_detail(replays.clone(), player.clone())
+        crate::player_detail::data::try_query_player_detail(
+            replays.clone(),
+            player.clone(),
+            Default::default(),
+        )
     });
     timed("player_detail cached", || {
-        crate::player_detail::data::try_query_player_detail(replays.clone(), player.clone())
+        crate::player_detail::data::try_query_player_detail(
+            replays.clone(),
+            player.clone(),
+            Default::default(),
+        )
     });
     timed("head_to_head", || {
         crate::player_detail::head_to_head::try_query_head_to_head(
@@ -138,6 +148,7 @@ fn bench_queries() {
                 player_name: player.clone(),
                 opponent_name: opponent.clone(),
             },
+            Default::default(),
         )
     });
     timed("unit_snapshot_stats", || {

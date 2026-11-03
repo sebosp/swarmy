@@ -8,6 +8,7 @@ use crate::components::links::{
 };
 use crate::components::loading::Loading;
 use crate::components::name_select::NameSelect;
+use crate::components::section::Panel;
 use crate::components::units::UnitsTable;
 use crate::navigation::use_navigation;
 use crate::*;
@@ -42,7 +43,10 @@ pub fn PlayerDetailView() -> impl IntoView {
     let opponent = RwSignal::new(String::new());
     // The player compared with, empty for none.
     let compare_with = RwSignal::new(String::new());
+    // Asks for the player again, i.e. after its accounts changed.
+    let reload = RwSignal::new(0u32);
     Effect::new(move |_| {
+        reload.track();
         let player_name = navigation.player_name.get();
         if player_name.is_empty() {
             return;
@@ -92,6 +96,7 @@ pub fn PlayerDetailView() -> impl IntoView {
             <ErrorMessage error />
             {move || detail.get().map(|detail| view! {
                 <PlayerHeader detail=detail.clone() />
+                <AccountsPanel detail=detail.clone() reload />
                 {
                     let player = detail.clone();
                     move || {
@@ -166,6 +171,134 @@ fn PlayerHeader(detail: PlayerDetail) -> impl IntoView {
                 {format!(" · {races}")}
             </p>
         </div>
+    }
+}
+
+/// The accounts of the player, the names they played as, and the accounts with a similar name to
+/// group with it: a player has accounts in several regions and for tournaments.
+#[component]
+fn AccountsPanel(detail: PlayerDetail, reload: RwSignal<u32>) -> impl IntoView {
+    let player = detail.player_name.clone();
+    let status = RwSignal::new(String::new());
+    let change = move |account: String, grouped: bool, player: String| {
+        #[derive(serde::Serialize)]
+        struct Args {
+            changes: Vec<PlayerAccountChange>,
+        }
+        let args = Args {
+            changes: vec![PlayerAccountChange {
+                player,
+                account,
+                grouped,
+            }],
+        };
+        spawn_local(async move {
+            match invoke_response("set_player_accounts", &args).await {
+                Ok(_) => {
+                    status.set(String::new());
+                    reload.update(|reload| *reload += 1);
+                }
+                Err(err) => status.set(err),
+            }
+        });
+    };
+    let row = move |account: PlayerAccount, action: AnyView| {
+        view! {
+            <tr>
+                <td class="pr-3 tabular-nums text-base-content" title="region-realm-id of the account">
+                    {account.account.clone()}
+                </td>
+                <td class="pr-3">{account.region()}</td>
+                <td class="pr-3 text-base-content">{account.names.join(", ")}</td>
+                <td class="pr-3 num">{account.games}</td>
+                <td>{action}</td>
+            </tr>
+        }
+    };
+    let accounts = detail
+        .accounts
+        .iter()
+        .cloned()
+        .map(|account| {
+            let action = if account.grouped_as == player {
+                let key = account.account.clone();
+                let player = player.clone();
+                view! {
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        title=format!("This account is not {player}: it is shown by its own name again")
+                        on:click=move |_| change(key.clone(), false, player.clone())
+                    >
+                        "Remove"
+                    </button>
+                }
+                .into_any()
+            } else {
+                view! { <span class="text-faint" title="Its name is the player's">"by name"</span> }.into_any()
+            };
+            row(account, action)
+        })
+        .collect_view();
+    let similar = detail
+        .similar_accounts
+        .iter()
+        .cloned()
+        .map(|account| {
+            let key = account.account.clone();
+            let player = player.clone();
+            let action = view! {
+                <button
+                    class="btn btn-primary btn-xs"
+                    title=format!("This account is {player}: its games count as {player}'s")
+                    on:click=move |_| change(key.clone(), true, player.clone())
+                >
+                    "Add"
+                </button>
+            }
+            .into_any();
+            row(account, action)
+        })
+        .collect_view();
+    let has_similar = !detail.similar_accounts.is_empty();
+    view! {
+        <Panel title="Accounts">
+            <p class="text-xs text-muted">
+                "The StarCraft II accounts of the player, with the names they played as: an account keeps its games when its name or clan tag changes. Add the other accounts of the same player, i.e. of another region or of a tournament, so that they count as one player; the accounts with the same name already do."
+            </p>
+            <table class=TABLE_CLASS data-sort-key="player-accounts">
+                <thead>
+                    <tr class="text-left text-muted">
+                        <th class="pr-3">"Account"</th>
+                        <th class="pr-3">"Region"</th>
+                        <th class="pr-3">"Names"</th>
+                        <th class="pr-3 num" aria-sort="descending">"Games"</th>
+                        <th data-no-sort></th>
+                    </tr>
+                </thead>
+                <tbody>{accounts}</tbody>
+            </table>
+            {has_similar
+                .then(|| {
+                    view! {
+                        <h3 class="mt-2 text-sm font-semibold text-base-content">
+                            {format!("Accounts with a name like {}", clean_player_name_clan_escapes(&detail.player_name))}
+                        </h3>
+                        <table class=TABLE_CLASS data-sort-key="player-similar-accounts">
+                            <thead>
+                                <tr class="text-left text-muted">
+                                    <th class="pr-3">"Account"</th>
+                                    <th class="pr-3">"Region"</th>
+                                    <th class="pr-3">"Names"</th>
+                                    <th class="pr-3 num" aria-sort="descending">"Games"</th>
+                                    <th data-no-sort></th>
+                                </tr>
+                            </thead>
+                            <tbody>{similar}</tbody>
+                        </table>
+                    }
+                })}
+            <span class="text-xs text-error">{move || status.get()}</span>
+        </Panel>
     }
 }
 

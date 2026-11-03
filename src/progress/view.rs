@@ -68,9 +68,17 @@ pub fn ProgressView() -> impl IntoView {
     let goals = RwSignal::new(BTreeMap::<String, f64>::new());
     let saved = RwSignal::new(None::<String>);
     spawn_local(async move {
+        // The Main Player Name of this computer, a remote backend has its own Config.
+        let player_name = serde_wasm_bindgen::from_value::<AppSettings>(
+            crate::invoke_without_args("get_ui_settings").await,
+        )
+        .map(|settings| settings.main_player_name)
+        .unwrap_or_default();
         #[derive(serde::Serialize)]
-        struct NoArgs {}
-        match invoke_json::<ProgressReport>("query_progress", &NoArgs {}).await {
+        struct Args {
+            player_name: String,
+        }
+        match invoke_json::<ProgressReport>("query_progress", &Args { player_name }).await {
             Ok(loaded) => {
                 goals.set(loaded.goals.clone());
                 report.set(Some(loaded));

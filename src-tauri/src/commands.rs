@@ -70,6 +70,7 @@ backend_commands! {
     personal_db::get_replay_notes(sha256: String);
     personal_db::set_replay_notes(notes: ReplayNotes);
     personal_db::list_replay_tags();
+    personal_db::set_player_accounts(changes: Vec<PlayerAccountChange>);
     duplicates::find_duplicate_replays();
     duplicates::move_duplicate_replays();
     player_detail::query_player_detail(player_name: String);
@@ -87,7 +88,8 @@ backend_commands! {
     patch_overview::query_unit_snapshot_stats(unit_name: String);
     ability_usage::query_ability_usage();
     ability_detail::query_ability_detail(query: AbilityDetailQuery);
+    replay_watcher::get_new_replays_status();
     race_detail::query_race_detail(race: String);
-    progress::query_progress();
+    progress::query_progress(player_name: String);
     progress::set_progress_goals(goals: BTreeMap<String, f64>);
 }

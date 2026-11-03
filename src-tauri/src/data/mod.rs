@@ -106,6 +106,9 @@ pub fn race_letter_expr(column: &str) -> Expr {
 
 /// Terran, Zerg or Protoss from the localized race names of the column, `Other` for the races of
 /// the arcade maps or an unknown language.
+pub mod players;
+pub use players::*;
+
 pub fn race_name_expr(column: &str) -> Expr {
     when(is_one_of(column, &TERRAN))
         .then(lit("Terran"))
@@ -170,6 +173,8 @@ pub fn snapshot_players(ipc_path: &str) -> Result<LazyFrame, SwarmyError> {
             Some(cols(["ext_fs_id", "player_name"])),
             UniqueKeepStrategy::Any,
         );
+    // The players of a StarCraft II race: the arcade and co-op races (Primal Zerg, the
+    // commanders) are not counted, their games are not of the ladder.
     Ok(scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
         .filter(col("player_observe").eq(lit(0u8)))
         .select([
@@ -180,6 +185,7 @@ pub fn snapshot_players(ipc_path: &str) -> Result<LazyFrame, SwarmyError> {
             col("title"),
             col("ext_protocol_version"),
         ])
+        .filter(col("race").neq(lit("Other")))
         .join(
             patch_versions(ipc_path)?,
             [col("ext_protocol_version")],

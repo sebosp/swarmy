@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS replay_tags (
 CREATE TABLE IF NOT EXISTS indexed_replays (
     sha256 VARCHAR PRIMARY KEY
 );
+-- The accounts (region-realm-id) grouped under a player, i.e. the accounts of Clem.
+CREATE TABLE IF NOT EXISTS player_accounts (
+    account VARCHAR PRIMARY KEY,
+    player VARCHAR NOT NULL
+);
 CREATE TABLE IF NOT EXISTS replay_messages (
     sha256 VARCHAR NOT NULL,
     seconds INTEGER NOT NULL,
@@ -94,6 +99,58 @@ pub fn with_db<T>(
 /// Whether another process has the database open.
 fn is_locked(err: &SwarmyError) -> bool {
     matches!(err, SwarmyError::Other(message) if message.contains("lock"))
+}
+
+/// The player each grouped account belongs to, by account.
+pub fn player_groups(conn: &Connection) -> duckdb::Result<HashMap<String, String>> {
+    let mut statement = conn.prepare("SELECT account, player FROM player_accounts")?;
+    let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    rows.collect()
+}
+
+/// The grouped accounts, by account: empty when the database cannot be read, the players are then
+/// their accounts.
+pub fn read_player_groups(host: &dyn SwarmyHost) -> HashMap<String, String> {
+    db_path(host)
+        .and_then(|path| with_db(&path, |conn| player_groups(conn).map_err(db_error)))
+        .unwrap_or_else(|err| {
+            tracing::warn!("No player groups: {err:?}");
+            HashMap::new()
+        })
+}
+
+/// Groups an account under a player, or removes it from its group.
+pub fn change_player_account(
+    conn: &Connection,
+    change: &PlayerAccountChange,
+) -> duckdb::Result<()> {
+    if change.grouped {
+        conn.execute(
+            "INSERT OR REPLACE INTO player_accounts (account, player) VALUES (?, ?)",
+            duckdb::params![change.account, change.player],
+        )?;
+    } else {
+        conn.execute(
+            "DELETE FROM player_accounts WHERE account = ?",
+            duckdb::params![change.account],
+        )?;
+    }
+    Ok(())
+}
+
+/// Groups the accounts under a player: the accounts of a player, i.e. Clem's of each region and
+/// of the tournaments, count as one player in the views.
+pub async fn set_player_accounts(
+    host: &dyn SwarmyHost,
+    changes: Vec<PlayerAccountChange>,
+) -> Result<ApiResponse, SwarmyError> {
+    with_db(&db_path(host)?, |conn| {
+        for change in &changes {
+            change_player_account(conn, change).map_err(db_error)?;
+        }
+        Ok(())
+    })?;
+    Ok(ApiResponseBuilder::new().process_result(Ok(changes.len())))
 }
 
 /// The notes, rating and tags of a replay.
@@ -263,6 +320,27 @@ fn tag_counts(conn: &Connection) -> std::collections::BTreeMap<String, usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn it_groups_the_accounts_of_a_player() {
+        let dir = std::env::temp_dir().join(format!("swarmy-db-accounts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let conn = open_db(&dir.join(DB_FILE_NAME)).unwrap();
+        let change = |account: &str, grouped: bool| PlayerAccountChange {
+            player: "Clem".to_string(),
+            account: account.to_string(),
+            grouped,
+        };
+        change_player_account(&conn, &change("2-1-3141896", true)).unwrap();
+        change_player_account(&conn, &change("1-1-4516738", true)).unwrap();
+        // Grouping again is not an error.
+        change_player_account(&conn, &change("1-1-4516738", true)).unwrap();
+        change_player_account(&conn, &change("2-1-3141896", false)).unwrap();
+        let groups = player_groups(&conn).unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups["1-1-4516738"], "Clem");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn it_keeps_the_notes_ratings_and_tags() {

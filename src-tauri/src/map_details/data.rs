@@ -104,7 +104,7 @@ pub fn try_query_map_details(
         ..ReplayListQuery::newest_first()
     };
     let mut recent_games: Vec<ReplayListEntry> =
-        try_query_replay_list(replay_path, replay_query, None)?
+        try_query_replay_list(replay_path, replay_query, None, &Default::default())?
             .replays
             .into_iter()
             .filter(|game| game.map_title == map_title)

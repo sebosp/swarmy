@@ -74,7 +74,14 @@ const TROUBLESHOOTING: [Entry; 2] = [
     ),
 ];
 
-const VIEWS: [Entry; 17] = [
+const VIEWS: [Entry; 18] = [
+    (
+        "Player accounts",
+        "A player is its StarCraft II accounts: the games of an account count for it when its name \
+         or clan tag changes, the accounts with the same name are one player. In the Player view, \
+         Accounts lists them and the accounts with a similar name: Add groups an account of another \
+         region or of a tournament with the player, Remove separates it again.",
+    ),
     (
         "Ability",
         "One ability with energy or a cooldown, i.e. Inject Larva or Yamato Cannon, in the games \
