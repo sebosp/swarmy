@@ -176,7 +176,8 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
             </div>
             <div class="space-y-5 min-w-0">
                 <p class="text-xs text-muted whitespace-pre-line">{details.description.clone()}</p>
-                <div class="grid grid-cols-2 gap-6">
+                // Side by side when they fit, one under the other on a narrow window.
+                <div class="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-6">
                     <table class=TABLE_CLASS>
                         <thead>
                             <tr class="text-left text-muted">

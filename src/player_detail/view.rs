@@ -118,8 +118,9 @@ pub fn PlayerDetailView() -> impl IntoView {
                         <GamesWinsChart data=detail.by_version.clone() />
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
+                // The units and the opponents one under the other when the window is too narrow for both.
+                <div class="grid grid-cols-[repeat(auto-fit,minmax(32rem,1fr))] gap-4">
+                    <div class="min-w-0 overflow-x-auto">
                         <h2 class=HEADING_CLASS>"Units"</h2>
                         <UnitsTable
                             units=detail.units.clone()
@@ -318,7 +319,7 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
         .0
     };
     view! {
-        <div>
+        <div class="min-w-0 overflow-x-auto">
             <h2 class=HEADING_CLASS>"Opponents"</h2>
             <p class="text-xs text-faint">"Click on the record to filter the matches below."</p>
             <table class=TABLE_CLASS data-server-sort>
