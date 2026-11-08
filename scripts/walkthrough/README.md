@@ -27,3 +27,18 @@ starts at.
 The clicks are at fixed coordinates of the 1000x800 window, a change of the layout of a view needs
 the coordinates of `record.sh` to be updated. The new replays banner is only shown until Optimize,
 the views after it are 32 pixels higher.
+
+## The tour of the browser version
+
+`tour.py` records `docs/tour.mp4` and the screenshots of the views in Firefox, on the same headless
+display, from a `swarmy --serve` backend. It opens each view by its address and finds the buttons by
+their text, so it needs no coordinates. The administrator key comes from `SWARMY_ADMIN_KEY`, to
+show Scan; it is never typed on screen.
+
+```sh
+scripts/walkthrough/headless.sh start
+SWARMY_ADMIN_KEY=... python3 scripts/walkthrough/tour.py http://corvid-zt:7878 target/walkthrough-web
+scripts/walkthrough/headless.sh stop
+ffmpeg -i target/walkthrough-web/raw.mp4 -vf "scale=1200:960:flags=lanczos,fps=15" -c:v libx264 \
+  -preset slow -crf 30 -pix_fmt yuv420p -movflags +faststart docs/tour.mp4
+```

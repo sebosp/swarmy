@@ -70,6 +70,8 @@
     const labels = parse(container.dataset.chartLabels, []);
     const colors = (parse(container.dataset.chartColors, null) || t.palette).map(resolveColor);
     const tooltips = parse(container.dataset.chartTooltips, null);
+    // As many labels under the chart as fit, about one per 80 pixels (a month is 45).
+    const maxTicks = Math.max(4, Math.floor((container.offsetWidth || 640) / 80));
     const suffix = container.dataset.chartValueSuffix || "";
     const yMax = container.dataset.chartYMax ? Number(container.dataset.chartYMax) : undefined;
     const stackType = container.dataset.chartStackType || "";
@@ -122,10 +124,20 @@
       },
       xaxis: {
         categories: labels,
-        labels: { style: { colors: t.muted, fontSize: "10px" }, hideOverlappingLabels: true, rotate: 0 },
+        labels: {
+          style: { colors: t.muted, fontSize: "10px" },
+          hideOverlappingLabels: true,
+          rotate: 0,
+          // The bars of a category axis show every label whatever tickAmount says: only every
+          // few of them when they do not fit, so that the months of a player do not overlap.
+          formatter: type === "bar" && labels.length > maxTicks
+            ? (value) => (labels.indexOf(value) % Math.ceil(labels.length / maxTicks) === 0 ? value : "")
+            : undefined,
+        },
         axisBorder: { color: t.grid },
         axisTicks: { show: false },
-        tickAmount: labels.length > 24 ? 12 : undefined,
+        // The bars thin their labels with the formatter above, tickAmount would thin them again.
+        tickAmount: type !== "bar" && labels.length > maxTicks ? maxTicks : undefined,
         // The column under the pointer is outlined, not filled: a fill (gray by default) hid the
         // bars of the same color, i.e. the games of GamesWinsChart, in some themes.
         crosshairs: {
@@ -156,6 +168,8 @@
         custom: tooltips
           ? ({ dataPointIndex }) => `<div class="px-2 py-1 text-xs">${tooltips[dataPointIndex] ?? ""}</div>`
           : undefined,
+        // The title of the tooltip is the whole label, also when the axis shows only some.
+        x: { formatter: (value, { dataPointIndex } = {}) => labels[dataPointIndex] ?? value },
         y: { formatter: (value) => `${value?.toLocaleString?.() ?? value}${suffix}` },
       },
     };

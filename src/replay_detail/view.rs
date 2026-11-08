@@ -1760,10 +1760,13 @@ fn WinChanceChart(
                                                 <span>
                                                     {format!("{favored} +{:.0}%", point.change.abs() * 100.)}
                                                 </span>
-                                                <span class="text-muted">
+                                                <span class="text-muted min-w-0 flex-1">
+                                                    // A space after each comma of the unit lists, so
+                                                    // that the line wraps.
                                                     {point
                                                         .engagement
-                                                        .clone()
+                                                        .as_deref()
+                                                        .map(|text| text.replace(',', ", ").replace(",  ", ", "))
                                                         .unwrap_or_else(|| {
                                                             "no fight: the economy or the army changed".to_string()
                                                         })}

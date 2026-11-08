@@ -14,12 +14,38 @@ through the replays of a series while casting.
   patch and the evolution of their costs.
 - **Viewers**: a replay in [Rerun](https://rerun.io) and in 3D on its map with
   [swarmy-bevy](https://github.com/sebosp/swarmy-bevy).
+- **Browser**: `swarmy --serve` serves the same views to a browser, the address of each view can be
+  shared; an administrator key protects Scan, Optimize and the settings.
+- **Battle.net**: with the Client ID and Secret of a Battle.net application, the Player view shows
+  the public profiles of the accounts: the best 1v1 finish, the ladders of the season and their MMR.
 
 ## Walkthrough
 
-[![The swarmy walkthrough video](docs/screenshots/replay_detail.png)](docs/walkthrough.mp4)
+[![The swarmy tour video](docs/screenshots/replay_detail.png)](docs/tour.mp4)
 
-[The walkthrough video](docs/walkthrough.mp4) (5:19) goes from a fresh install through every view, with 833
+[The tour video](docs/tour.mp4) (3:27) goes through every view of swarmy 0.2.4 in the browser, on
+the 36,394 games of a `swarmy --serve` backend:
+
+| Time | Step |
+|------|------|
+| 0:00 | Home: the snapshot and where it comes from |
+| 0:06 | Config: the administrator key, the theme, Battle.net |
+| 0:12 | Scan: the replays and the snapshot of the server |
+| 0:22 | Map List |
+| 0:32 | Map Details: the minimap, the matchups, the resources |
+| 0:46 | Map Scout, experimental: where the first units go |
+| 0:56 | Replay List: the games and their best rank |
+| 1:07 | Replay Detail: Reynor against Serral on Rainfall, the win chance, the lessons, the Focus |
+| 1:49 | Player: Serral, the accounts, Battle.net, the insights |
+| 2:13 | Patch Overview |
+| 2:26 | Patch Evolution: a unit over the patches, the abilities |
+| 2:41 | Unit Overview: the race, then the unit |
+| 2:53 | Ability: Fungal Growth |
+| 3:04 | Race Detail |
+| 3:14 | Help and Changelog |
+
+The first steps in the app (Config, Scan, Optimize, the duplicates), Rerun and swarmy-bevy are in
+[the walkthrough video of 0.2.1](docs/walkthrough.mp4) (5:19), from a fresh install with 833
 replays of the RSL season:
 
 | Time | Step |
@@ -42,7 +68,7 @@ replays of the RSL season:
 | 4:13 | Rerun preview |
 | 4:43 | swarmy-bevy: the units died, born, of one unit type |
 
-More in [Screenshots](docs/Screenshots.md). The video is from 0.2.1; since then (0.2.2 and 0.2.3):
+More in [Screenshots](docs/Screenshots.md). Since 0.2.1, besides what the tour shows:
 
 - A [remote backend](docs/Installation.md#remote-backend): a computer that cannot handle the
   snapshot uses the swarmy of another one through Config → Remote Backend.
