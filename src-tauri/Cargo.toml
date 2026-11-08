@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-nom-mpq = "2.0.7"
+nom-mpq = "2.0.13"
 swarmy-common = { path = "../swarmy-common" }
 tauri = { version = "2", features = ["tracing"] }
 tauri-plugin-opener = "2"
