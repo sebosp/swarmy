@@ -3,6 +3,7 @@
 use crate::host::SwarmyHost;
 use crate::majordomo::AsyncTask;
 use s2protocol::game_events::read_balance_data_from_included_assets;
+use s2protocol::snapshot::SnapshotProgress;
 use s2protocol::ArrowIpcTypes;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -83,13 +84,32 @@ pub async fn try_optimize_replay_path(
     };
     // The progress of the snapshot is forwarded to the frontend as events.
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
+    let emit_progress =
+        move |host: &dyn SwarmyHost, progress: &SnapshotProgress| match serde_json::to_value(
+            progress,
+        ) {
+            Ok(progress) => host.emit(OPTIMIZE_PROGRESS_EVENT, progress),
+            Err(err) => tracing::error!("Error sending the optimize progress: {}", err),
+        };
+    let forward_host = emitter.clone();
     let forward_progress = tokio::spawn(async move {
+        // The end of the snapshot is not the end of Optimize, the games are analysed after it.
+        let mut done = None;
         while let Some(progress) = progress_rx.recv().await {
-            match serde_json::to_value(&progress) {
-                Ok(progress) => emitter.emit(OPTIMIZE_PROGRESS_EVENT, progress),
-                Err(err) => tracing::error!("Error sending the optimize progress: {}", err),
+            match progress {
+                SnapshotProgress::Done { .. } => done = Some(progress),
+                SnapshotProgress::Step { index, total, name } => emit_progress(
+                    forward_host.as_ref(),
+                    &SnapshotProgress::Step {
+                        index,
+                        total: total + 1,
+                        name,
+                    },
+                ),
+                progress => emit_progress(forward_host.as_ref(), &progress),
             }
         }
+        done
     });
     // The snapshot reads the replays without yielding until the map caches, on a worker of the
     // runtime it would block the progress forwarding spawned from it, so nothing would be shown
@@ -114,8 +134,36 @@ pub async fn try_optimize_replay_path(
     .await
     .unwrap_or_else(|err| Err(format!("The optimize task failed: {err}")));
     // The sender is dropped with the snapshot, so the forwarding ends after the last update.
-    let _ = forward_progress.await;
+    let done = forward_progress.await.ok().flatten();
     result.map_err(SwarmyError::Other)?;
+    // What the Player view reads of each game, so that it does not read the replays of a player.
+    let insights_host = emitter.clone();
+    let insights_path = destination.clone();
+    tokio::task::spawn_blocking(move || {
+        let host = insights_host;
+        emit_progress(
+            host.as_ref(),
+            &SnapshotProgress::Step {
+                index: 7,
+                total: 7,
+                name: "Analysing each game for the Player view".to_string(),
+            },
+        );
+        let report = |done: usize, total: usize| {
+            emit_progress(
+                host.as_ref(),
+                &SnapshotProgress::ReplaysProcessed { done, total },
+            );
+        };
+        crate::player_detail::game_insights::build_missing(&insights_path, &report)
+            .inspect_err(|err| tracing::error!("Unable to analyse the games: {err:?}"))
+            .ok();
+        if let Some(done) = done {
+            emit_progress(host.as_ref(), &done);
+        }
+    })
+    .await
+    .map_err(|err| SwarmyError::Other(format!("The analysis of the games failed: {err}")))?;
     // The replays added are no longer new, the copies and unreadable ones are not either.
     crate::replay_watcher::record_skipped_replays(&replay_path);
     host.replays_changed();

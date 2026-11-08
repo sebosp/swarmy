@@ -1,12 +1,12 @@
 //! A unit with its costs, life, weapons, etc in every patch, the changes from the previous patch
 //! are marked: red up when the unit costs more, green down when it costs less.
 
-use crate::components::brand_icon::BrandIcon;
-use crate::components::charts::UnitUsageChart;
+use crate::components::brand_icon::{native_title, BrandIcon};
 use crate::components::links::{MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, UnitLink};
 use crate::components::loading::Loading;
 use crate::components::patch::ChangeMarker;
 use crate::components::unit_icon::UnitIcon;
+use crate::components::usage_over_time::UsageOverTimeChart;
 use crate::navigation::use_navigation;
 use crate::replay_list::actions::{trigger_swarmy_bevy_on_replay, trigger_swarmy_rerun_on_replay};
 use crate::*;
@@ -46,30 +46,53 @@ pub fn UnitOverviewView() -> impl IntoView {
             }
         });
     });
-    // The units grouped by race.
-    let options = move || {
-        let units = unit_list.get().units;
-        let selected = navigation.unit_name.get_untracked();
-        RACES
-            .iter()
-            .map(|race| {
-                let race_units: Vec<String> = units
+    // The race first, then its units: the race of the unit shown, else the one clicked.
+    let race = RwSignal::new(String::new());
+    Effect::new(move |_| {
+        let name = navigation.unit_name.get();
+        if let Some(found) = unit_list.with(|list| {
+            list.units
+                .iter()
+                .find(|unit| unit.name == name)
+                .map(|unit| unit.race.clone())
+        }) {
+            race.set(found);
+        }
+    });
+    let pick_race = Callback::new(move |race: String| {
+        let current = navigation.unit_name.get_untracked();
+        let first = unit_list.with_untracked(|list| {
+            let of_race = |unit: &&PatchUnitName| unit.race == race;
+            if list
+                .units
+                .iter()
+                .filter(of_race)
+                .any(|unit| unit.name == current)
+            {
+                None
+            } else {
+                list.units
                     .iter()
-                    .filter(|unit| unit.race == *race)
+                    .find(of_race)
                     .map(|unit| unit.name.clone())
-                    .collect();
-                view! {
-                    <optgroup label=*race>
-                        {race_units
-                            .into_iter()
-                            .map(|name| {
-                                let is_selected = name == selected;
-                                let label = name.clone();
-                                view! { <option value=name selected=is_selected>{label}</option> }
-                            })
-                            .collect_view()}
-                    </optgroup>
-                }
+            }
+        });
+        if let Some(first) = first {
+            navigation.unit_name.set(first);
+        }
+    });
+    let options = move || {
+        let race = race.get();
+        let selected = navigation.unit_name.get();
+        unit_list
+            .get()
+            .units
+            .into_iter()
+            .filter(|unit| unit.race == race)
+            .map(|unit| {
+                let is_selected = unit.name == selected;
+                let label = unit.name.clone();
+                view! { <option value=unit.name selected=is_selected>{label}</option> }
             })
             .collect_view()
     };
@@ -88,6 +111,7 @@ pub fn UnitOverviewView() -> impl IntoView {
                 <span class="text-warning">"●"</span>
                 " changed. Hover a value to see the previous one."
             </p>
+            <crate::components::race_buttons::RaceButtons value=race races=&RACES on_pick=pick_race />
             <div class="grid grid-cols-10 gap-2 items-end">
                 <div class="col-span-3">
                     <label class="block text-sm/6 font-medium text-base-content">"Unit"</label>
@@ -312,11 +336,7 @@ fn UnitSnapshotStatsView(stats: UnitSnapshotStats) -> impl IntoView {
             )}
         </div>
         <h3 class="text-sm font-semibold text-base-content">"Use over time"</h3>
-        <p class="text-xs text-faint">
-            "The games of each month in which at least one player made the unit, hover a month to \
-            see the units made per game."
-        </p>
-        <UnitUsageChart data=stats.by_month.clone() />
+        <UsageOverTimeChart subject=UsageSubject::Unit(stats.unit_name.clone()) />
         <h3 class="text-sm font-semibold text-base-content">"Exceptional games"</h3>
         <p class="text-xs text-faint">
             {format!(
@@ -353,15 +373,15 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
                     <td class="pr-3 py-1">{game.value_killed}</td>
                     <td class="py-1 whitespace-nowrap">
                         <button
-                            class="btn btn-primary btn-xs b-0"
-                            title="Load Rerun Preview"
+                            class="btn btn-primary btn-xs b-0 native-only"
+                            title=native_title("Load Rerun Preview")
                             on:click=move |_ev: MouseEvent| trigger_swarmy_rerun_on_replay(&rerun_location)
                         >
                             <BrandIcon name="rerun" />
                         </button>
                         <button
-                            class="btn btn-primary btn-xs b-0"
-                            title="Load in swarmy-bevy: the units born and died over time on the map"
+                            class="btn btn-primary btn-xs b-0 native-only"
+                            title=native_title("Load in swarmy-bevy: the units born and died over time on the map")
                             on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_on_replay(&bevy_location)
                         >
                             <BrandIcon name="bevy" />

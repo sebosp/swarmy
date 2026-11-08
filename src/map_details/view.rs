@@ -1,7 +1,7 @@
 //! Leptos view for the details of a map: matchups, top players, recent games and terrain.
 
 use super::resources::{MapPicture, MapResourcesPanel};
-use crate::components::brand_icon::BrandIcon;
+use crate::components::brand_icon::{native_title, BrandIcon};
 use crate::components::links::{PlayerLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
 use crate::components::map_cell::{MapCell, MapHighlightContext};
@@ -151,17 +151,18 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
             </div>
             <div class="flex flex-col items-end gap-1">
                 <div class="flex gap-2">
+                    <button class="btn btn-primary btn-sm native-only" title=native_title("Open in Swarmy-Bevy") on:click=open_in_bevy>
+                        <BrandIcon name="bevy" />
+                        "Open in Swarmy-Bevy"
+                    </button>
+                    // Map Scout is experimental: in its yellow, the last of the actions.
                     <button
-                        class="btn btn-primary btn-sm"
-                        title="Scout this map"
+                        class="btn btn-outline btn-warning btn-sm"
+                        title="Scout this map, experimental: where the players send their first units and when"
                         on:click=move |_ev: MouseEvent| navigation.scout_map(&title)
                     >
                         <Icon icon=BINOCULARS weight=IconWeight::Light />
                         "Scout this map"
-                    </button>
-                    <button class="btn btn-primary btn-sm" title="Open in Swarmy-Bevy" on:click=open_in_bevy>
-                        <BrandIcon name="bevy" />
-                        "Open in Swarmy-Bevy"
                     </button>
                 </div>
                 <span class="text-xs text-muted">{move || bevy_status.get()}</span>
@@ -357,8 +358,8 @@ fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
             <div class="flex items-center gap-2">
                 <h2 class=HEADING_CLASS>"Map lessons"</h2>
                 <button
-                    class="btn btn-primary btn-xs"
-                    title="The layers as bars on the map, each in its color, the keys F1 to F4 show or hide them"
+                    class="btn btn-primary btn-xs native-only"
+                    title=native_title("The layers as bars on the map, each in its color, the keys F1 to F4 show or hide them")
                     on:click=open
                 >
                     <BrandIcon name="bevy" />
@@ -472,8 +473,8 @@ fn LongRangeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoVie
                     <span class="badge badge-sm badge-outline font-normal">"preview"</span>
                 </h2>
                 <button
-                    class="btn btn-primary btn-xs"
-                    title="All the spots as bars on the map: the height is the kills, red the most kills per siege"
+                    class="btn btn-primary btn-xs native-only"
+                    title=native_title("All the spots as bars on the map: the height is the kills, red the most kills per siege")
                     on:click=open
                 >
                     <BrandIcon name="bevy" />

@@ -20,6 +20,9 @@ use swarmy_common::*;
 /// The replays found are counted up to this many files, like the Optimize scan.
 const MAX_FILES: usize = 1_000_000;
 const MAX_DEPTH: usize = 8;
+/// How often the aggregations of the snapshot are checked: a new day can arrive by another
+/// program writing the snapshot, or an Optimize can be interrupted.
+const AGGREGATES_CHECK: std::time::Duration = std::time::Duration::from_secs(300);
 
 #[derive(Default)]
 struct WatchedDir {
@@ -27,6 +30,10 @@ struct WatchedDir {
     /// The replays not in the snapshot, by path.
     new_replays: HashSet<PathBuf>,
     outdated_days: usize,
+    /// The periods of the snapshot without their aggregations.
+    missing_aggregates: usize,
+    /// Identifies the watch of this directory, the check of the aggregations ends with it.
+    watch_id: u64,
     /// The last replay found by the watcher.
     latest_replay: Option<PathBuf>,
     /// The `notify_new_replays` setting.
@@ -39,6 +46,7 @@ impl WatchedDir {
             watching: true,
             new_replays: self.new_replays.len(),
             outdated_days: self.outdated_days,
+            missing_aggregates: self.missing_aggregates,
             latest_replay: self
                 .latest_replay
                 .as_ref()
@@ -107,6 +115,56 @@ pub fn record_skipped_replays(replay_path: &str) {
     }
 }
 
+/// The days, months or years whose aggregations are missing or older than their games, and the
+/// days whose games were not analysed for the Player view. Nothing while a generation runs, it
+/// writes them at the end.
+fn count_missing_aggregates(replay_path: &str) -> usize {
+    let ipc_path = Path::new(replay_path).join(IPC_DIR);
+    if !ipc_path.is_dir()
+        || s2protocol::snapshot::snapshot_state(&ipc_path)
+            .message()
+            .is_some()
+    {
+        return 0;
+    }
+    let gaps = s2protocol::arrow_store::aggregates::find_gaps(&ipc_path).unwrap_or_default();
+    let not_analysed = crate::player_detail::game_insights::find_gaps(&ipc_path)
+        .map(|days| days.len())
+        .unwrap_or_default();
+    gaps.days
+        .len()
+        .max(gaps.months.len())
+        .max(gaps.years.len())
+        .max(not_analysed)
+}
+
+/// Checks the aggregations for as long as the directory is watched, tells the frontend when
+/// their number changes.
+fn watch_aggregates(host: Arc<dyn SwarmyHost>, watch_id: u64) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(AGGREGATES_CHECK);
+        let state = host.replay_watcher();
+        let replay_path = {
+            let dir = state.dir.lock().unwrap();
+            if dir.watch_id != watch_id {
+                return;
+            }
+            dir.replay_path.clone()
+        };
+        let missing = count_missing_aggregates(&replay_path);
+        let status = {
+            let mut dir = state.dir.lock().unwrap();
+            if dir.watch_id != watch_id || dir.missing_aggregates == missing {
+                continue;
+            }
+            dir.missing_aggregates = missing;
+            dir.status()
+        };
+        tracing::info!("Aggregations to compute in {replay_path}: {missing}");
+        emit_status(host.as_ref(), &status);
+    });
+}
+
 /// The replays of the directory that are not in the snapshot nor skipped by Optimize, and the
 /// days of the snapshot written by another version of s2protocol.
 fn find_new_replays(replay_path: &str) -> (HashSet<PathBuf>, usize) {
@@ -140,6 +198,7 @@ pub fn refresh(host: Arc<dyn SwarmyHost>) {
     }
     std::thread::spawn(move || {
         let (new_replays, outdated_days) = find_new_replays(&replay_path);
+        let missing_aggregates = count_missing_aggregates(&replay_path);
         let status = {
             let mut dir = dir.lock().unwrap();
             // The replay path changed while the replays were counted.
@@ -148,6 +207,7 @@ pub fn refresh(host: Arc<dyn SwarmyHost>) {
             }
             dir.new_replays = new_replays;
             dir.outdated_days = outdated_days;
+            dir.missing_aggregates = missing_aggregates;
             dir.status()
         };
         tracing::info!("Replays to optimize in {replay_path}: {status:?}");
@@ -186,9 +246,12 @@ pub fn configure(host: Arc<dyn SwarmyHost>, always: bool) {
         state.dir.lock().unwrap().notify = settings.notify_new_replays;
         return;
     }
+    static NEXT_WATCH_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let watch_id = NEXT_WATCH_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     *state.dir.lock().unwrap() = WatchedDir {
         replay_path: replay_path.clone(),
         notify: settings.notify_new_replays,
+        watch_id,
         ..Default::default()
     };
     let dir = state.dir.clone();
@@ -242,6 +305,7 @@ pub fn configure(host: Arc<dyn SwarmyHost>, always: bool) {
     tracing::info!("Watching {replay_path} for new replays");
     *watcher = Some(new_watcher);
     drop(watcher);
+    watch_aggregates(host.clone(), watch_id);
     refresh(host);
 }
 

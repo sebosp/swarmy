@@ -1,5 +1,7 @@
 use polars::prelude::*;
 use s2protocol::arrow_store::partitioned;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use swarmy_common::*;
 
 /// Sanitcizes the replay path, this should be stored locally in the AppConfig.
@@ -29,15 +31,56 @@ pub fn build_ipc_path(replay_path: &str) -> Result<String, SwarmyError> {
     Ok(replay_path)
 }
 
-/// Scans one of the IPC files of the snapshot, from all its day partitions, or from its root
-/// for the snapshots written before the partitions.
-pub fn scan_snapshot_ipc(ipc_path: &str, file_name: &str) -> Result<LazyFrame, SwarmyError> {
-    let ipc_path = ipc_path.trim_end_matches('/');
-    let path = if partitioned::has_flat_layout(std::path::Path::new(ipc_path)) {
-        format!("{ipc_path}/{file_name}")
-    } else {
-        format!("{ipc_path}/{}", partitioned::partition_glob(file_name))
-    };
+/// The tables of a game or less per row: they are small and every view reads them, they are kept
+/// in memory until the snapshot changes. A DataFrame shares its buffers, cloning it is free.
+const HOT_TABLES: [&str; 5] = [
+    DETAILS_IPC,
+    GAME_ABILITIES_IPC,
+    GAME_UNITS_IPC,
+    GAME_PLAYERS_IPC,
+    GAME_MINUTES_IPC,
+];
+
+type HotTables = HashMap<(String, &'static str), (Option<std::time::SystemTime>, DataFrame)>;
+
+/// Whether the snapshot has aggregations, a snapshot of an older version has none until Optimize.
+fn has_aggregations(ipc_path: &str) -> bool {
+    partitioned::list_partitions(std::path::Path::new(ipc_path))
+        .unwrap_or_default()
+        .iter()
+        .any(|day| day.join(GAME_PLAYERS_IPC).is_file())
+}
+
+/// The error of the views that need the aggregations.
+fn aggregations_error() -> SwarmyError {
+    SwarmyError::Other(
+        "The statistics of this snapshot are not computed yet, refresh the snapshot in Scan."
+            .to_string(),
+    )
+}
+
+fn hot_table(ipc_path: &str, file_name: &'static str) -> Result<DataFrame, SwarmyError> {
+    static TABLES: OnceLock<Mutex<HotTables>> = OnceLock::new();
+    let tables = TABLES.get_or_init(Default::default);
+    let generation = snapshot_generation(ipc_path);
+    let key = (ipc_path.to_string(), file_name);
+    if let Some((table_generation, table)) = tables.lock().unwrap().get(&key) {
+        if *table_generation == generation {
+            return Ok(table.clone());
+        }
+    }
+    if file_name != DETAILS_IPC && !has_aggregations(ipc_path) {
+        return Err(aggregations_error());
+    }
+    let table = scan_day_files(ipc_path, file_name)?.collect()?;
+    tables
+        .lock()
+        .unwrap()
+        .insert(key, (generation, table.clone()));
+    Ok(table)
+}
+
+fn scan_files(path: String) -> Result<LazyFrame, SwarmyError> {
     Ok(LazyFrame::scan_ipc(
         PlRefPath::new(path),
         Default::default(),
@@ -48,6 +91,47 @@ pub fn scan_snapshot_ipc(ipc_path: &str, file_name: &str) -> Result<LazyFrame, S
             ..Default::default()
         },
     )?)
+}
+
+fn scan_day_files(ipc_path: &str, file_name: &str) -> Result<LazyFrame, SwarmyError> {
+    let ipc_path = ipc_path.trim_end_matches('/');
+    let path = if partitioned::has_flat_layout(std::path::Path::new(ipc_path)) {
+        format!("{ipc_path}/{file_name}")
+    } else {
+        format!("{ipc_path}/{}", partitioned::partition_glob(file_name))
+    };
+    scan_files(path)
+}
+
+/// Scans one of the files of the snapshot, from all its day partitions, or from its root for the
+/// snapshots written before the partitions; the [`HOT_TABLES`] from memory.
+pub fn scan_snapshot_ipc(ipc_path: &str, file_name: &str) -> Result<LazyFrame, SwarmyError> {
+    if let Some(table) = HOT_TABLES.iter().find(|table| **table == file_name) {
+        return Ok(hot_table(ipc_path, table)?.lazy());
+    }
+    scan_day_files(ipc_path, file_name)
+}
+
+/// Scans a usage table of the aggregations at a period, see `s2protocol::arrow_store::aggregates`.
+pub fn scan_usage(
+    ipc_path: &str,
+    grain: TimeGrain,
+    file_name: &str,
+) -> Result<LazyFrame, SwarmyError> {
+    use s2protocol::arrow_store::aggregates::{aggregate_glob, Grain};
+    if !has_aggregations(ipc_path) {
+        return Err(aggregations_error());
+    }
+    let grain = match grain {
+        TimeGrain::Day => Grain::Day,
+        TimeGrain::Month => Grain::Month,
+        TimeGrain::Year => Grain::Year,
+    };
+    scan_files(format!(
+        "{}/{}",
+        ipc_path.trim_end_matches('/'),
+        aggregate_glob(grain, file_name)
+    ))
 }
 
 /// Runs a query that aggregates the event files of the whole snapshot on the streaming engine,
@@ -158,17 +242,8 @@ pub fn patch_versions(ipc_path: &str) -> Result<LazyFrame, SwarmyError> {
 /// `killer_player_id`), the details by name. The units born have both, the starting townhalls
 /// tell the id of each name.
 pub fn snapshot_players(ipc_path: &str) -> Result<LazyFrame, SwarmyError> {
-    let ids = scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
-        .filter(
-            col("ext_replay_loop")
-                .eq(lit(0))
-                .and(col("player_name").is_not_null()),
-        )
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            col("control_player_id").alias("player_id"),
-        ])
+    let ids = scan_snapshot_ipc(ipc_path, GAME_PLAYERS_IPC)?
+        .select([col("ext_fs_id"), col("player_name"), col("player_id")])
         .unique(
             Some(cols(["ext_fs_id", "player_name"])),
             UniqueKeepStrategy::Any,
@@ -268,4 +343,17 @@ pub fn game_seconds() -> Expr {
         / lit(crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND))
     .cast(DataType::UInt32)
     .alias("game_seconds")
+}
+
+/// The length of each game, `ext_fs_id` and `game_seconds`.
+pub fn game_durations(ipc_path: &str) -> Result<LazyFrame, SwarmyError> {
+    // The list of replays of a snapshot of an older version, until Optimize.
+    if !has_aggregations(ipc_path) {
+        return Ok(scan_snapshot_ipc(ipc_path, STATS_IPC)?
+            .group_by([col("ext_fs_id")])
+            .agg([game_seconds().max()]));
+    }
+    Ok(scan_snapshot_ipc(ipc_path, GAME_PLAYERS_IPC)?
+        .select([col("ext_fs_id"), col("game_seconds")])
+        .unique(Some(cols(["ext_fs_id"])), UniqueKeepStrategy::Any))
 }

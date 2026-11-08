@@ -134,9 +134,7 @@ pub fn try_query_replay_list(
                 .and(col("players").eq(lit(2 * team_size as u32))),
         );
     }
-    let durations = scan_snapshot_ipc(&ipc_path, STATS_IPC)?
-        .group_by([col("ext_fs_id")])
-        .agg([game_seconds().max()]);
+    let durations = game_durations(&ipc_path)?;
     let games = games.join(
         durations,
         [col("ext_fs_id")],
@@ -161,9 +159,20 @@ pub fn try_query_replay_list(
         )
         .limit(REPLAY_LIST_LIMIT)
         .collect()?;
-    let replays: Vec<ReplayListEntry> = (0..res.height())
+    let mut replays: Vec<ReplayListEntry> = (0..res.height())
         .map(|idx| extract_replay_list_from_df_row(&res.slice(idx as i64, 1)))
         .collect::<Result<_, _>>()?;
+    // Without the ability usage the list is still shown.
+    match crate::ability_usage::ability_usage_cached(&ipc_path) {
+        Ok(usage) => {
+            if let Err(err) =
+                crate::ability_usage::annotate_replay_list(&ipc_path, &mut replays, &usage)
+            {
+                tracing::warn!("No game ranks for the replay list: {err:?}");
+            }
+        }
+        Err(err) => tracing::warn!("No ability usage for the replay list: {err:?}"),
+    }
     Ok(ReplayList { total, replays })
 }
 

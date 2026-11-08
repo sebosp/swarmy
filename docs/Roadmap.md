@@ -22,14 +22,10 @@
   either for 2v2 or for specific player vs specific player.
 - [x] Watch the replay directories: Config has a watcher of the replay path (the `notify`
   crate), a banner tells how many replays are not in the snapshot and runs Optimize.
-- [ ] **Large snapshots such as AI Arena**: the snapshot of the 58,444 AI Arena bot games
-  (`/home/seb/tb/aiarena_net` on wormgat, 13 GB, served by a second `swarmy --serve` on port
-  7879) loads too slowly to use: its 663 million command rows are about 50 times those of a
-  usual snapshot, and the ability views (Patch Overview, Race Detail, the patch averages of
-  Replay Detail) scan them all. To figure out: precomputed aggregates per patch written by
-  Optimize, or command rows kept only for the abilities that are counted, and timings of each
-  view on this snapshot. The AI Arena maps have no map digest either. 8 of its 58,452 replays
-  could not be read, why is not known yet.
+- [x] **Large snapshots such as AI Arena**: the views read the aggregations of s2protocol 5.1 per
+  day, month and year instead of the event files, the small tables stay in memory and Optimize
+  analyses each game once for the Player view. The AI Arena maps still have no map digest, and 8
+  of its 58,452 replays could not be read, why is not known yet.
 - [ ] **Map Scout**: it does not give much yet. It may fit better in swarmy-bevy, on the 3D map,
   as the map lessons do.
 

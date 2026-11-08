@@ -1,10 +1,9 @@
 //! Statistics of a player from the analysis of each of its games, compared to the snapshot.
 
-use super::data::{add_game, name_without_clan};
+use super::data::add_game;
 use crate::data::*;
-use crate::replay_detail::data::{analyze_replay_cached, BENCHMARK_MINUTES, EXPANSION_TOWNHALLS};
+use crate::replay_detail::data::BENCHMARK_MINUTES;
 use polars::prelude::*;
-use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, OnceLock};
 use swarmy_common::*;
@@ -13,7 +12,6 @@ use swarmy_common::*;
 pub const RECENT_FORM_GAMES: usize = 10;
 
 /// The stats are sampled every 160 game loops (~7 seconds), the first sample after the minute.
-const BENCHMARK_SAMPLE_SECONDS: u32 = 8;
 
 /// The average economy at a minute, i.e. of a matchup in the snapshot.
 #[derive(Debug, Default, Clone)]
@@ -38,10 +36,6 @@ impl BenchmarkAverage {
 }
 
 type BenchmarkTable = HashMap<(String, u32), BenchmarkAverage>;
-
-fn matchup(race: &str, opponent_race: &str) -> String {
-    matchup_label(race, opponent_race)
-}
 
 /// The average economy per matchup and minute of every game in the snapshot, it does not change
 /// until the snapshot is optimized again.
@@ -87,21 +81,9 @@ fn compute_benchmarks(ipc_path: &str) -> Result<BenchmarkTable, SwarmyError> {
             )
             .alias("matchup"),
         );
-    // The stats are by tracker player id, the starting townhalls tell the name of each id.
-    let player_matchups = scan_snapshot_ipc(ipc_path, UNIT_BORN_IPC)?
-        .filter(
-            col("ext_replay_loop")
-                .eq(lit(0))
-                .and(col("unit_type_name").is_in(
-                    lit(Series::new("townhalls".into(), EXPANSION_TOWNHALLS)).implode(false),
-                    false,
-                )),
-        )
-        .select([
-            col("ext_fs_id"),
-            col("control_player_id").alias("player_id"),
-            col("player_name"),
-        ])
+    // The stats are by tracker player id.
+    let player_matchups = scan_snapshot_ipc(ipc_path, GAME_PLAYERS_IPC)?
+        .select([col("ext_fs_id"), col("player_name"), col("player_id")])
         .join(
             matchups,
             [col("ext_fs_id"), col("player_name")],
@@ -110,35 +92,13 @@ fn compute_benchmarks(ipc_path: &str) -> Result<BenchmarkTable, SwarmyError> {
         )
         .select([col("ext_fs_id"), col("player_id"), col("matchup")])
         .unique(None, UniqueKeepStrategy::First);
-    let minutes = Series::new("minutes".into(), BENCHMARK_MINUTES.as_slice());
     let measures = ["workers", "supply", "income", "army_value"];
-    let averages = scan_snapshot_ipc(ipc_path, STATS_IPC)?
-        .with_column(game_seconds())
-        .filter(
-            (col("game_seconds") % lit(60u32))
-                .lt(lit(BENCHMARK_SAMPLE_SECONDS))
-                .and((col("game_seconds") / lit(60u32)).is_in(lit(minutes).implode(false), false)),
-        )
-        .select([
-            col("ext_fs_id"),
-            col("player_id"),
-            col("game_seconds"),
-            (col("game_seconds") / lit(60u32)).alias("minute"),
-            col("workers_active_count").alias("workers"),
-            col("food_used").alias("supply"),
-            (col("minerals_collection_rate") + col("vespene_collection_rate")).alias("income"),
-            (col("minerals_used_current_army") + col("vespene_used_current_army"))
-                .alias("army_value"),
-        ])
-        // The first sample after the minute, the order of the rows of a group is not kept by
-        // the engines so each group is sorted instead of the whole file.
-        .group_by([col("ext_fs_id"), col("player_id"), col("minute")])
-        .agg(measures.map(|measure| {
-            col(measure)
-                .sort_by([col("game_seconds")], Default::default())
-                .first()
-                .fill_null(lit(0))
-        }))
+    let averages = scan_snapshot_ipc(ipc_path, GAME_MINUTES_IPC)?
+        .filter(col("minute").is_in(
+            lit(Series::new("minutes".into(), BENCHMARK_MINUTES.as_slice())).implode(false),
+            false,
+        ))
+        .with_column((col("minerals_rate") + col("vespene_rate")).alias("income"))
         .join(
             player_matchups,
             [col("ext_fs_id"), col("player_id")],
@@ -226,35 +186,36 @@ fn length_bucket(seconds: u32) -> &'static str {
     }
 }
 
-/// Analyses every game of the player, in parallel, and aggregates the results.
+/// Adds up the insights of the games of the player, computed from the snapshot by Optimize.
 pub fn player_insights(
     ipc_path: &str,
     player_name: &str,
     matches: &[PlayerMatch],
-    files_by_id: &HashMap<u64, String>,
 ) -> Result<PlayerInsights, SwarmyError> {
     // A game against several opponents is a single game.
-    let mut games: Vec<&PlayerMatch> = vec![];
-    for game in matches {
-        if !games.iter().any(|seen| seen.ext_fs_id == game.ext_fs_id) {
-            games.push(game);
+    let mut seen = std::collections::HashSet::new();
+    let games: Vec<&PlayerMatch> = matches
+        .iter()
+        .filter(|game| seen.insert(game.ext_fs_id))
+        .collect();
+    // The games computed by Optimize from the snapshot; the games added since the last Optimize
+    // are not counted until the next one, the replays are not read.
+    let stored = super::game_insights::read_game_insights(ipc_path, &games)?;
+    let name_of = |game: &PlayerMatch| {
+        if game.played_as.is_empty() {
+            player_name.to_string()
+        } else {
+            game.played_as.clone()
         }
-    }
-    let analyzed: Vec<(&PlayerMatch, Arc<ReplayDetail>)> = games
-        .par_iter()
+    };
+    let analyzed: Vec<(&PlayerMatch, PlayerGameInsight)> = games
+        .iter()
         .filter_map(|game| {
-            let file = files_by_id.get(&game.ext_fs_id)?;
-            match analyze_replay_cached(file) {
-                Ok(detail) => Some((*game, detail)),
-                Err(err) => {
-                    tracing::warn!("Unable to analyse {file}: {err:?}");
-                    None
-                }
-            }
+            let insight = stored.get(&(game.ext_fs_id, name_of(game)))?;
+            Some((*game, insight.clone()))
         })
         .collect();
     let snapshot = snapshot_benchmarks(ipc_path)?;
-
     let mut insights = PlayerInsights {
         analyzed_games: analyzed.len(),
         recent_form: games
@@ -278,47 +239,28 @@ pub fn player_insights(
     let mut killed_by = BTreeMap::new();
     let mut army_at_10: BTreeMap<String, usize> = BTreeMap::new();
     let mut summaries = vec![];
-    for (game, detail) in &analyzed {
-        let Some(summary) = detail
-            .players
-            .iter()
-            // The name of the game: the accounts of a player have several.
-            .find(|summary| {
-                let name = name_without_clan(&summary.player.name);
-                name == game.played_as || (game.played_as.is_empty() && name == player_name)
-            })
-        else {
-            continue;
-        };
-        let opponents: Vec<&ReplayPlayerSummary> = detail
-            .players
-            .iter()
-            .filter(|other| other.player.team_id != summary.player.team_id)
-            .collect();
-        let won = summary.player.result == "Win";
-        let matchup = match opponents.as_slice() {
-            [opponent] => matchup(&summary.player.race, &opponent.player.race),
-            _ => "Team game".to_string(),
-        };
+    for (game, insight) in &analyzed {
+        let won = insight.won;
+        let matchup = insight.matchup.clone();
         add_game(&mut by_matchup, matchup.clone(), won);
-        add_game(&mut by_map, detail.map_title.clone(), won);
+        add_game(&mut by_map, insight.map_title.clone(), won);
         add_game(
             &mut by_length,
-            length_bucket(detail.duration_seconds).to_string(),
+            length_bucket(insight.duration_seconds).to_string(),
             won,
         );
-        if !summary.opening.is_empty() {
-            let opening = summary.opening.join(" → ");
+        if !insight.opening.is_empty() {
+            let opening = insight.opening.join(" → ");
             openings_by_matchup.push((matchup.clone(), opening.clone(), won));
-            openings_by_map.push((detail.map_title.clone(), opening, won));
+            openings_by_map.push((insight.map_title.clone(), opening, won));
         }
-        if let Some(unit) = &summary.first_army_unit {
+        if let Some(unit) = &insight.first_army_unit {
             first_army_units.push((matchup.clone(), unit.clone(), won));
         }
-        if let Some(unit) = &summary.favourite_army_unit {
-            favourite_units.push((detail.map_title.clone(), unit.clone(), won));
+        if let Some(unit) = &insight.favourite_army_unit {
+            favourite_units.push((insight.map_title.clone(), unit.clone(), won));
         }
-        for benchmark in &summary.benchmarks {
+        for benchmark in &insight.benchmarks {
             benchmarks
                 .entry((matchup.clone(), benchmark.minute))
                 .or_default()
@@ -329,59 +271,50 @@ pub fn player_insights(
                     benchmark.army_value,
                 );
         }
-        for idle in &summary.macro_summary.production_idle {
+        for idle in &insight.production_idle {
             *production_idle.entry(idle.structure.clone()).or_default() += idle.idle_seconds;
         }
-        if let Some(scout) = &summary.first_scout {
-            *first_scout_units.entry(scout.text.clone()).or_default() += 1;
+        if let Some(unit) = &insight.first_scout_unit {
+            *first_scout_units.entry(unit.clone()).or_default() += 1;
         }
-        if let Some(upgrade) = &summary.first_upgrade {
+        if let Some(upgrade) = &insight.first_upgrade {
             *upgrade_priorities.entry(upgrade.clone()).or_default() += 1;
         }
-        for unit in &summary.killed_by {
+        for unit in &insight.killed_by {
             *killed_by.entry(unit.unit.clone()).or_default() += unit.count;
         }
-        for unit in &summary.army_at_10 {
+        for unit in &insight.army_at_10 {
             *army_at_10.entry(unit.unit.clone()).or_default() += unit.count;
         }
-        if summary.was_behind {
+        if insight.was_behind {
             insights.behind_games += 1;
             insights.comeback_wins += won as usize;
         }
-        insights.proxy_games += summary.proxy.is_some() as usize;
-        if summary.bases_lost.len() >= 2
-            && opponents
-                .iter()
-                .any(|opponent| opponent.bases_lost.len() >= 2)
-        {
-            insights.base_trade_games += 1;
-        }
-        if let Some(rating) = summary.rating {
+        insights.proxy_games += insight.proxy as usize;
+        insights.base_trade_games += insight.base_trade as usize;
+        if let Some(rating) = insight.rating {
             insights.ratings.push(RatingPoint {
                 date: game.date.clone(),
                 rating,
             });
         }
-        summaries.push(summary);
+        summaries.push(insight);
     }
     let games_analyzed = summaries.len().max(1) as f32;
-    let avg = |value: &dyn Fn(&ReplayPlayerSummary) -> f32| {
+    let avg = |value: &dyn Fn(&PlayerGameInsight) -> f32| {
         average(summaries.iter().map(|summary| value(summary))).unwrap_or_default()
     };
-    insights.avg_supply_blocked_seconds = avg(&|s| s.macro_summary.supply_blocked_seconds as f32);
-    insights.avg_floating_seconds = avg(&|s| s.macro_summary.floating_seconds as f32);
-    insights.avg_unspent = avg(&|s| s.macro_summary.avg_unspent as f32);
-    insights.avg_injects = avg(&|s| s.macro_summary.injects as f32);
-    insights.avg_chrono_boosts = avg(&|s| s.macro_summary.chrono_boosts as f32);
-    insights.avg_mules = avg(&|s| s.macro_summary.mules as f32);
-    insights.avg_commands_per_minute = avg(&|s| {
-        let minutes = &s.macro_summary.commands_per_minute;
-        minutes.iter().sum::<u32>() as f32 / minutes.len().max(1) as f32
-    });
-    insights.avg_resources_lost = avg(&|s| s.resources.lost.total() as f32);
-    insights.avg_resources_killed = avg(&|s| s.resources.killed.total() as f32);
-    insights.avg_mining_seconds_lost = avg(&|s| s.resources.mining_seconds_lost as f32);
-    insights.avg_bases_at_10 = avg(&|s| s.bases_at_10 as f32);
+    insights.avg_supply_blocked_seconds = avg(&|s| s.supply_blocked_seconds);
+    insights.avg_floating_seconds = avg(&|s| s.floating_seconds);
+    insights.avg_unspent = avg(&|s| s.avg_unspent);
+    insights.avg_injects = avg(&|s| s.injects);
+    insights.avg_chrono_boosts = avg(&|s| s.chrono_boosts);
+    insights.avg_mules = avg(&|s| s.mules);
+    insights.avg_commands_per_minute = avg(&|s| s.commands_per_minute);
+    insights.avg_resources_lost = avg(&|s| s.resources_lost);
+    insights.avg_resources_killed = avg(&|s| s.resources_killed);
+    insights.avg_mining_seconds_lost = avg(&|s| s.mining_seconds_lost);
+    insights.avg_bases_at_10 = avg(&|s| s.bases_at_10);
     insights.avg_first_kill_seconds = average(
         summaries
             .iter()
@@ -391,8 +324,8 @@ pub fn player_insights(
     insights.avg_first_scout_seconds = average(
         summaries
             .iter()
-            .filter_map(|summary| summary.first_scout.as_ref())
-            .map(|scout| scout.seconds as f32),
+            .filter_map(|summary| summary.first_scout_seconds)
+            .map(|seconds| seconds as f32),
     );
     insights.production_idle = production_idle
         .into_iter()

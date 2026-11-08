@@ -29,6 +29,21 @@ pub struct ReplayListEntry {
     pub rating: Option<u8>,
     /// The tags of the user.
     pub tags: Vec<String>,
+    /// The best game rank of the game: of its players and abilities, the one ranked highest among
+    /// the games of the race on the patch, see `AbilityUse::game_rank`.
+    #[serde(default)]
+    pub best_rank: Option<GameRankHighlight>,
+}
+
+/// A game rank of an ability, for the Replay List: i.e. Serral's Fungal Growth, 2 / 4,512.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct GameRankHighlight {
+    pub player_name: String,
+    pub race: String,
+    /// i.e. `FungalGrowth.Execute`, see `TRACKED_ABILITIES`.
+    pub ability: String,
+    pub uses: u32,
+    pub rank: crate::Rank,
 }
 
 /// The replay list returns at most this many replays, the newest ones.

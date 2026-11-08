@@ -3,7 +3,7 @@
 use super::actions::*;
 use super::*;
 use crate::components::abilities::group_digits;
-use crate::components::brand_icon::BrandIcon;
+use crate::components::brand_icon::{native_title, BrandIcon};
 use crate::components::links::MapLink;
 use crate::components::loading::Loading;
 use crate::*;
@@ -165,12 +165,12 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                                         </td>
                                         <td class="px-2 py-2">
                                             <button
-                                                class="btn btn-primary btn-xs b-0"
+                                                class="btn btn-primary btn-xs b-0 native-only"
                                                 on:click=move |ev: MouseEvent| {
                                                     ev.prevent_default();
                                                     trigger_swarmy_bevy_exec_on_caches(&cache_ids)
                                                 }
-                                                title="Open in Swarmy-Bevy"
+                                                title=native_title("Open in Swarmy-Bevy")
                                             >
                                                 <BrandIcon name="bevy" />
                                             </button>

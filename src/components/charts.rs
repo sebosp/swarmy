@@ -48,6 +48,12 @@ pub struct ChartData {
     pub stack_type: String,
     /// The line curve, `smooth` by default, `straight` or `stepline`.
     pub curve: String,
+    /// Vertical lines at the labels, with a text or none: i.e. when a patch starts.
+    pub markers: Vec<(String, String)>,
+    /// The decimals of the numbers of the y axis.
+    pub y_decimals: u32,
+    /// The view draws its own legend, i.e. one that filters the series.
+    pub hide_legend: bool,
 }
 
 impl ChartData {
@@ -100,8 +106,24 @@ impl ChartData {
         self
     }
 
+    pub fn with_markers(mut self, markers: Vec<(String, String)>) -> Self {
+        self.markers = markers;
+        self
+    }
+
+    pub fn with_y_decimals(mut self, decimals: u32) -> Self {
+        self.y_decimals = decimals;
+        self
+    }
+
     pub fn stacked(mut self, stack_type: &str) -> Self {
         self.stack_type = stack_type.to_string();
+        self
+    }
+
+    /// Without the legend of the chart, the view draws its own.
+    pub fn without_legend(mut self) -> Self {
+        self.hide_legend = true;
         self
     }
 }
@@ -125,7 +147,8 @@ fn ApexChart(
         <div
             id=next_chart_id(name)
             // The chart is drawn at the width of the container, it must not widen its parent.
-            class=format!("w-full min-w-0 overflow-hidden {class}")
+            // Clipped across only: the tooltips may go past the top and the bottom.
+            class=format!("w-full min-w-0 overflow-x-clip {class}")
             data-name=name
             data-chart-values=values_json
             data-chart-labels=to_json(&data.labels)
@@ -136,6 +159,9 @@ fn ApexChart(
             data-chart-value-suffix=data.value_suffix
             data-chart-stack-type=(!data.stack_type.is_empty()).then_some(data.stack_type)
             data-chart-curve=(!data.curve.is_empty()).then_some(data.curve)
+            data-chart-markers=(!data.markers.is_empty()).then(|| to_json(&data.markers))
+            data-chart-y-decimals=(data.y_decimals > 0).then(|| data.y_decimals.to_string())
+            data-chart-legend=data.hide_legend.then_some("off")
         ></div>
     }
 }

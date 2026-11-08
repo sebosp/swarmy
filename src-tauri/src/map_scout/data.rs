@@ -5,7 +5,7 @@ use crate::replay_detail::data::EXPANSION_TOWNHALLS;
 use crate::replay_rerun::decisions::{
     base_unit_name_expr, latest_balance_units, unit_values_frame, MORPH_SOURCES,
 };
-use crate::replay_rerun::terrain::Terrain;
+use crate::replay_rerun::terrain::{load_map_cache, Terrain};
 use polars::prelude::*;
 use swarmy_common::*;
 
@@ -20,8 +20,15 @@ const GAME_EVENT_POS_RATIO: f32 = 4096.;
 /// The positions are in the columns `x` and `y`, the start of their player in `start_x` and
 /// `start_y`.
 fn oriented(center: (f32, f32)) -> [Expr; 2] {
-    let top_right =
-        ((col("start_x") - lit(center.0)) + (col("start_y") - lit(center.1))).gt(lit(0.));
+    // The starts on the other diagonal (top left and bottom right) are about as far up as left:
+    // the one on the right is the one rotated, so that every game is turned the same way.
+    let dx = col("start_x") - lit(center.0);
+    let dy = col("start_y") - lit(center.1);
+    let along = dx.clone() + dy;
+    let top_right = along
+        .clone()
+        .gt(lit(1.))
+        .or(along.abs().lt_eq(lit(1.)).and(dx.gt(lit(0.))));
     [("x", center.0), ("y", center.1)].map(|(axis, center)| {
         when(top_right.clone())
             .then(lit(2. * center) - col(axis))
@@ -178,6 +185,11 @@ pub fn try_query_map_scout(
         enemy_start: own_start.map(|(x, y)| (2. * center.0 - x, 2. * center.1 - y)),
         own_start,
         terrain: terrain.as_ref().map(Terrain::minimap),
+        // The picture of the map cache, as in Map Details.
+        minimap: load_map_cache(&cache_path, &cache_handles)
+            .ok()
+            .as_ref()
+            .and_then(crate::map_details::resources::map_image),
     })
 }
 
@@ -194,7 +206,7 @@ fn command_points(
         commands = commands.filter(contains_lowercase("player_name", &query.player_name));
     }
     if !query.unit_name.is_empty() {
-        commands = commands.filter(contains_lowercase("unit_name", &query.unit_name));
+        commands = commands.filter(contains_lowercase("unit_names", &query.unit_name));
     }
     Ok(commands.select([
         col("ext_fs_id"),
@@ -314,5 +326,23 @@ mod tests {
         .unwrap();
         assert_eq!(f32_values(&positions, "x").unwrap(), vec![50., 50.]);
         assert_eq!(f32_values(&positions, "y").unwrap(), vec![60., 60.]);
+    }
+
+    #[test]
+    fn it_orients_the_starts_of_the_other_diagonal_the_same_way() {
+        // Winter Madness: the starts at the top left and the bottom right.
+        let positions = df!(
+            "x" => [146.5f32, 37.5],
+            "y" => [35.5f32, 144.5],
+            "start_x" => [146.5f32, 37.5],
+            "start_y" => [35.5f32, 144.5],
+        )
+        .unwrap()
+        .lazy()
+        .with_columns(oriented((92., 90.)))
+        .collect()
+        .unwrap();
+        assert_eq!(f32_values(&positions, "x").unwrap(), vec![37.5, 37.5]);
+        assert_eq!(f32_values(&positions, "y").unwrap(), vec![144.5, 144.5]);
     }
 }

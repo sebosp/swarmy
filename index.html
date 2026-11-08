@@ -3,11 +3,17 @@
 
 <head>
   <meta charset="utf-8" />
-  <title>Swarmy Tauri/Leptos</title>
+  <title>Swarmy</title>
+  <!-- The icon of the app, also of the browser tab of the browser version. -->
+  <link data-trunk rel="copy-file" href="src-tauri/icons/icon.ico" data-target-path="." />
+  <link data-trunk rel="copy-file" href="src-tauri/icons/32x32.png" data-target-path="." />
+  <link rel="icon" href="icon.ico" sizes="any" />
+  <link rel="icon" href="32x32.png" type="image/png" sizes="32x32" />
   <link data-trunk rel="tailwind-css-extra" href="styles.css" />
   <link data-trunk rel="copy-dir" href="public" />
   <link data-trunk rel="rust" data-wasm-opt="z" />
   <!-- The charts, see src/components/charts.rs -->
+  <script src="public/web_bridge.js"></script>
   <script src="public/charts/apexcharts.5.3.6.min.js"></script>
   <script src="public/charts/chart_init.js"></script>
   <!-- Sorts the tables by clicking on their headers -->

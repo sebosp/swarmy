@@ -90,9 +90,45 @@ fn SeriesEditor(
             }
         })
     };
+    // The race first, then its units: the race of the unit of the line.
+    let race = RwSignal::new(String::new());
+    Effect::new(move |_| {
+        let unit_name = current().unit;
+        if let Some(found) = units.with(|units| {
+            units
+                .iter()
+                .find(|unit| unit.name == unit_name)
+                .map(|unit| unit.race.clone())
+        }) {
+            race.set(found);
+        }
+    });
+    // A race moves the line to its first unit, unless the unit is of it.
+    let pick_race = Callback::new(move |race: String| {
+        let unit_name = current().unit;
+        let first = units.with_untracked(|units| {
+            let of_race = |unit: &&PatchUnitName| unit.race == race;
+            if units
+                .iter()
+                .filter(of_race)
+                .any(|unit| unit.name == unit_name)
+            {
+                None
+            } else {
+                units.iter().find(of_race).map(|unit| unit.name.clone())
+            }
+        });
+        if let Some(first) = first {
+            update(&|entry| {
+                entry.unit = first.clone();
+                entry.item = EVOLUTION_UNIT_ITEM.to_string();
+            });
+        }
+    });
     view! {
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <span class="inline-block w-3 h-3 rounded-full" style=format!("background: {}", series_color(idx))></span>
+            <crate::components::race_buttons::RaceButtons value=race on_pick=pick_race />
             <select
                 class=SELECT_CLASS
                 node_ref=unit_select
@@ -104,14 +140,17 @@ fn SeriesEditor(
                     })
                 }
             >
-                {move || units.get().into_iter().map(|unit| {
-                    let name = unit.name.clone();
-                    view! {
-                        <option value=unit.name.clone() prop:selected=move || current().unit == name>
-                            {format!("{} ({})", unit.name, unit.race)}
-                        </option>
-                    }
-                }).collect_view()}
+                {move || {
+                    let race = race.get();
+                    units.get().into_iter().filter(|unit| unit.race == race).map(|unit| {
+                        let name = unit.name.clone();
+                        view! {
+                            <option value=unit.name.clone() prop:selected=move || current().unit == name>
+                                {unit.name.clone()}
+                            </option>
+                        }
+                    }).collect_view()
+                }}
             </select>
             <select
                 class=SELECT_CLASS
@@ -324,9 +363,60 @@ pub fn PatchEvolutionView() -> impl IntoView {
 fn AbilityEvolution() -> impl IntoView {
     let usage = RwSignal::new(None::<Result<AbilityUsageTable, String>>);
     let race = RwSignal::new("Zerg".to_string());
+    // The abilities shown, all when empty: a click shows only that one, others add to it, as in
+    // Grafana.
+    let shown = RwSignal::new(Vec::<&'static str>::new());
     spawn_local(async move {
         usage.set(Some(fetch_ability_usage().await));
     });
+    let abilities = move || -> Vec<&'static TrackedAbility> {
+        let race = race.get();
+        usage.with(|usage| match usage {
+            Some(Ok(usage)) => race_abilities(&race)
+                .filter(|tracked| usage.usage.iter().any(|row| row.ability == tracked.ability))
+                .collect(),
+            _ => vec![],
+        })
+    };
+    let is_shown =
+        move |ability: &str| shown.with(|shown| shown.is_empty() || shown.contains(&ability));
+    let toggle = move |ability: &'static str, count: usize| {
+        shown.update(|shown| {
+            if shown.is_empty() {
+                shown.push(ability);
+            } else if let Some(idx) = shown.iter().position(|other| *other == ability) {
+                shown.remove(idx);
+            } else {
+                shown.push(ability);
+            }
+            if shown.len() == count {
+                shown.clear();
+            }
+        })
+    };
+    let legend = move || {
+        let all = abilities();
+        let count = all.len();
+        all.into_iter()
+            .enumerate()
+            .map(|(idx, tracked)| {
+                let ability = tracked.ability;
+                view! {
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-1 rounded px-1 text-xs hover:bg-base-300"
+                        class:opacity-40=move || !is_shown(ability)
+                        aria-pressed=move || is_shown(ability).to_string()
+                        title=format!("{} of the {}: click to show only it, click others to add them", tracked.label, tracked.unit)
+                        on:click=move |_| toggle(ability, count)
+                    >
+                        <span class="inline-block w-2.5 h-2.5 rounded-full" style=format!("background: {}", series_color(idx))></span>
+                        <span class="text-base-content">{tracked.label}</span>
+                    </button>
+                }
+            })
+            .collect_view()
+    };
     let chart = move || {
         let usage = match usage.get()? {
             Ok(usage) => usage,
@@ -339,17 +429,23 @@ fn AbilityEvolution() -> impl IntoView {
                 )
             }
         };
-        let race = race.get();
-        let abilities: Vec<&TrackedAbility> = race_abilities(&race)
-            .filter(|tracked| usage.usage.iter().any(|row| row.ability == tracked.ability))
+        // The color of an ability is its place among the abilities of the race, whatever is shown.
+        let all = abilities();
+        let visible: Vec<(usize, &TrackedAbility)> = all
+            .iter()
+            .enumerate()
+            .filter(|(_, tracked)| is_shown(tracked.ability))
+            .map(|(idx, tracked)| (idx, *tracked))
             .collect();
         let mut chart = ChartData::new(usage.patches.iter().map(u32::to_string).collect())
             .with_owned_colors(
-                (0..abilities.len())
-                    .map(|idx| series_color(idx).to_string())
+                visible
+                    .iter()
+                    .map(|(idx, _)| series_color(*idx).to_string())
                     .collect(),
-            );
-        for tracked in abilities {
+            )
+            .without_legend();
+        for (_, tracked) in visible {
             let values = usage
                 .patches
                 .iter()
@@ -357,20 +453,19 @@ fn AbilityEvolution() -> impl IntoView {
                 .collect();
             chart = chart.with_optional_series(tracked.label, values);
         }
-        Some(view! { <LineChart data=chart class="h-96" /> }.into_any())
+        Some(view! { <LineChart data=chart class="h-[32rem]" /> }.into_any())
     };
     view! {
         <div class="space-y-1 pt-2">
             <h2 class="text-base font-semibold text-base-content">"Ability use per game"</h2>
             <p class="text-sm text-muted">
-                "The abilities with energy or a cooldown commanded per game by the players of the race, in the games of the snapshot by patch. A patch without a point has no game in which the ability was used."
+                "The abilities with energy or a cooldown commanded per game by the players of the race, in the games of the snapshot by patch. A patch without a point has no game in which the ability was used. Click an ability to show only it, then others to add them."
             </p>
-            <select class=SELECT_CLASS on:change=move |ev| race.set(event_target_value(&ev))>
-                {RACE_NAMES
-                    .iter()
-                    .map(|name| view! { <option value=*name selected=move || race.get() == *name>{*name}</option> })
-                    .collect_view()}
-            </select>
+            <crate::components::race_buttons::RaceButtons
+                value=race
+                on_pick=Callback::new(move |_| shown.set(vec![]))
+            />
+            <p class="flex flex-wrap items-center gap-x-1">{legend}</p>
             {chart}
         </div>
     }

@@ -65,7 +65,16 @@ pub fn LeftSideBarMenu(active_page: RwSignal<String>) -> impl IntoView {
                             })}
                             {pages
                                 .iter()
-                                .map(|name| view! { <SidebarMenuItem name active_page /> })
+                                .map(|name| {
+                                    // Scan is of the administrator in the browser version.
+                                    let name: &'static str = name;
+                                    let session = crate::components::web_session::use_web_session();
+                                    view! {
+                                        <Show when=move || name != "Scan" || session.admin.get()>
+                                            <SidebarMenuItem name active_page />
+                                        </Show>
+                                    }
+                                })
                                 .collect_view()}
                         </div>
                     }
@@ -108,7 +117,9 @@ fn SidebarMenuItem(name: &'static str, active_page: RwSignal<String>) -> impl In
             id=format!("sidebar-menu-item-{}", name.replace(" ", "-").to_lowercase())
             href="#"
             class=move || {
-                if active_page.get() == name { active_icon_class } else { inactive_icon_class }
+                let class = if active_page.get() == name { active_icon_class } else { inactive_icon_class };
+                // The experimental views are in the yellow of their group.
+                if name == MAP_SCOUT_PAGE { format!("{class} text-warning") } else { class.to_string() }
             }
             title=if name == MAP_SCOUT_PAGE { "Map Scout (experimental)" } else { name }
             on:click=move |ev: MouseEvent| {

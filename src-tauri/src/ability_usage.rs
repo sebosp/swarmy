@@ -61,15 +61,11 @@ impl AbilityUsage {
     /// The rank of the uses in a player game among the games of the race in the patch.
     pub fn game_rank(&self, patch: u32, ability: &str, uses: u32) -> Option<Rank> {
         let usage = self.patch_usage(patch, ability)?;
+        // The uses are sorted, the most first.
         let more = self
             .game_uses
             .get(&(patch, ability.to_string()))
-            .map(|uses_by_game| {
-                uses_by_game
-                    .iter()
-                    .take_while(|other| **other > uses)
-                    .count()
-            })
+            .map(|uses_by_game| uses_by_game.partition_point(|other| *other > uses))
             .unwrap_or_default();
         Some(Rank {
             rank: more + 1,
@@ -112,28 +108,16 @@ fn abilities_frame() -> Result<LazyFrame, SwarmyError> {
 /// sequence number.
 fn player_game_uses(ipc_path: &str) -> Result<LazyFrame, SwarmyError> {
     let abilities: Vec<&str> = TRACKED_ABILITIES.iter().map(|t| t.ability).collect();
-    let command = ["ext_fs_id", "user_id", "sequence", "ext_replay_loop"];
-    let commands = [CMD_TARGET_POINT_IPC, CMD_TARGET_UNIT_IPC]
-        .iter()
-        .map(|file_name| {
-            Ok(scan_snapshot_ipc(ipc_path, file_name)?
-                .filter(is_one_of("ability", &abilities).and(col("player_name").is_not_null()))
-                .select(
-                    command
-                        .iter()
-                        .chain(["player_name", "ability"].iter())
-                        .map(|name| col(*name))
-                        .collect::<Vec<_>>(),
-                ))
-        })
-        .collect::<Result<Vec<_>, SwarmyError>>()?;
-    Ok(concat(commands, UnionArgs::default())?
-        .unique(Some(cols(command)), UniqueKeepStrategy::Any)
-        .group_by([col("ext_fs_id"), col("player_name"), col("ability")])
-        .agg([len().cast(DataType::UInt64).alias("uses")]))
+    Ok(scan_snapshot_ipc(ipc_path, GAME_ABILITIES_IPC)?
+        .filter(is_one_of("ability", &abilities))
+        .select([
+            col("ext_fs_id"),
+            col("player_name"),
+            col("ability"),
+            col("uses").cast(DataType::UInt64),
+        ]))
 }
 
-/// Computes the usage of the tracked abilities by patch.
 pub fn compute_ability_usage(ipc_path: &str) -> Result<AbilityUsage, SwarmyError> {
     let players = snapshot_players(ipc_path)?.select([
         col("ext_fs_id"),
@@ -417,4 +401,57 @@ mod snapshot_tests {
         assert_eq!(rank.rank, 1);
         assert!(!usage.table.patches.contains(&super::ALL_PATCHES));
     }
+}
+
+/// Adds to each game of the Replay List its best game rank: of its players and abilities, the
+/// highest among the games of the race on the patch.
+pub fn annotate_replay_list(
+    ipc_path: &str,
+    replays: &mut [ReplayListEntry],
+    usage: &AbilityUsage,
+) -> Result<(), SwarmyError> {
+    let ids: Vec<u64> = replays.iter().map(|replay| replay.ext_fs_id).collect();
+    let versions = scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
+        .filter(crate::data::is_in_replays(&ids))
+        .select([col("ext_fs_id"), col("ext_protocol_version")])
+        .unique(Some(cols(["ext_fs_id"])), UniqueKeepStrategy::Any)
+        .collect()?;
+    let versions: HashMap<u64, u32> = u64_values(&versions, "ext_fs_id")?
+        .into_iter()
+        .zip(u32_values(&versions, "ext_protocol_version")?)
+        .collect();
+    for replay in replays.iter_mut() {
+        let Some(patch) = versions
+            .get(&replay.ext_fs_id)
+            .and_then(|version| closest_balance_version(*version).ok())
+        else {
+            continue;
+        };
+        let mut best: Option<GameRankHighlight> = None;
+        for (idx, player_name) in replay.player_list.iter().enumerate() {
+            let Some(uses) = usage.player_game_uses(replay.ext_fs_id, player_name) else {
+                continue;
+            };
+            for (ability, uses) in uses {
+                let Some(rank) = usage.game_rank(patch, ability, *uses) else {
+                    continue;
+                };
+                let better = best.as_ref().is_none_or(|best| {
+                    (rank.rank, rank.top_percent() as u64)
+                        < (best.rank.rank, best.rank.top_percent() as u64)
+                });
+                if *uses > 0 && better {
+                    best = Some(GameRankHighlight {
+                        player_name: player_name.clone(),
+                        race: replay.player_races.get(idx).cloned().unwrap_or_default(),
+                        ability: ability.clone(),
+                        uses: *uses,
+                        rank,
+                    });
+                }
+            }
+        }
+        replay.best_rank = best;
+    }
+    Ok(())
 }

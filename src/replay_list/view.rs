@@ -1,6 +1,6 @@
 use super::actions::*;
 use super::*;
-use crate::components::brand_icon::BrandIcon;
+use crate::components::brand_icon::{native_title, BrandIcon};
 use crate::components::links::{MapLink, PlayerLink, RaceLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
 use crate::navigation::use_navigation;
@@ -360,6 +360,13 @@ pub fn ReplayListDataTable(
                             <th
                                 scope="col"
                                 class="px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content"
+                                title="The best game rank of the game, of its players and their abilities with energy or a cooldown: 2 / 4,512 is the game with the second most uses of the 4,512 games of the race on the patch. The badge is top 100, top 10, top 5 or the best game. Hover a rank for its meaning, the Abilities of Replay Detail have all of them"
+                            >
+                                "Best rank"
+                            </th>
+                            <th
+                                scope="col"
+                                class="px-2 py-2 text-left text-sm font-semibold whitespace-nowrap text-base-content"
                             >
                                 "Notes"
                             </th>
@@ -438,26 +445,26 @@ pub fn ReplayListDataTable(
                                                 />
                                             </button>
                                             <button
-                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content native-only"
                                                 on:click={
                                                     let location = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
                                                         trigger_swarmy_rerun_on_replay(&location)
                                                     }
                                                 }
-                                                title="Load Rerun Preview"
+                                                title=native_title("Load Rerun Preview")
                                             >
                                                 <BrandIcon name="rerun" />
                                             </button>
                                             <button
-                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content"
+                                                class="btn btn-ghost btn-xs btn-square text-muted hover:text-base-content native-only"
                                                 on:click={
                                                     let location = child.read().replay_location.clone();
                                                     move |_ev: MouseEvent| {
                                                         trigger_swarmy_bevy_on_replay(&location)
                                                     }
                                                 }
-                                                title="Load in swarmy-bevy: the units born and died over time on the map"
+                                                title=native_title("Load in swarmy-bevy: the units born and died over time on the map")
                                             >
                                                 <BrandIcon name="bevy" />
                                             </button>
@@ -496,6 +503,29 @@ pub fn ReplayListDataTable(
                                         </td>
                                         <td class="px-2 py-1 text-xs whitespace-nowrap text-muted">
                                             {format!("{}", child.read().replay_date)}
+                                        </td>
+                                        <td class="px-2 py-1 text-xs whitespace-nowrap text-muted">
+                                            {child.read().best_rank.clone().map(|best| {
+                                                // With its unit: "Reaper KD8 Charge", not "KD8 Charge".
+                                                let ability = swarmy_common::tracked_ability(&best.ability)
+                                                    .map(|tracked| format!("{} {}", tracked.unit, tracked.label))
+                                                    .unwrap_or_else(|| best.ability.clone());
+                                                let player = swarmy_common::clean_player_name_clan_escapes(&best.player_name);
+                                                let title = format!(
+                                                    "{player}'s {ability}, {} uses. {}",
+                                                    best.uses,
+                                                    crate::components::abilities::game_rank_title(best.rank, &best.race),
+                                                );
+                                                view! {
+                                                    <span class="inline-flex items-center gap-1" title=title.clone()>
+                                                        <crate::components::abilities::RankBadge rank=best.rank what="game" title=title.clone() />
+                                                        <span class="text-base-content">{ability}</span>
+                                                        <span class="tabular-nums">
+                                                            {crate::components::abilities::rank_of(best.rank.rank, best.rank.of)}
+                                                        </span>
+                                                    </span>
+                                                }
+                                            })}
                                         </td>
                                         <td class="px-2 py-1 text-xs text-muted">
                                             <span class="text-warning">

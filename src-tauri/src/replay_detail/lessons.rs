@@ -61,6 +61,7 @@ pub fn ability_efficiency(
             uses: macro_summary.injects,
             caster_minutes: queen_seconds / 60.,
             possible,
+            ..Default::default()
         });
     }
     for (ability, caster, uses) in [
@@ -75,6 +76,7 @@ pub fn ability_efficiency(
                 uses,
                 caster_minutes: caster_seconds / 60.,
                 possible: caster_seconds * ENERGY_PER_SECOND / 50.,
+                ..Default::default()
             });
         }
     }

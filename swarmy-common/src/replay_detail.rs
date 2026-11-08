@@ -372,6 +372,12 @@ pub struct AbilityEfficiency {
     pub caster_minutes: f32,
     /// The uses that the energy of the casters allowed.
     pub possible: f32,
+    /// The average share of the possible uses in the games of the patch, `uses / possible`.
+    #[serde(default)]
+    pub patch_share: Option<f32>,
+    /// The games of the patch of that average.
+    #[serde(default)]
+    pub patch_games: usize,
 }
 
 /// The control groups and the camera of a player.

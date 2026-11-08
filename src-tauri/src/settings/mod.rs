@@ -51,6 +51,10 @@ pub async fn set_current_app_config(
     store.set("reduce_motion", app_settings.reduce_motion.trim());
     store.set("underline_links", app_settings.underline_links);
     store.set("focus_outline", app_settings.focus_outline);
+    store.set(
+        "max_table_rows",
+        app_settings.max_table_rows.clamp(10, 10_000),
+    );
     store.save()?;
     // The watcher follows the replay path and the watch setting.
     crate::replay_watcher::configure(std::sync::Arc::new(app_handle.clone()), false);
@@ -147,6 +151,8 @@ pub fn app_settings_from_store(store: &Map<String, Value>) -> AppSettings {
         ),
         underline_links: bool_of("underline_links"),
         focus_outline: bool_of("focus_outline"),
+        max_table_rows: i64_of("max_table_rows", default_max_table_rows() as i64).clamp(10, 10_000)
+            as u32,
     }
 }
 

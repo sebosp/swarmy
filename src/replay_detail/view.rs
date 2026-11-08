@@ -2,7 +2,7 @@
 
 use super::notes::ReplayNotesPanel;
 use crate::components::abilities::AbilityUses;
-use crate::components::brand_icon::BrandIcon;
+use crate::components::brand_icon::{native_title, BrandIcon};
 use crate::components::charts::{AdvantageChart, BarChart, ChartData, LineChart, CHART_COLORS};
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
@@ -111,7 +111,9 @@ pub fn ReplayDetailView() -> impl IntoView {
                     .map(|detail| {
                         view! {
                             <ReplayNavigation detail=detail.clone() error />
-                            <ReplayNotesPanel sha256=detail.sha256.clone() />
+                            {crate::components::web_session::use_web_session().admin.get().then(|| view! {
+                                <ReplayNotesPanel sha256=detail.sha256.clone() />
+                            })}
                             <div class="flex gap-4 text-xs text-muted">
                                 <label class="flex items-center gap-1">
                                     <input
@@ -373,15 +375,15 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
             <div class="ml-auto flex items-center gap-1">
                 <span class="text-xs text-muted">{move || exported.get()}</span>
                 <button
-                    class="btn btn-ghost btn-sm btn-square"
-                    title="Open the replay in the Rerun preview: the units, the camera and the events over time"
+                    class="btn btn-ghost btn-sm btn-square native-only"
+                    title=native_title("Open the replay in the Rerun preview: the units, the camera and the events over time")
                     on:click=move |_ev: MouseEvent| trigger_swarmy_rerun_on_replay(&location)
                 >
                     <BrandIcon name="rerun" />
                 </button>
                 <button
-                    class="btn btn-ghost btn-sm btn-square"
-                    title="Open the replay in swarmy-bevy: the units born and died over time on the map, with the players, upgrades and most effective units"
+                    class="btn btn-ghost btn-sm btn-square native-only"
+                    title=native_title("Open the replay in swarmy-bevy: the units born and died over time on the map, with the players, upgrades and most effective units")
                     on:click=move |_ev: MouseEvent| trigger_swarmy_bevy_on_replay(&bevy_location)
                 >
                     <BrandIcon name="bevy" />
@@ -527,6 +529,8 @@ fn PlayerSections(
     whole_game: RwSignal<bool>,
 ) -> impl IntoView {
     let chart_scale = CommandsScale::of_players(&players);
+    // The kinds of the Focus shown, the same for every player so that they compare.
+    let focus_shown = RwSignal::new(Vec::<FocusKind>::new());
     let all_players = players.clone();
     let player_headers = players
         .iter()
@@ -592,14 +596,16 @@ fn PlayerSections(
                                 .lessons
                                 .iter()
                                 .map(|lesson| {
+                                    let (title_help, cost_help) = lesson_help(&lesson.title, lesson.cost);
                                     view! {
                                         <li>
-                                            <span class="font-semibold text-warning">
+                                            <span class="font-semibold text-warning cursor-help" title=title_help>
                                                 {lesson.title.clone()}
                                             </span>
-                                            <span class="text-faint">
-                                                {format!(" ~{}: ", format_resources(lesson.cost))}
+                                            <span class="text-faint cursor-help" title=cost_help>
+                                                {format!(" ~{}", format_resources(lesson.cost))}
                                             </span>
+                                            ": "
                                             {lesson.detail.clone()}
                                         </li>
                                     }
@@ -631,8 +637,9 @@ fn PlayerSections(
                     }
                     let own = summary.opening.join(" → ");
                     view! {
-                        <p class="text-xs text-muted">
-                            {format!("vs {}", answers.enemy_opening)}
+                        <p class="text-xs text-muted" title="The opening of the opponent in this game, the openings below answered it best">
+                            "vs "
+                            <span class="text-error font-medium">{answers.enemy_opening.clone()}</span>
                         </p>
                         <table class=TABLE_CLASS>
                             <tbody>
@@ -640,13 +647,10 @@ fn PlayerSections(
                                     .answers
                                     .iter()
                                     .map(|answer| {
-                                        let class = if answer.opening == own {
-                                            "pr-2 text-warning"
-                                        } else {
-                                            "pr-2"
-                                        };
+                                        let chosen = answer.opening == own;
+                                        let class = if chosen { "pr-2 text-warning" } else { "pr-2" };
                                         view! {
-                                            <tr>
+                                            <tr title=chosen.then_some("Chosen build order: the opening of the player in this game")>
                                                 <td class=class>{answer.opening.clone()}</td>
                                                 <td class="pr-2 num">
                                                     {format!(
@@ -664,7 +668,7 @@ fn PlayerSections(
                                     .filter(|own| !answers.answers.contains(own))
                                     .map(|own| {
                                         view! {
-                                            <tr title="Your opening in this game">
+                                            <tr title="Chosen build order: the opening of the player in this game, not among the best answers">
                                                 <td class="pr-2 text-warning">{own.opening.clone()}</td>
                                                 <td class="pr-2 num">
                                                     {format!("{:.0}% of {}", 100. * own.win_rate(), own.games)}
@@ -780,35 +784,13 @@ fn PlayerSections(
                             .into_any();
                     }
                     view! {
-                        <table class=TABLE_CLASS>
-                            <tbody>
-                                {summary
-                                    .ability_efficiency
-                                    .iter()
-                                    .map(|efficiency| {
-                                        let share = 100. * efficiency.uses as f32
-                                            / efficiency.possible.max(1.);
-                                        view! {
-                                            <tr title=format!(
-                                                "{:.0} minutes of {} alive and done",
-                                                efficiency.caster_minutes,
-                                                efficiency.caster,
-                                            )>
-                                                <td class="pr-2">{efficiency.ability.clone()}</td>
-                                                <td class="pr-2">
-                                                    {format!(
-                                                        "{} of ~{:.0}",
-                                                        efficiency.uses,
-                                                        efficiency.possible,
-                                                    )}
-                                                </td>
-                                                <td class="pr-2 num font-semibold">{format!("{share:.0}%")}</td>
-                                            </tr>
-                                        }
-                                    })
-                                    .collect_view()}
-                            </tbody>
-                        </table>
+                        <div class="space-y-2">
+                            {summary
+                                .ability_efficiency
+                                .iter()
+                                .map(|efficiency| view! { <EnergyBar efficiency=efficiency.clone() /> })
+                                .collect_view()}
+                        </div>
                     }
                         .into_any()
                 },
@@ -866,14 +848,14 @@ fn PlayerSections(
                 "Abilities",
                 "h-48",
                 &players,
-                move |summary| view! { <AbilityUses abilities=summary.abilities.clone() /> },
+                move |summary| view! { <AbilityUses abilities=summary.abilities.clone() race=summary.player.race.clone() /> },
             )}
 
             {section_band(
                 "Focus",
                 "h-40",
                 &players,
-                move |summary| view! { <FocusDetails focus=summary.focus.clone() chart_scale /> },
+                move |summary| view! { <FocusDetails focus=summary.focus.clone() chart_scale shown=focus_shown /> },
             )}
 
             {section_band(
@@ -1278,51 +1260,120 @@ fn focus_color(kind: FocusKind) -> (&'static str, &'static str) {
     }
 }
 
-/// The share of the selections and commands of each minute by what they were about.
+/// The share of the selections and commands of each minute by what they were about. The legend
+/// filters the chart as in Grafana: a click shows only that kind, a click on another adds it, a
+/// click on the only one shown shows them all again. With them all the bars are the share of each
+/// minute, with some of them the actions.
 #[component]
-fn FocusDetails(focus: PlayerFocus, chart_scale: CommandsScale) -> impl IntoView {
+fn FocusDetails(
+    focus: PlayerFocus,
+    chart_scale: CommandsScale,
+    /// The kinds shown, all when empty, shared by the players.
+    shown: RwSignal<Vec<FocusKind>>,
+) -> impl IntoView {
     let total: u32 = focus.totals.iter().sum();
+    let toggle = move |kind: FocusKind| {
+        shown.update(|shown| {
+            if shown.is_empty() {
+                shown.push(kind);
+            } else if let Some(idx) = shown.iter().position(|other| *other == kind) {
+                shown.remove(idx);
+            } else {
+                shown.push(kind);
+            }
+            if shown.len() == FocusKind::ALL.len() {
+                shown.clear();
+            }
+        })
+    };
+    let is_shown =
+        move |kind: FocusKind| shown.with(|shown| shown.is_empty() || shown.contains(&kind));
     let legend = FocusKind::ALL
         .iter()
         .map(|kind| {
+            let kind = *kind;
             let actions = focus.totals[kind.index()];
             let percent = actions as f32 * 100. / total.max(1) as f32;
             view! {
-                <span class="mr-2 inline-flex items-center gap-1">
-                    <span class=format!(
-                        "inline-block w-2 h-2 rounded-sm {}",
-                        focus_color(*kind).0,
-                    )></span>
-                    {format!("{} {percent:.0}%", kind.label())}
-                </span>
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-1 rounded px-1 hover:bg-base-300"
+                    class:opacity-40=move || !is_shown(kind)
+                    aria-pressed=move || is_shown(kind).to_string()
+                    title=format!(
+                        "{}: {actions} actions, {percent:.0}% of the game. Click to show only it, click others to add them",
+                        kind.label(),
+                    )
+                    on:click=move |_| toggle(kind)
+                >
+                    <span class="inline-block w-2 h-2 rounded-sm" style=format!("background: {}", focus_color(kind).1)></span>
+                    <span class="text-base-content">{kind.label()}</span>
+                    <span class="tabular-nums">{format!("{percent:.0}%")}</span>
+                </button>
             }
         })
         .collect_view();
     let minutes = chart_scale.minutes;
-    let mut chart = ChartData::new(
-        (0..minutes)
-            .map(|minute| format!("{minute:02}:00"))
-            .collect(),
-    )
-    .with_colors(&FocusKind::ALL.map(|kind| focus_color(kind).1))
-    .stacked("100%");
-    for kind in FocusKind::ALL {
-        chart = chart.with_series(
-            kind.label(),
+    let per_minute = focus.per_minute.clone();
+    let chart = move || {
+        let kinds: Vec<FocusKind> = FocusKind::ALL
+            .into_iter()
+            .filter(|kind| is_shown(*kind))
+            .collect();
+        let all = kinds.len() == FocusKind::ALL.len();
+        let actions = |minute: usize, kind: FocusKind| {
+            per_minute
+                .get(minute)
+                .map(|actions| actions[kind.index()])
+                .unwrap_or_default()
+        };
+        // The tooltip of each minute in the colors of the bars, with the share and the actions.
+        let tooltips = (0..minutes)
+            .map(|minute| {
+                let minute_total: u32 = kinds.iter().map(|kind| actions(minute, *kind)).sum();
+                let rows = kinds
+                    .iter()
+                    .rev()
+                    .map(|kind| {
+                        let count = actions(minute, *kind);
+                        format!(
+                            "<div><span style=\"display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;background:{}\"></span>{} {:.0}% ({count})</div>",
+                            focus_color(*kind).1,
+                            kind.label(),
+                            100. * count as f32 / minute_total.max(1) as f32,
+                        )
+                    })
+                    .collect::<String>();
+                format!("<div>{minute:02}:00, {minute_total} actions</div>{rows}")
+            })
+            .collect();
+        let mut data = ChartData::new(
             (0..minutes)
-                .map(|minute| {
-                    focus
-                        .per_minute
-                        .get(minute)
-                        .map(|actions| actions[kind.index()] as f64)
-                        .unwrap_or_default()
-                })
+                .map(|minute| format!("{minute:02}:00"))
                 .collect(),
-        );
-    }
+        )
+        .with_owned_colors(
+            kinds
+                .iter()
+                .map(|kind| focus_color(*kind).1.to_string())
+                .collect(),
+        )
+        .with_tooltips(tooltips)
+        .without_legend()
+        .stacked(if all { "100%" } else { "normal" });
+        for kind in &kinds {
+            data = data.with_series(
+                kind.label(),
+                (0..minutes)
+                    .map(|minute| actions(minute, *kind) as f64)
+                    .collect(),
+            );
+        }
+        view! { <BarChart data class="h-32" /> }
+    };
     view! {
         <p
-            class="text-xs text-muted"
+            class="text-xs text-muted flex flex-wrap items-center gap-x-1"
             title="The units selected and commanded: army units, townhalls and production, workers, townhalls built, research"
         >
             {legend}
@@ -1344,7 +1395,7 @@ fn FocusDetails(focus: PlayerFocus, chart_scale: CommandsScale) -> impl IntoView
                 None => "-".to_string(),
             }}
         </p>
-        <BarChart data=chart class="h-32" />
+        {chart}
     }
 }
 
@@ -1718,8 +1769,8 @@ fn WinChanceChart(
                                                         })}
                                                 </span>
                                                 <button
-                                                    class="btn btn-ghost btn-xs"
-                                                    title="Open the replay in swarmy-bevy at this moment"
+                                                    class="btn btn-ghost btn-xs native-only"
+                                                    title=native_title("Open the replay in swarmy-bevy at this moment")
                                                     on:click=move |_ev: MouseEvent| {
                                                         trigger_swarmy_bevy_on_replay_at(&location, Some(start))
                                                     }
@@ -1887,6 +1938,120 @@ fn Messages(messages: Vec<TimedEvent>) -> impl IntoView {
                     </tbody>
                 </table>
             </div>
+        </div>
+    }
+}
+
+/// What a lesson of "Three things to fix" means and how its cost is estimated, for their titles.
+/// The costs follow `src-tauri/src/replay_detail/lessons.rs`.
+fn lesson_help(title: &str, cost: u32) -> (String, String) {
+    let cost = crate::components::abilities::group_digits(cost as u64);
+    let (what, estimate) = match title {
+        "Supply blocked" => (
+            "The supply used reached the supply available below 200: no unit could start until a depot, pylon or overlord finished. Build supply before you need it.",
+            "the income of the seconds blocked: what the player mined in that time could not become units",
+        ),
+        "Idle production" => (
+            "The production structures waited between the end of a unit and the start of the next one. The time the supply was full, at 200 or blocked, is not counted: nothing could be built then.",
+            "2 per second of each structure idle: the value of the units it could have made",
+        ),
+        "Floating resources" => (
+            "The minerals and vespene unspent on average after the first minute, above 1,000: they do nothing in the bank. Add production or expand.",
+            "the average unspent above 1,000",
+        ),
+        "Lost fight" => (
+            "The fight that cost the most: the units lost minus the units killed. Fight where your units counter theirs, or wait for more.",
+            "the minerals and vespene lost more than the enemy in that fight",
+        ),
+        missed if missed.starts_with("Missed") => (
+            "The casters had the energy for more uses until 10:00: each missed inject, chrono boost or MULE is larvae, production time or minerals lost.",
+            "what each missed use is worth (an inject 50, a chrono boost 20, a MULE 225) times the missed uses",
+        ),
+        _ => ("", "the resources it cost"),
+    };
+    (
+        what.to_string(),
+        format!("About {cost} minerals and vespene lost, estimated as {estimate}. The estimates compare the mistakes: the most costly is first."),
+    )
+}
+
+/// The injects, chrono boosts or MULEs of a game until 10:00 as a bar: the track is what the energy
+/// of the casters allowed, the fill what the player used, the tick the average of the games of the
+/// patch. A sentence compares them, the numbers are in the title of each part.
+#[component]
+fn EnergyBar(efficiency: AbilityEfficiency) -> impl IntoView {
+    let possible = efficiency.possible.max(1.);
+    let share = efficiency.uses as f32 / possible;
+    let width = |share: f32| format!("{:.1}%", 100. * share.clamp(0., 1.));
+    let game_title = format!(
+        "This game: {} of about {:.0} possible ({:.0}%), with {:.0} minutes of {} alive and finished",
+        efficiency.uses,
+        efficiency.possible,
+        100. * share,
+        efficiency.caster_minutes,
+        efficiency.caster,
+    );
+    let average = efficiency.patch_share;
+    let comparison = average.map(|average| {
+        let difference = 100. * (share - average);
+        let (text, class) = if difference >= 5. {
+            ("more than the patch average", "text-success")
+        } else if difference <= -5. {
+            ("less than the patch average", "text-error")
+        } else {
+            ("about the patch average", "text-info")
+        };
+        (text, class, average)
+    });
+    view! {
+        <div class="text-xs">
+            <div class="flex items-baseline justify-between gap-2">
+                <span class="text-base-content">{efficiency.ability.clone()}</span>
+                <span class="tabular-nums" title=game_title.clone()>
+                    <span class="font-medium text-base-content">{efficiency.uses}</span>
+                    {format!(" of ~{:.0}, ", efficiency.possible)}
+                    <span class="font-medium text-base-content">{format!("{:.0}%", 100. * share)}</span>
+                </span>
+            </div>
+            <div
+                class="relative mt-0.5 h-2 rounded-full bg-base-300"
+                role="meter"
+                aria-label=format!("{} until 10:00", efficiency.ability)
+                aria-valuemin="0"
+                aria-valuemax=format!("{:.0}", efficiency.possible)
+                aria-valuenow=efficiency.uses.to_string()
+                title=format!("The track: about {:.0} possible with the energy of the casters", efficiency.possible)
+            >
+                <div
+                    class="absolute inset-y-0 left-0 rounded-full"
+                    style=format!("width: {}; background: var(--chart-1)", width(share))
+                    title=game_title.clone()
+                ></div>
+                // This game: the end of the fill, a marker that shows on any fill.
+                <div
+                    class="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-base-100"
+                    style=format!("left: {}; background: var(--chart-1)", width(share))
+                    title=game_title
+                ></div>
+                {average.map(|average| view! {
+                    <div
+                        class="absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 bg-base-content"
+                        style=format!("left: {}", width(average))
+                        title=format!(
+                            "Patch average: {:.0}% of the possible uses, in {} games of the patch",
+                            100. * average,
+                            efficiency.patch_games,
+                        )
+                    ></div>
+                })}
+            </div>
+            {comparison.map(|(text, class, average)| view! {
+                <p class="mt-0.5 text-muted">
+                    "This game: "
+                    <span class=format!("font-medium {class}")>{text}</span>
+                    {format!(" ({:.0}%)", 100. * average)}
+                </p>
+            })}
         </div>
     }
 }

@@ -51,6 +51,9 @@ macro_rules! backend_commands {
 }
 
 backend_commands! {
+    battlenet::get_battlenet_status();
+    battlenet::set_battlenet_credentials(client_id: String, client_secret: String);
+    battlenet::query_battlenet_profile(account: String);
     mpq_file_scan::basic_scan_replay_path();
     mpq_file_scan::optimize_replay_path(
         replay_path: String,
@@ -90,6 +93,7 @@ backend_commands! {
     ability_detail::query_ability_detail(query: AbilityDetailQuery);
     replay_watcher::get_new_replays_status();
     race_detail::query_race_detail(race: String);
+    usage_over_time::query_usage_over_time(query: UsageOverTimeQuery);
     progress::query_progress(player_name: String);
     progress::set_progress_goals(goals: BTreeMap<String, f64>);
 }

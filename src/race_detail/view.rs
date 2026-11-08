@@ -5,6 +5,7 @@ use crate::components::abilities::AbilityUsageRows;
 use crate::components::charts::GamesWinsChart;
 use crate::components::links::{MapLink, PlayerLink, UnitLink};
 use crate::components::loading::Loading;
+use crate::components::usage_over_time::UsageOverTimeChart;
 use crate::navigation::use_navigation;
 use crate::*;
 use leptos::prelude::*;
@@ -170,6 +171,11 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
                     </table>
                     <GamesWinsChart data=detail.by_patch.clone() />
                 },
+            )}
+            {section(
+                "Over time",
+                "How the race does as the players adapt to the patches.",
+                view! { <UsageOverTimeChart subject=UsageSubject::Race(detail.race.clone()) /> },
             )}
         </div>
         {section(

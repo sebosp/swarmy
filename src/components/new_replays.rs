@@ -64,7 +64,15 @@ const LESSON_DELAY_SECONDS: u64 = 3;
 pub fn NewReplaysBanner() -> impl IntoView {
     let navigation = use_navigation();
     let received = RwSignal::new(NewReplaysStatus::default());
-    listen_to_new_replays(received);
+    // Only the administrator of the browser version is told about them, once.
+    let session = crate::components::web_session::use_web_session();
+    let listening = RwSignal::new(false);
+    Effect::new(move |_| {
+        if session.admin.get() && !listening.get_untracked() {
+            listening.set(true);
+            listen_to_new_replays(received);
+        }
+    });
     // The settings of this computer: with a remote backend the status is the one of the backend,
     // shown when this computer asked to receive it, with the messages it asked for.
     let settings = RwSignal::new(None::<AppSettings>);
@@ -147,6 +155,12 @@ pub fn NewReplaysBanner() -> impl IntoView {
             message.push_str(&format!(
                 " {} days were read by an older version of swarmy, Refresh reads them again.",
                 status.outdated_days
+            ));
+        }
+        if status.missing_aggregates > 0 {
+            message.push_str(&format!(
+                " The statistics of {} periods are not computed yet, Refresh computes them.",
+                status.missing_aggregates
             ));
         }
         message.trim().to_string()

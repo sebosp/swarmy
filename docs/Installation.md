@@ -161,3 +161,58 @@ scripts/download-sidecars.sh
 # Another platform or swarmy-bevy release:
 SWARMY_BEVY_VERSION=v0.2.0 scripts/download-sidecars.sh x86_64-pc-windows-msvc
 ```
+
+## Browser version
+
+`swarmy --serve` also serves swarmy itself to a browser: open the address of the server. The
+address follows the view (`http://server:7878/#/replay-detail?replay=1234`): share it to share a
+view, the app opens it with Open a link in Home. It has the
+views of the app, for anyone that reaches it, without the desktop parts (the notifications, the
+folders of the computer, the swarmy-bevy and Rerun viewers).
+
+The .deb, .rpm and Arch packages have the system service, started on boot:
+
+```bash
+sudo mkdir -p /etc/swarmy
+echo 'SWARMY_SERVE_ADDRESS=0.0.0.0:7878' | sudo tee /etc/swarmy/server.env
+sudo systemctl edit swarmy-server   # the user that can read the replays, see the comments of the unit
+sudo systemctl enable --now swarmy-server
+```
+
+The Replay Path of the server is in the `replay_path` of `settings.json` of its data directory
+(`/var/lib/swarmy`, or of the user with `DynamicUser=no`).
+
+### The administrator key
+
+Scan, Optimize, the personal notes and the files of the server need the administrator key. Without
+it their requests are refused and they are not in the menu. The server only keeps the sha512 of the
+key, as the administrator create the key and its file:
+
+```bash
+key=$(openssl rand -base64 32)
+echo "The key, keep it in a password manager: $key"
+printf %s "$key" | sha512sum | sudo tee /etc/swarmy/admin-key.sha512
+```
+
+In the browser, Config asks for the key, it lasts until the tab is closed; it always asks, the
+server does not tell whether it has a key. A swarmy app that uses the server as its Remote Backend
+sends the key as its Remote Backend token (Config). To use another key
+write the new sha512 in the same file, the next request uses it: **no restart is needed**. Removing
+the file refuses every key. The file is `SWARMY_ADMIN_KEY_FILE`, or `--admin-key-file`.
+
+The server has no TLS, and the key travels in every request of the administrator: outside of a
+private network put it behind a proxy with HTTPS, i.e. nginx or a load balancer, and keep the address
+of the server on localhost. It also has no limit of requests, the queries of the snapshot use every
+core of the computer.
+
+The other parts of the browser version are in the server without a key on purpose: anyone can read
+the snapshot, the names of the players and maps included. The paths of the server are removed from
+the responses. The frontend itself is public too, the views of the administrator are in it, what
+needs the key is their data and actions.
+
+With `SWARMY_SERVER_TOKEN` and no key file nothing is public, not even the browser version. With
+both, the token works as the key for the desktop apps. With neither, a server of a private network,
+everyone is the administrator.
+
+For a binary that is not from a package, `scripts/install-server-service-over-ssh.sh <host>` installs
+the service on another computer.

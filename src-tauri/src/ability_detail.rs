@@ -22,31 +22,13 @@ struct PlayerGame {
 /// The uses of the ability per player and game, the commands counted once by their sequence
 /// number as in `ability_usage`, with the first use.
 fn ability_uses(ipc_path: &str, ability: &str) -> Result<LazyFrame, SwarmyError> {
-    let command = ["ext_fs_id", "user_id", "sequence", "ext_replay_loop"];
-    let commands = [CMD_TARGET_POINT_IPC, CMD_TARGET_UNIT_IPC]
-        .iter()
-        .map(|file_name| {
-            Ok(scan_snapshot_ipc(ipc_path, file_name)?
-                .filter(
-                    col("ability")
-                        .eq(lit(ability))
-                        .and(col("player_name").is_not_null()),
-                )
-                .select([
-                    col("ext_fs_id"),
-                    col("user_id"),
-                    col("sequence"),
-                    col("ext_replay_loop"),
-                    col("player_name"),
-                ]))
-        })
-        .collect::<Result<Vec<_>, SwarmyError>>()?;
-    Ok(concat(commands, UnionArgs::default())?
-        .unique(Some(cols(command)), UniqueKeepStrategy::Any)
-        .group_by([col("ext_fs_id"), col("player_name")])
-        .agg([
-            len().cast(DataType::UInt64).alias("uses"),
-            game_seconds().min().alias("first_seconds"),
+    Ok(scan_snapshot_ipc(ipc_path, GAME_ABILITIES_IPC)?
+        .filter(col("ability").eq(lit(ability)))
+        .select([
+            col("ext_fs_id"),
+            col("player_name"),
+            col("uses").cast(DataType::UInt64),
+            col("first_seconds"),
         ]))
 }
 

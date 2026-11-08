@@ -2,9 +2,10 @@
 //! and by matchup, the games with the most uses, and when it is first used.
 
 use crate::components::abilities::group_digits;
-use crate::components::charts::{BarChart, ChartData, LineChart, CHART_COLORS};
+use crate::components::charts::{BarChart, ChartData, CHART_COLORS};
 use crate::components::links::{MapLink, PlayerLink, RaceLink, ReplayLink, UnitLink};
 use crate::components::loading::Loading;
+use crate::components::usage_over_time::UsageOverTimeChart;
 use crate::navigation::use_navigation;
 use crate::*;
 use leptos::prelude::*;
@@ -80,41 +81,62 @@ pub fn AbilityView() -> impl IntoView {
     }
 }
 
-/// The tracked abilities, by race.
+/// The race first, then its tracked abilities.
 #[component]
 fn AbilitySelect() -> impl IntoView {
     let navigation = use_navigation();
+    let race_of = |ability: &str| {
+        tracked_ability(ability)
+            .map(|tracked| tracked.race.to_string())
+            .unwrap_or_else(|| "Zerg".to_string())
+    };
+    let race = RwSignal::new(race_of(&navigation.ability.get_untracked()));
+    Effect::new(move |_| {
+        let ability = navigation.ability.get();
+        if !ability.is_empty() {
+            race.set(race_of(&ability));
+        }
+    });
+    // A race opens its first ability, unless the one shown is of it.
+    let pick_race = Callback::new(move |race: String| {
+        let current = navigation.ability.get_untracked();
+        if tracked_ability(&current).is_none_or(|tracked| tracked.race != race) {
+            if let Some(first) = TRACKED_ABILITIES
+                .iter()
+                .find(|tracked| tracked.race == race)
+            {
+                navigation.open_ability(first.ability);
+            }
+        }
+    });
     view! {
-        <label class="flex items-center gap-2 text-sm text-base-content max-w-md">
-            "Ability"
-            <select
-                class=SELECT_CLASS
-                prop:value=move || navigation.ability.get()
-                on:change=move |ev| navigation.open_ability(&event_target_value(&ev))
-            >
-                <option value="" disabled=true>"Choose an ability"</option>
-                {["Terran", "Zerg", "Protoss"]
-                    .into_iter()
-                    .map(|race| {
-                        view! {
-                            <optgroup label=race>
-                                {TRACKED_ABILITIES
-                                    .iter()
-                                    .filter(|tracked| tracked.race == race)
-                                    .map(|tracked| {
-                                        view! {
-                                            <option value=tracked.ability>
-                                                {format!("{} ({})", tracked.label, tracked.unit)}
-                                            </option>
-                                        }
-                                    })
-                                    .collect_view()}
-                            </optgroup>
-                        }
-                    })
-                    .collect_view()}
-            </select>
-        </label>
+        <div class="flex flex-wrap items-center gap-3">
+            <crate::components::race_buttons::RaceButtons value=race on_pick=pick_race />
+            <label class="flex items-center gap-2 text-sm text-base-content">
+                "Ability"
+                <select
+                    class=SELECT_CLASS
+                    prop:value=move || navigation.ability.get()
+                    on:change=move |ev| navigation.open_ability(&event_target_value(&ev))
+                >
+                    <option value="" disabled=true>"Choose an ability"</option>
+                    {move || {
+                        let race = race.get();
+                        TRACKED_ABILITIES
+                            .iter()
+                            .filter(|tracked| tracked.race == race)
+                            .map(|tracked| {
+                                view! {
+                                    <option value=tracked.ability selected=navigation.ability.get_untracked() == tracked.ability>
+                                        {format!("{} ({})", tracked.label, tracked.unit)}
+                                    </option>
+                                }
+                            })
+                            .collect_view()
+                    }}
+                </select>
+            </label>
+        </div>
     }
 }
 
@@ -194,13 +216,7 @@ fn AbilityDetailContent(detail: AbilityDetail) -> impl IntoView {
         <div class="grid grid-cols-2 gap-6">
             <div>
                 <h2 class=HEADING_CLASS>"Over time"</h2>
-                <p class="text-xs text-faint">"Uses per game of the race, by month of the games."</p>
-                {if detail.by_month.len() > 1 {
-                    view! { <LineChart data=usage_chart_data(&detail.by_month) /> }.into_any()
-                } else {
-                    view! { <p class="text-xs text-muted">"The games of the snapshot are of a single month."</p> }
-                        .into_any()
-                }}
+                <UsageOverTimeChart subject=UsageSubject::Ability(detail.ability.clone()) />
             </div>
             <div>
                 <h2 class=HEADING_CLASS>"By patch"</h2>

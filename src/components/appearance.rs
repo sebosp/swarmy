@@ -41,7 +41,7 @@ fn resolve_theme(theme: &str, prefers_dark: bool) -> &str {
 }
 
 /// Sets an attribute of `<html>`, the ones styles.css reads; None removes it.
-fn set_html_attribute(name: &str, value: Option<&str>) {
+pub(crate) fn set_html_attribute(name: &str, value: Option<&str>) {
     let Some(html) = document().document_element() else {
         return;
     };
@@ -134,11 +134,16 @@ pub fn install_ui_settings() {
                     settings.underline_links,
                     settings.focus_outline,
                 );
+                crate::components::paged::set_table_rows(settings.max_table_rows);
             }
             Err(err) => leptos::logging::warn!("Unable to read the UI settings: {err:?}"),
         }
     });
     window_event_listener(ev::keydown, move |event| {
+        // The browser zooms the page itself.
+        if crate::components::web_session::is_web() {
+            return;
+        }
         if !(event.ctrl_key() || event.meta_key()) || event.alt_key() {
             return;
         }

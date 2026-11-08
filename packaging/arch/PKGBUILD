@@ -1,7 +1,8 @@
 # Maintainer: Seb Ospina <kraige@gmail.com>
 #
 # swarmy from the .deb of its GitHub release, with the swarmy-bevy and rerun-cli sidecars and the
-# swarmy-server user service of the remote backend (docs/Installation.md#remote-backend).
+# swarmy-server services of the remote backend and browser version, the user one and the system one
+# (docs/Installation.md#remote-backend, docs/Installation.md#browser-version).
 #
 #   makepkg -si
 #

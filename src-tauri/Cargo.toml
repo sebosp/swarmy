@@ -1,6 +1,6 @@
 [package]
 name = "swarmy"
-version = "0.2.3"
+version = "0.2.4"
 description = "Swarmy Tauri App"
 authors = ["Seb Ospina <kraige@gmail.com>"]
 edition = "2021"
@@ -58,9 +58,11 @@ notify = "8"
 duckdb = { version = "1.20000", features = ["bundled"] }
 # The sha256 of the replays, the same as s2protocol's ext_fs_sha256.
 sha256 = "1"
+# The administrator key of the browser version, see web.rs.
+sha2 = "0.10"
 # The remote backend: the server of `--serve` and the client of the app, see server.rs.
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "tracing"] }
-reqwest = { version = "0.12", default-features = false, features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 futures-util = "0.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
