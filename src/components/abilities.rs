@@ -104,26 +104,71 @@ pub fn AbilityUsageRows(
     .into_any()
 }
 
-/// The abilities a player used in a replay, compared to the games of the race in the patch.
+/// The badge of a rank among the players or the games of a patch: the best, top 5, top 10 or
+/// top 100, in the `--rank-*` colors (styles.css) and in words, `what` is "player" or "game". A
+/// tier is only shown when it is a small part of the others, at least twice as many (the best of
+/// 10 or more): of 95 games every one is in the top 100.
 #[component]
-pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
+pub fn RankBadge(rank: Rank, what: &'static str, title: String) -> impl IntoView {
+    let (class, label, tier) = match rank.rank {
+        1 => ("rank-1", format!("best {what}"), 5),
+        2..=5 => ("rank-5", format!("top 5 {what}"), 5),
+        6..=10 => ("rank-10", format!("top 10 {what}"), 10),
+        11..=100 => ("rank-100", format!("top 100 {what}"), 100),
+        _ => return None,
+    };
+    if rank.of < 2 * tier {
+        return None;
+    }
+    Some(view! { <span class=format!("rank-badge {class}") title=title>{label}</span> })
+}
+
+/// What a game rank means, i.e. "1 / 5: the most uses of the 5 games...".
+pub fn game_rank_title(rank: Rank, race: &str) -> String {
+    format!(
+        "{}: of the {} games of {race} players on this patch, {} had more uses than this one. {} of the games had as many uses or more.",
+        rank_of(rank.rank, rank.of),
+        group_digits(rank.of as u64),
+        match rank.rank - 1 {
+            0 => "none".to_string(),
+            more => group_digits(more as u64),
+        },
+        top_percent(rank.top_percent()),
+    )
+}
+
+/// What a player rank means.
+pub fn player_rank_title(rank: Rank, race: &str) -> String {
+    format!(
+        "{}: of the {} {race} players with at least {ABILITY_RANK_MIN_GAMES} games on this patch, ranked by uses per game, this player is number {}.",
+        rank_of(rank.rank, rank.of),
+        group_digits(rank.of as u64),
+        rank.rank,
+    )
+}
+
+/// The abilities a player used in a replay, compared to the games of the race in the patch, the
+/// most used first.
+#[component]
+pub fn AbilityUses(mut abilities: Vec<AbilityUse>, #[prop(into)] race: String) -> impl IntoView {
     if abilities.is_empty() {
         return view! {
             <p class="text-xs text-muted">"No ability with energy or a cooldown used."</p>
         }
         .into_any();
     }
+    abilities.sort_by(|a, b| b.uses.cmp(&a.uses).then(a.ability.cmp(&b.ability)));
     view! {
-        <table class=TABLE_CLASS>
+        <table class=TABLE_CLASS data-server-sort>
             <thead>
                 <tr class="text-left text-muted">
                     <th class="pr-2">"Ability"</th>
-                    <th class="num" title="The uses in this game, ▲ when 25% or more above the patch average, ▼ when 25% or more below">"Uses"</th>
+                    <th class="num" title="The uses in this game, the most used first: ▲ 25% or more above the patch average, ▼ 25% or more below, = the same as the average">"Uses"</th>
                     <th class="pr-2"></th>
                     <th class="pr-2 num" title="The uses per game of the players of the race in the games of the patch">"Patch avg"</th>
-                    <th class="pr-2 num" title="The rank of this game among the games of the race in the patch, 1 is the most uses">"Game rank"</th>
+                    <th class="pr-2 num" title="This game among the games of the race on the patch, by uses: 1 / 5 is the most uses of 5 games. Hover a rank for its meaning">"Game rank"</th>
                     <th class="pr-2 num" title="The share of the games of the patch with as many uses or more: 5% is a game among the 5% with the most uses">"Top"</th>
-                    <th class="pr-2 num" title=format!("The rank of the player by uses per game in the patch, with at least {ABILITY_RANK_MIN_GAMES} games of the race")>"Player rank"</th>
+                    <th class="pr-2 num" title=format!("The player among the players of the race on the patch with at least {ABILITY_RANK_MIN_GAMES} games, by uses per game: 1 / 40 is the player who uses it the most. Hover a rank for its meaning")>"Player rank"</th>
                     <th></th>
                 </tr>
             </thead>
@@ -132,35 +177,35 @@ pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
                     .into_iter()
                     .map(|ability| {
                         let average = ability.patch.as_ref().map(|patch| patch.per_game());
-                        // The color repeats the arrow, it is not the only cue.
-                        let (color, arrow) = match average {
-                            Some(average) if ability.uses as f64 >= average * 1.25 => ("text-success", "▲"),
-                            Some(average) if (ability.uses as f64) < average * 0.75 => ("text-error", "▼"),
-                            _ => ("text-base-content", ""),
+                        // The color repeats the sign, it is not the only cue.
+                        let (color, sign, sign_title) = match average {
+                            Some(average) if ability.uses as f64 >= average * 1.25 => ("text-success", "▲", "25% or more above the patch average"),
+                            Some(average) if (ability.uses as f64) < average * 0.75 => ("text-error", "▼", "25% or more below the patch average"),
+                            Some(average) if ability.uses as f64 == average.round() => ("text-info", "=", "The same as the patch average"),
+                            _ => ("text-base-content", "", ""),
                         };
-                        let is_top = ability.is_top_player();
+                        let race = race.clone();
                         view! {
                             <tr>
                                 <td class="pr-2"><AbilityName ability=ability.ability.clone() /></td>
                                 <td class=format!("num {color}")>{ability.uses}</td>
-                                <td class=format!("pr-2 pl-0.5 {color}")>{arrow}</td>
+                                <td class=format!("pr-2 pl-0.5 {color}") title=sign_title>{sign}</td>
                                 <td class="pr-2 num">
                                     {average.map(|average| format!("{average:.1}")).unwrap_or_else(|| "-".to_string())}
                                 </td>
-                                <td class="pr-2 num">
+                                <td class="pr-2 num" title=ability.game_rank.map(|rank| game_rank_title(rank, &race))>
                                     {ability.game_rank.map(|rank| rank_of(rank.rank, rank.of)).unwrap_or_else(|| "-".to_string())}
                                 </td>
                                 <td class="pr-2 num">
                                     {ability.game_rank.map(|rank| top_percent(rank.top_percent())).unwrap_or_else(|| "-".to_string())}
                                 </td>
-                                <td class="pr-2 num">
+                                <td class="pr-2 num" title=ability.player_rank.map(|rank| player_rank_title(rank, &race))>
                                     {ability.player_rank.map(|rank| rank_of(rank.rank, rank.of)).unwrap_or_else(|| "-".to_string())}
                                 </td>
                                 <td>
-                                    {is_top.then(|| view! {
-                                        <span class="badge badge-xs badge-accent whitespace-nowrap" title=format!("Among the {ABILITY_TOP_K} players of the patch with the most uses per game")>
-                                            {format!("top {ABILITY_TOP_K} player")}
-                                        </span>
+                                    {ability.player_rank.map(|rank| {
+                                        let title = player_rank_title(rank, &race);
+                                        view! { <RankBadge rank what="player" title /> }
                                     })}
                                 </td>
                             </tr>
@@ -174,7 +219,7 @@ pub fn AbilityUses(abilities: Vec<AbilityUse>) -> impl IntoView {
 }
 
 /// A rank among others, i.e. `12 / 3,450`.
-fn rank_of(rank: usize, of: usize) -> String {
+pub fn rank_of(rank: usize, of: usize) -> String {
     format!(
         "{} / {}",
         group_digits(rank as u64),

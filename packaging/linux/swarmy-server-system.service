@@ -1,0 +1,52 @@
+# swarmy as a server of the computer, the browser version and the remote backend, started on boot
+# without a user session. Installed as /usr/lib/systemd/system/swarmy-server.service, see
+# docs/Installation.md#browser-version. The user service swarmy-server.service is the same server
+# for a person's own computer, use one of them.
+#
+#   sudo systemctl enable --now swarmy-server
+#
+# It listens on localhost only until the address is set in /etc/swarmy/server.env:
+#
+#   SWARMY_SERVE_ADDRESS=0.0.0.0:7878
+#
+# The replays must be readable, and writable to run Optimize, by the user of the service. With
+# `sudo systemctl edit swarmy-server`, for replays of the user seb:
+#
+#   [Service]
+#   DynamicUser=no
+#   User=seb
+#   Group=seb
+#   ReadWritePaths=/home/seb/replays
+#
+# Anyone that reaches the address can read the snapshot. Scan, Optimize and the personal data need
+# the administrator key, its sha512 is in /etc/swarmy/admin-key.sha512. Without that file they are
+# refused to everyone.
+
+[Unit]
+Description=swarmy, the browser version and remote backend of a snapshot of StarCraft II replays
+Documentation=https://github.com/sebosp/swarmy/blob/main/docs/Installation.md#browser-version
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+DynamicUser=yes
+# /var/lib/swarmy has the settings of the server, /etc/swarmy its address and key.
+StateDirectory=swarmy
+ConfigurationDirectory=swarmy
+Environment=SWARMY_SERVE_ADDRESS=127.0.0.1:7878
+Environment=SWARMY_ADMIN_KEY_FILE=/etc/swarmy/admin-key.sha512
+EnvironmentFile=-/etc/swarmy/server.env
+ExecStart=/usr/bin/swarmy --serve ${SWARMY_SERVE_ADDRESS} --data-dir ${STATE_DIRECTORY}
+Restart=on-failure
+RestartSec=5
+# The queries use every core, what else runs on the computer goes first.
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

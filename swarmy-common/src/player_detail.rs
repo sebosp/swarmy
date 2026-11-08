@@ -112,6 +112,48 @@ pub struct RatingPoint {
 }
 
 /// Statistics from the analysis of every game of the player.
+/// What the Player view reads of the analysis of a game for one of its players, Optimize stores it
+/// in the snapshot so that the replays of a player are not read again.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct PlayerGameInsight {
+    pub won: bool,
+    /// `TvZ`, or `Team game`.
+    pub matchup: String,
+    pub map_title: String,
+    pub duration_seconds: u32,
+    pub opening: Vec<String>,
+    pub first_army_unit: Option<String>,
+    pub favourite_army_unit: Option<String>,
+    pub benchmarks: Vec<crate::Benchmark>,
+    pub production_idle: Vec<ProductionIdle>,
+    pub first_scout_unit: Option<String>,
+    pub first_scout_seconds: Option<u32>,
+    pub first_upgrade: Option<String>,
+    pub killed_by: Vec<UnitCount>,
+    pub army_at_10: Vec<UnitCount>,
+    pub was_behind: bool,
+    pub proxy: bool,
+    /// Both sides lost at least two bases.
+    pub base_trade: bool,
+    pub rating: Option<i32>,
+    pub supply_blocked_seconds: f32,
+    pub floating_seconds: f32,
+    pub avg_unspent: f32,
+    pub injects: f32,
+    pub chrono_boosts: f32,
+    pub mules: f32,
+    pub commands_per_minute: f32,
+    pub resources_lost: f32,
+    pub resources_killed: f32,
+    pub mining_seconds_lost: f32,
+    pub bases_at_10: f32,
+    pub first_kill_seconds: Option<u32>,
+    /// The injects, chrono boosts and MULEs until 10:00 against what the energy of the casters
+    /// allowed (`possible`), see `AbilityEfficiency`.
+    #[serde(default)]
+    pub energy: Vec<crate::AbilityEfficiency>,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PlayerInsights {
     pub analyzed_games: usize,

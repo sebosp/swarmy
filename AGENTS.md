@@ -27,6 +27,48 @@ Every change checks, without a skill to load:
 - The colors of the theme chosen in Config: success, warning and error are the daisyUI
   `text-success`, `text-warning`, `text-error` of the theme, never a fixed green or red.
 
+## Browser version
+
+- `swarmy --serve` serves the same frontend as the app: `public/web_bridge.js` defines
+  `window.__TAURI__` in a browser, the views do not know. Every command of the frontend is in the
+  server or in the bridge, and every command of the backend is in `ADMIN_COMMANDS` or
+  `PUBLIC_COMMANDS` of `src-tauri/src/web.rs`: tests of that file fail otherwise.
+- The administrator key: the server keeps its sha512 in a file read on each request, so that
+  rotating it needs no restart. What needs it is refused by the server first, hiding it in the views
+  (`components/web_session.rs`) comes second. Decided with the author on 2026-11-06.
+
+- The address of the window follows the view (`navigation::sync_with_address`, `#/<page>?...`):
+  the views can be shared from the address bar and the app opens such a link (Home, Open a
+  link); no copy button (removed at the author's request). A new view or what a
+  view shows goes in `view_route` and `open_route`. Decided with the author on 2026-11-08.
+- In the browser the zoom is the browser's own (no Zoom setting, no Ctrl+= handling), Config
+  always asks for the key (the server never tells whether it has one), the buttons that start
+  Rerun or swarmy-bevy have the `native-only` class and `native_title`.
+- The servers use the key "swarmy" for now (decided 2026-11-08), see `~/git/linuxtweaks`; the
+  app sends it as the token of its Remote Backend.
+
+- Battle.net (`src-tauri/src/battlenet.rs`): the StarCraft II community API with the client
+  credentials flow (no redirect). The Client ID and Secret are set in Config by the administrator,
+  kept in `battlenet.json` of the data directory of the backend (mode 600) and never sent back to
+  the views; `SWARMY_BATTLENET_CLIENT_ID`/`_SECRET` replace them. Never commit or log them. The
+  profiles are kept 30 minutes. Decided with the author on 2026-11-08.
+
+## Snapshot data
+
+- The views that span games read the aggregations of s2protocol (`game_*.arrow`, the usage tables
+  per day, month and year with `scan_usage`), never the event files. `details` and the `game_*`
+  tables are kept in memory until the snapshot changes (`HOT_TABLES`).
+- The Player view reads `swarmy_player_games.arrow` of each day, written by Optimize from the
+  files of the day (`player_detail::snapshot_insights`), a typed column per field. A new field of
+  `PlayerGameInsight` bumps `INSIGHTS_VERSION`, the days are computed again on the next Optimize.
+- The views never read the replays to answer a query (decided with the author on 2026-11-08): what
+  they need from the games is exported by s2protocol-rs, a missing fact is added there. Reading a
+  replay is for finding the files missing from the snapshot and for playing one game (Rerun,
+  swarmy-bevy). The definitions of the Player view follow the replay analysis
+  (`replay_detail::data`); `it_matches_the_analysis_of_the_replays` compares them on a snapshot.
+- Missing aggregations are told by the watcher (`missing_aggregates`, checked every 5 minutes) and
+  computed by Optimize, the views never compute them themselves.
+
 ## After a change of behavior
 
 Update in the same change, briefly (a line, not a log): the screenshots (`docs/screenshots`),
@@ -55,6 +97,11 @@ with the author here, explicitly, so that the next agent follows them.
   one width); every table cell has tabular digits.
 - Positions on a map are written `(x, y)` everywhere, with the `MapCell` component: hovering it
   highlights the spot on the map of the view.
+- A table shows at most the Rows per table of Config (100 by default) at once: `table_sort.js`
+  pages every table, the Previous and Next footer only when there are more rows. The tables that
+  can have thousands of rows (Player matches and opponents) are paged by the view
+  (`components/paged.rs`, `data-server-sort`), so that the webview never draws them all. A list
+  of thousands of names is a search field with suggestions, never a `<select>`.
 - Tables are sortable (`public/table_sort.js`), a sortable header shows ↕, the sorted one ▲ or ▼.
   The default sort is the most useful one, usually the games, and it is shown as sorted. The sort
   the viewer picks is remembered on the computer (webview storage), also the Replay List one.
@@ -80,6 +127,15 @@ with the author here, explicitly, so that the next agent follows them.
 - Ctrl+= / Ctrl+- / Ctrl+0 zoom; the themes use the daisyUI semantic colors and the `--chart-*`
   variables, never hard-coded colors (except the map resources, checked against each other).
 
+- The rank badges (abilities, Replay List) use the `--rank-*` colors of styles.css, validated
+  with the dataviz script for light and dark themes: top 100 blue, top 10 green, top 5 gold, the
+  best purple, and say their rank in words. A tier shows only when there are at least twice as
+  many others (`RankBadge`).
+- To pick a unit or an ability, the race first (`RaceButtons`, as in Race Detail), then a field
+  with the units or abilities of that race only.
+- A list of names (players, maps) is the `NameSelect` combobox, not a `<datalist>`: the webview
+  of the app on Linux does not show datalist suggestions.
+
 ### Charts
 - ApexCharts through `src/components/charts.rs` and `public/charts/chart_init.js`. One series in
   the first chart color; a series compared with an average uses `var(--chart-muted)` for the
@@ -88,6 +144,12 @@ with the author here, explicitly, so that the next agent follows them.
   mirrored lines.
 - The hovered column is outlined, never filled, so that no bar disappears in any theme. Charts
   animate only when they appear.
+- A chart has at most a few hundred points: ApexCharts measures each label with the styles of
+  the whole page, a chart of a point per game (3,771 for a player) blocked Firefox for a minute
+  and slowed every other chart of the page. Aggregate by day, month or year (`rating_periods`).
+- A chart of several kinds can filter them from its own legend, as Grafana does (a click shows
+  only that kind, a click on another adds it): the Focus of Replay Detail (`without_legend`),
+  its tooltip is written by the view in the colors of the bars.
 
 ### Remote backend
 - Every view says whether the snapshot is on this computer or on a remote backend, and which

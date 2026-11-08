@@ -1,5 +1,6 @@
 //! Swarmy Tauri UI Library
 
+pub mod battlenet;
 pub mod mpq_file_scan;
 pub use mpq_file_scan::*;
 pub mod settings;
@@ -35,6 +36,8 @@ pub mod replay_watcher;
 pub mod server;
 pub mod swarmy_bevy;
 pub mod unit_icons;
+pub mod usage_over_time;
+pub mod web;
 use crate::replay_list::{connect_swarmy_rerun, copy_path_to_clipboard, open_folder};
 use crate::replay_rerun::viewer::RerunViewerState;
 use std::process;
@@ -55,11 +58,21 @@ pub struct SetupState {
 pub fn run() {
     let args = <logging::Args as clap::Parser>::parse();
     logging::init(&args);
+    // Once in the binary: the window and the browser version use the same frontend.
+    let context = tauri::generate_context!();
     if let Some(addr) = args.serve {
-        // The remote backend of other swarmy apps, without a window.
-        if let Err(err) =
-            tauri::async_runtime::block_on(server::serve(addr, args.data_dir, args.token))
-        {
+        // The remote backend of other swarmy apps and the browser version, without a window.
+        let web = web::WebAssets {
+            root: args.web_root,
+            ..web::WebAssets::from_context(&context)
+        };
+        let options = server::ServeOptions {
+            data_dir: args.data_dir,
+            token: args.token,
+            admin_key_file: args.admin_key_file,
+            web,
+        };
+        if let Err(err) = tauri::async_runtime::block_on(server::serve(addr, options)) {
             tracing::error!("The server stopped: {err}");
             process::exit(1);
         }
@@ -143,7 +156,7 @@ pub fn run() {
                 }
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| {
             // Sidecars spawned from rust are not killed by the shell plugin on exit.

@@ -85,8 +85,8 @@ const VIEWS: [Entry; 18] = [
     (
         "Ability",
         "One ability with energy or a cooldown, i.e. Inject Larva or Yamato Cannon, in the games \
-         of the snapshot: the share of the games of its race it is used in, the uses per game by \
-         month and by patch, by matchup, the players with the most uses per game, the games with \
+         of the snapshot: the share of the games of its race it is used in, the uses per game \
+         over time (per day, month or year, a dashed line where each patch starts) and by patch, by matchup, the players with the most uses per game, the games with \
          the most uses, and the average and fastest game time of its first use. Click an ability \
          in Replay Detail, Race Detail or the Patch Overview to open it.",
     ),
@@ -109,8 +109,8 @@ const VIEWS: [Entry; 18] = [
          with the mineral fields, geysers and start locations, the minerals and vespene of the \
          map, whether it has gold minerals or rich vespene, and for each start location the \
          distance to the mineral fields and geysers of its main base. The amounts are the \
-         defaults of each resource type unless the map sets them. The dropdown lists every map \
-         of the snapshot.",
+         defaults of each resource type unless the map sets them. The Map field suggests the \
+         maps that contain what is typed, the most played first.",
     ),
     (
         "Replay List",
@@ -120,11 +120,21 @@ const VIEWS: [Entry; 18] = [
          the chat of the games, press Enter: the messages of the replays are read the first \
          time, then kept in the personal database. The Notes column has the rating and tags. \
          The strategy button streams the replay to the Rerun viewer, the cube opens it in \
-         swarmy-bevy.",
+         swarmy-bevy. Best rank is the best game rank of the game: of its players and their \
+         abilities with energy or a cooldown, the one with the most uses compared to the games \
+         of the race on the patch, i.e. Contaminate 2 / 95 is the second most uses of 95 games. \
+         The badge says top 100, top 10, top 5 or best game, only when the patch has at least \
+         twice as many games.",
     ),
     (
         "Replay Detail",
-        "The analysis of a single replay: expansions, resources, macro, focus, economy, army at \
+        "The analysis of a single replay. Abilities: the game rank is this game among the \
+         games of the race on the patch by uses (1 / 5 is the most of 5 games), the player rank \
+         the player among the players of the race with at least 3 games by uses per game; = is \
+         the patch average. Energy used until 10:00: the bar is what the energy of the casters \
+         allowed, the fill the uses of this game, the tick the average of the patch. Idle \
+         production leaves out the time the supply was full. The Focus legend filters the chart: \
+         a click shows only that kind, a click on another adds it. Also: expansions, resources, macro, focus, economy, army at \
          10:00, unit choices, effective units, kills, build order, engagements and chat. The \
          patch version opens the Patch Overview at that patch. The expansions and upgrades show \
          how much faster or slower they were than the average of the games of the same patch in \
@@ -145,8 +155,11 @@ const VIEWS: [Entry; 18] = [
     ),
     (
         "Player",
-        "Every game of the player is analysed, players are identified by their name without the \
-         clan tag. Results over time and per patch, units, opponents, economy against the \
+        "Every game of the player, analysed once by Optimize, players are identified by their name without the \
+         clan tag. Battle.net: the public profiles of the three most played accounts (best 1v1 \
+         finish, games, the ladders of the season with their rank and MMR), with the Client ID and \
+         Secret of a Battle.net application in Config. Also: \
+         results over time and per patch, units, opponents, economy against the \
          snapshot, openings, tendencies and macro. Choose the player in the dropdown, and a \
          second one in Compare with to see the preferred strategies of both side by side, what \
          each one played in the games between them and the replays of those games.",

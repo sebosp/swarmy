@@ -5,8 +5,36 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-11-08",
+        &[
+            "The race first, then the unit or the ability: race buttons in Patch Evolution, the Ability view, Unit Overview and the Patch Overview. The abilities chart of Patch Evolution is taller and its legend filters it as in Grafana. Config tells whether the Battle.net credentials work, with Test and the links to the Battle.net API; the administrator key is aligned with the other settings. The first scout is never an egg or a larva. The icon of swarmy in the browser.",
+            "Player view: the rating is drawn with the last rating of each day, month or year; a point per game blocked the page for a minute for players of thousands of games. Config in the browser shows the Battle.net API section, to set after the administrator key.",
+            "Battle.net: with the Client ID and Secret of a Battle.net application in Config, the Player view shows the Battle.net profiles of the accounts: the best 1v1 finish, the games, the ladders of the season with their rank and MMR. Map Details lists the maps by games, typing replaces the map shown. The Focus filter of Replay Detail applies to both players. The Replay List names the unit of an ability (Reaper KD8 Charge).",
+            "The browser version: the address follows the view, it can be shared; the app opens such a link in Home. Config always asks for the administrator key, the app uses it as the token of its Remote Backend. The zoom is the browser's own, the Rerun and swarmy-bevy buttons say they are of the app.",
+            "Replay Detail: the abilities sorted by uses, = when equal to the patch average, the ranks explained on hover and the player badges top 100, top 10, top 5 and best in colors safe for color blindness; the energy used until 10:00 as a bar with the patch average; the three things to fix and their costs explained on hover; idle production without the time the supply was full; the opening of the opponent in red, the chosen one titled; the Focus legend filters the chart.",
+            "Replay List: the best game rank of each game. Map Details: the Map field suggests the maps as you type. Map Scout: in yellow as experimental, on the minimap of the map cache, the games of the maps with starts top left and bottom right turned the same way.",
+            "Player view: the analysis of each game comes from the snapshot, Optimize no longer reads the replays again, and the view never does: a Rebuild from scratch is needed once. The first scout is the first command aimed near the enemy start (an Overlord at 0:22 instead of a Zergling at 7:00), the idle production counts the Orbital Commands and Planetary Fortresses as such.",
+        ],
+    ),
+    (
+        "2026-11-06",
+        &[
+            "swarmy in a browser: swarmy --serve also serves the views of the app, Scan and Optimize need the administrator key of the server.",
+            "swarmy-bevy: Enable Map Graphics in the View menu draws the models and textures stored with the map.",
+        ],
+    ),
+    (
+        "2026-11-04",
+        &[
+            "Optimize computes the statistics per day, month and year: the views that read every game of the snapshot open in a fraction of the time, also on snapshots as large as AI Arena. The banner says when some are missing, Refresh computes them without reading the replays again.",
+            "Optimize analyses each game once for the Player view, which no longer reads the replays of the player.",
+            "Over time charts in Ability, Race Detail, Unit Overview and Patch Overview, per day, month or year, with a dashed line where each patch starts.",
+        ],
+    ),
+    (
         "2026-11-03",
         &[
+            "Long tables show 100 rows per page (Rows per table in Config), with Previous and Next only when they have more; the headers sort all the rows. The Player and Compare with fields suggest the matching players instead of listing thousands: the Player view of a player with thousands of games no longer blocks the window.",
             "The charts no longer zoom when the page scrolls over them, they are read by hovering.",
             "swarmy-bevy: the free camera is back; the objects of the maps load again; the replay panel lists the winner first with a green triangle and is easier to read, a cell has one bar per player there, and a clicked bar shows its units with their icons at the bottom left.",
             "Config: Save says Saved beside the button, or what failed.",

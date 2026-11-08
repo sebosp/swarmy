@@ -1,8 +1,10 @@
 //! Statistics of a player: races, results over time, units and opponents.
 
 pub mod data;
+pub mod game_insights;
 pub mod head_to_head;
 pub mod insights;
+pub mod snapshot_insights;
 use crate::host::SwarmyHost;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;

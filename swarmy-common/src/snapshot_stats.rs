@@ -107,6 +107,10 @@ pub struct NewReplaysStatus {
     /// The days of the snapshot written by another version of s2protocol, Optimize parses their
     /// replays again.
     pub outdated_days: usize,
+    /// The days, months or years of the snapshot whose aggregations are missing or older than
+    /// their games, the views do not count those games until Optimize computes them.
+    #[serde(default)]
+    pub missing_aggregates: usize,
     /// The last replay the watcher found, none until a replay is added while swarmy runs.
     #[serde(default)]
     pub latest_replay: Option<String>,
@@ -118,7 +122,7 @@ pub struct NewReplaysStatus {
 impl NewReplaysStatus {
     /// Whether Optimize would change the snapshot.
     pub fn needs_optimize(&self) -> bool {
-        self.new_replays > 0 || self.outdated_days > 0
+        self.new_replays > 0 || self.outdated_days > 0 || self.missing_aggregates > 0
     }
 }
 

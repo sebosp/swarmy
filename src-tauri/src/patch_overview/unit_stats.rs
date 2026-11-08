@@ -2,7 +2,7 @@
 //! month, and the games in which the unit was exceptionally effective.
 
 use crate::data::*;
-use crate::replay_rerun::decisions::{base_unit_name, has_cost, latest_balance_units, unit_cost};
+use crate::replay_rerun::decisions::{base_unit_name, latest_balance_units, unit_cost};
 use polars::prelude::*;
 use swarmy_common::*;
 
@@ -27,22 +27,6 @@ pub fn unit_variants(unit_name: &str) -> Vec<String> {
     names
 }
 
-fn is_one_of(column: &str, names: &[String]) -> Expr {
-    col(column).is_in(
-        lit(Series::new("names".into(), names)).implode(false),
-        false,
-    )
-}
-
-/// The key of a unit in a game.
-fn unit_key() -> [Expr; 3] {
-    [
-        col("ext_fs_id"),
-        col("unit_tag_index"),
-        col("unit_tag_recycle"),
-    ]
-}
-
 /// A single value of the first row of a column, 0 when the frame is empty.
 fn first_u64(df: &DataFrame, name: &str) -> Result<u64, SwarmyError> {
     Ok(df
@@ -62,117 +46,27 @@ fn first_f64(df: &DataFrame, name: &str) -> Result<f64, SwarmyError> {
         .unwrap_or_default())
 }
 
-/// The value of the units that cost resources, by unit name, to join with the deaths.
-fn unit_values() -> Result<LazyFrame, SwarmyError> {
-    let balance = latest_balance_units()?;
-    let mut names: Vec<String> = vec![];
-    let mut values: Vec<u32> = vec![];
-    // The deaths have the variant names, i.e. SiegeTankSieged.
-    for name in balance.keys().flat_map(|name| unit_variants(name)) {
-        let base = base_unit_name(&name);
-        if has_cost(balance, base) {
-            let cost = unit_cost(balance, base);
-            names.push(name);
-            values.push(cost.minerals + cost.vespene);
-        }
-    }
-    let height = names.len();
-    Ok(DataFrame::new(
-        height,
-        vec![
-            Column::new("unit_died_name".into(), names),
-            Column::new("victim_value".into(), values),
-        ],
-    )?
-    .lazy())
-}
-
 pub fn try_query_unit_snapshot_stats(
     replay_path: String,
     unit_name: String,
 ) -> Result<UnitSnapshotStats, SwarmyError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
-    let variants = unit_variants(&unit_name);
     let balance = latest_balance_units()?;
     let cost = unit_cost(balance, &unit_name);
 
-    // The units made by each player in each game, burrowing, sieging, etc register the same unit
-    // again so each unit is counted once.
-    let born_by_player = scan_snapshot_ipc(&ipc_path, UNIT_BORN_IPC)?
-        .filter(is_one_of("unit_type_name", &variants).and(col("player_name").is_not_null()))
-        .unique_generic(Some(unit_key().to_vec()), UniqueKeepStrategy::First)
-        .group_by([col("ext_fs_id"), col("control_player_id")])
-        .agg([
-            len().cast(DataType::UInt64).alias("born"),
-            col("player_name").first(),
-        ]);
-
-    // The enemy units killed by the unit that cost resources, the owners of the units killed come
-    // from their births so that killing an own unit is not a kill. Only the births of the units
-    // killed are read, reading all of them is much slower.
-    let kills = scan_snapshot_ipc(&ipc_path, UNIT_DIED_IPC)?
-        .filter(is_one_of("unit_killer_name", &variants).and(col("killer_player_id").is_not_null()))
+    // The units made by each player in each game, the kills and the units lost.
+    let unit_rows = scan_snapshot_ipc(&ipc_path, GAME_UNITS_IPC)?
+        .filter(col("unit").eq(lit(base_unit_name(&unit_name))));
+    let players = unit_rows
+        .clone()
+        .filter(col("born").gt(lit(0u32)))
         .select([
             col("ext_fs_id"),
-            col("unit_tag_index"),
-            col("unit_tag_recycle"),
-            col("killer_player_id"),
-            col("unit_died_name"),
-        ])
-        .join(
-            unit_values()?,
-            [col("unit_died_name")],
-            [col("unit_died_name")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .collect()?
-        .lazy();
-    let owners = scan_snapshot_ipc(&ipc_path, UNIT_BORN_IPC)?
-        .select([
-            col("ext_fs_id"),
-            col("unit_tag_index"),
-            col("unit_tag_recycle"),
-            col("control_player_id").alias("victim_player_id"),
-        ])
-        .join(
-            kills.clone().select(unit_key()),
-            unit_key(),
-            unit_key(),
-            JoinArgs::new(JoinType::Semi),
-        )
-        .unique_generic(Some(unit_key().to_vec()), UniqueKeepStrategy::First);
-    let kills_by_player = kills
-        .join(
-            owners,
-            unit_key(),
-            unit_key(),
-            JoinArgs::new(JoinType::Left),
-        )
-        .filter(
-            col("victim_player_id")
-                .is_null()
-                .or(col("victim_player_id").neq(col("killer_player_id"))),
-        )
-        .group_by([col("ext_fs_id"), col("killer_player_id")])
-        .agg([
-            len().cast(DataType::UInt64).alias("kills"),
-            col("victim_value")
-                .cast(DataType::UInt64)
-                .sum()
-                .alias("value_killed"),
-        ]);
-
-    let players = born_by_player
-        .join(
-            kills_by_player,
-            [col("ext_fs_id"), col("control_player_id")],
-            [col("ext_fs_id"), col("killer_player_id")],
-            JoinArgs::new(JoinType::Left),
-        )
-        .with_columns([
-            col("kills").fill_null(lit(0u64)),
-            col("value_killed").fill_null(lit(0u64)),
+            col("player_name"),
+            col("born").cast(DataType::UInt64),
+            col("kills").cast(DataType::UInt64),
+            col("value_killed").cast(DataType::UInt64),
         ])
         .with_column(
             (col("kills").cast(DataType::Float64) / col("born").cast(DataType::Float64))
@@ -190,9 +84,8 @@ pub fn try_query_unit_snapshot_stats(
             col("ext_fs_id").n_unique().alias("games_with_unit"),
         ])
         .collect()?;
-    let died = scan_snapshot_ipc(&ipc_path, UNIT_DIED_IPC)?
-        .filter(is_one_of("unit_died_name", &variants))
-        .select([len().alias("died")])
+    let died = unit_rows
+        .select([col("died").cast(DataType::UInt64).sum()])
         .collect()?;
 
     // One row per game with its month, title, date, etc.

@@ -196,3 +196,127 @@ pub fn remember_replay_list_sort(navigation: Navigation) {
 pub fn use_navigation() -> Navigation {
     expect_context::<Navigation>()
 }
+
+/// The address of a view: `#/<page>?<what it shows>`, i.e. `#/replay-detail?replay=1234` or
+/// `#/player?name=Serral`. The browser version can then be shared and the Back button works; the app
+/// shows its views the same way.
+pub fn view_route(navigation: &Navigation) -> String {
+    let page = navigation.active_page.get();
+    let encode = |value: &str| String::from(js_sys::encode_uri_component(value));
+    let query = match page.as_str() {
+        REPLAY_DETAIL_PAGE => navigation.replay_id.get().map(|id| format!("replay={id}")),
+        PLAYER_PAGE => Some(navigation.player_name.get())
+            .filter(|name| !name.is_empty())
+            .map(|name| format!("name={}", encode(&name))),
+        MAP_DETAILS_PAGE | MAP_SCOUT_PAGE => Some(navigation.map_title.get())
+            .filter(|map| !map.is_empty())
+            .map(|map| format!("map={}", encode(&map))),
+        UNIT_OVERVIEW_PAGE => Some(format!("unit={}", encode(&navigation.unit_name.get()))),
+        PATCH_OVERVIEW_PAGE => {
+            let mut parts = vec![];
+            if let Some(version) = navigation.patch_version.get() {
+                parts.push(format!("version={version}"));
+            }
+            let race = navigation.race.get();
+            if !race.is_empty() {
+                parts.push(format!("race={}", encode(&race)));
+            }
+            (!parts.is_empty()).then(|| parts.join("&"))
+        }
+        RACE_DETAIL_PAGE => Some(format!("race={}", encode(&navigation.race_detail.get()))),
+        ABILITY_PAGE => Some(navigation.ability.get())
+            .filter(|ability| !ability.is_empty())
+            .map(|ability| format!("ability={}", encode(&ability))),
+        _ => None,
+    };
+    let slug = page.to_lowercase().replace(' ', "-");
+    match query {
+        Some(query) => format!("#/{slug}?{query}"),
+        None => format!("#/{slug}"),
+    }
+}
+
+/// The page of a route slug, i.e. `replay-detail`.
+fn page_of_slug(slug: &str) -> Option<&'static str> {
+    [
+        HOME_PAGE,
+        TOUR_PAGE,
+        REPLAY_DETAIL_PAGE,
+        PLAYER_PAGE,
+        MAP_SCOUT_PAGE,
+        MAP_LIST_PAGE,
+        MAP_DETAILS_PAGE,
+        PATCH_OVERVIEW_PAGE,
+        UNIT_OVERVIEW_PAGE,
+        PATCH_EVOLUTION_PAGE,
+        RACE_DETAIL_PAGE,
+        ABILITY_PAGE,
+        PROGRESS_PAGE,
+        SCAN_PAGE,
+        REPLAY_LIST_PAGE,
+        HELP_PAGE,
+        CHANGELOG_PAGE,
+        "Config",
+    ]
+    .into_iter()
+    .find(|page| page.to_lowercase().replace(' ', "-") == slug)
+}
+
+/// Shows the view of a route, an unknown route is left alone.
+pub fn open_route(navigation: &Navigation, route: &str) {
+    let route = route.trim_start_matches('#').trim_start_matches('/');
+    let (slug, query) = route.split_once('?').unwrap_or((route, ""));
+    let Some(page) = page_of_slug(slug) else {
+        return;
+    };
+    let decode = |value: &str| {
+        js_sys::decode_uri_component(value)
+            .map(String::from)
+            .unwrap_or_else(|_| value.to_string())
+    };
+    for (key, value) in query.split('&').filter_map(|part| part.split_once('=')) {
+        let value = decode(value);
+        match key {
+            "replay" => {
+                if let Ok(id) = value.parse() {
+                    navigation.replay_preview.set(None);
+                    navigation.replay_is_latest.set(false);
+                    navigation.replay_id.set(Some(id));
+                }
+            }
+            "name" => navigation.player_name.set(value),
+            "map" => navigation.map_title.set(value),
+            "unit" => navigation.unit_name.set(value),
+            "version" => navigation.patch_version.set(value.parse().ok()),
+            "race" if page == RACE_DETAIL_PAGE => navigation.race_detail.set(value),
+            "race" => navigation.race.set(value),
+            "ability" => navigation.ability.set(value),
+            _ => {}
+        }
+    }
+    navigation.active_page.set(page.to_string());
+}
+
+/// Keeps the address of the window on the view shown: opens the view of the address when swarmy
+/// starts and when the address changes (Back, a link pasted), and writes the address of each view
+/// opened.
+pub fn sync_with_address(navigation: Navigation) {
+    let current_hash = || window().location().hash().unwrap_or_default();
+    let hash = current_hash();
+    if !hash.is_empty() {
+        open_route(&navigation, &hash);
+    }
+    Effect::new(move |_| {
+        let route = view_route(&navigation);
+        if current_hash() != route {
+            // A new entry of the history: Back returns to the previous view.
+            let _ = window().location().set_hash(&route);
+        }
+    });
+    window_event_listener(leptos::ev::hashchange, move |_| {
+        let hash = current_hash();
+        if hash != untrack(|| view_route(&navigation)) {
+            open_route(&navigation, &hash);
+        }
+    });
+}

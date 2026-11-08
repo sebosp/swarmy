@@ -72,6 +72,16 @@ pub struct AppSettings {
     /// Shows the focus outline on every focused element, also with the mouse.
     #[serde(default)]
     pub focus_outline: bool,
+    /// The rows a table shows at once, the longer tables have pages.
+    #[serde(default = "default_max_table_rows")]
+    pub max_table_rows: u32,
+}
+
+/// The rows of a page of a table by default.
+pub const DEFAULT_MAX_TABLE_ROWS: u32 = 100;
+
+pub fn default_max_table_rows() -> u32 {
+    DEFAULT_MAX_TABLE_ROWS
 }
 
 /// The values of `reduce_motion`, `(id, label)`.

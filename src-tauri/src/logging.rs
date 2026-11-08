@@ -69,6 +69,25 @@ pub struct Args {
         requires = "serve"
     )]
     pub token: Option<String>,
+    /// With --serve, the file with the sha512 of the administrator key: the browser version can then
+    /// be used by anyone and Scan, Optimize and the personal data need the key. It is read on each
+    /// request, a new key needs no restart. See docs/Installation.md#browser-version.
+    #[arg(
+        long,
+        env = "SWARMY_ADMIN_KEY_FILE",
+        value_name = "FILE",
+        requires = "serve"
+    )]
+    pub admin_key_file: Option<PathBuf>,
+    /// With --serve, the directory of the browser version instead of the one inside the binary,
+    /// i.e. the `dist` of trunk while developing it.
+    #[arg(
+        long,
+        env = "SWARMY_WEB_ROOT",
+        value_name = "DIRECTORY",
+        requires = "serve"
+    )]
+    pub web_root: Option<PathBuf>,
 }
 
 /// The directory of the log files.

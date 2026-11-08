@@ -87,10 +87,8 @@ pub fn try_query_map_details(
     top_players.truncate(TOP_PLAYERS);
 
     let game_ids: Vec<u64> = games.keys().copied().collect();
-    let durations = scan_snapshot_ipc(&ipc_path, STATS_IPC)?
+    let durations = game_durations(&ipc_path)?
         .filter(is_in_replays(&game_ids))
-        .group_by([col("ext_fs_id")])
-        .agg([game_seconds().max()])
         .select([col("game_seconds").mean()])
         .collect()?;
     let avg_duration_seconds = durations
@@ -159,7 +157,11 @@ pub fn try_list_maps(replay_path: String) -> Result<Vec<GamesWins>, SwarmyError>
             .n_unique()
             .cast(DataType::UInt64)
             .alias("games")])
-        .sort(["title"], SortMultipleOptions::default())
+        // The most played first, as the players.
+        .sort(
+            ["games", "title"],
+            SortMultipleOptions::default().with_order_descending_multi([true, false]),
+        )
         .collect()?;
     Ok(str_values(&maps, "title")?
         .into_iter()

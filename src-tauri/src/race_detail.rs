@@ -36,29 +36,6 @@ fn race_units(race: &str) -> Result<Vec<(String, String)>, SwarmyError> {
         .collect())
 }
 
-/// The units that cost resources, of every race, the kills of the other units are not counted,
-/// i.e. a Larva or a Broodling.
-fn costed_units() -> Result<Vec<String>, SwarmyError> {
-    let balance = latest_balance_units()?;
-    Ok(balance
-        .keys()
-        .filter(|name| has_cost(balance, name))
-        .flat_map(|name| unit_variants(name))
-        .collect())
-}
-
-/// The base name of the variants of the column, i.e. SiegeTankSieged is SiegeTank.
-fn base_name_expr(column: &str, variants: &[(String, String)]) -> Expr {
-    let (names, bases): (Vec<&str>, Vec<&str>) = variants
-        .iter()
-        .map(|(variant, base)| (variant.as_str(), base.as_str()))
-        .unzip();
-    col(column).replace(
-        lit(Series::new("variants".into(), names)).implode(false),
-        lit(Series::new("bases".into(), bases)).implode(false),
-    )
-}
-
 fn games_wins() -> [Expr; 2] {
     [
         len().cast(DataType::UInt64).alias("games"),
@@ -144,74 +121,30 @@ pub fn try_query_race_detail(replay_path: String, race: String) -> Result<RaceDe
         )
         .limit(TOP_PLAYERS as IdxSize);
 
-    // The units made by the players of the race, each unit once: burrowing, sieging, etc register
-    // the same unit again.
+    // The units of the players of the race, from the aggregations of the games.
     let variants = race_units(&race)?;
-    let variant_names: Vec<&str> = variants.iter().map(|(name, _)| name.as_str()).collect();
+    let bases: Vec<&str> = variants.iter().map(|(_, base)| base.as_str()).collect();
     let player_key = [col("ext_fs_id"), col("player_name")];
-    let units = scan_snapshot_ipc(&ipc_path, UNIT_BORN_IPC)?
-        .filter(is_one_of("unit_type_name", &variant_names).and(col("player_name").is_not_null()))
-        .unique(
-            Some(cols(["ext_fs_id", "unit_tag_index", "unit_tag_recycle"])),
-            UniqueKeepStrategy::Any,
-        )
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            base_name_expr("unit_type_name", &variants).alias("unit"),
-        ])
+    let made = col("born").gt(lit(0u32));
+    let units = scan_snapshot_ipc(&ipc_path, GAME_UNITS_IPC)?
+        .filter(is_one_of("unit", &bases))
         .join(
-            race_players.clone().select([
-                col("ext_fs_id"),
-                col("player_name"),
-                col("player_result"),
-            ]),
+            race_players.select([col("ext_fs_id"), col("player_name"), col("player_result")]),
             player_key.clone(),
             player_key,
             JoinArgs::new(JoinType::Inner),
         )
-        .group_by([col("unit"), col("ext_fs_id"), col("player_name")])
+        .group_by([col("unit")])
         .agg([
-            len().cast(DataType::UInt64).alias("born"),
-            col("player_result").first(),
+            made.clone().cast(DataType::UInt64).sum().alias("games"),
+            made.and(col("player_result").eq(lit("Win")))
+                .cast(DataType::UInt64)
+                .sum()
+                .alias("wins"),
+            col("born").cast(DataType::UInt64).sum(),
+            col("kills").cast(DataType::UInt64).sum(),
         ])
-        .group_by([col("unit")])
-        .agg(
-            games_wins()
-                .into_iter()
-                .chain([col("born").sum()])
-                .collect::<Vec<_>>(),
-        );
-    // The units that cost resources killed by the units of the race, own units killed are rare
-    // and counted too.
-    let id_key = [col("ext_fs_id"), col("player_id")];
-    let kills = scan_snapshot_ipc(&ipc_path, UNIT_DIED_IPC)?
-        .filter(
-            is_one_of("unit_killer_name", &variant_names)
-                .and(is_one_of("unit_died_name", &costed_units()?))
-                .and(col("killer_player_id").is_not_null()),
-        )
-        .select([
-            col("ext_fs_id"),
-            col("killer_player_id").alias("player_id"),
-            base_name_expr("unit_killer_name", &variants).alias("unit"),
-        ])
-        .join(
-            race_players.select([col("ext_fs_id"), col("player_id")]),
-            id_key.clone(),
-            id_key,
-            JoinArgs::new(JoinType::Inner),
-        )
-        .group_by([col("unit")])
-        .agg([len().cast(DataType::UInt64).alias("kills")]);
-    let units = units
-        .join(
-            kills,
-            [col("unit")],
-            [col("unit")],
-            JoinArgs::new(JoinType::Left),
-        )
-        .with_column(col("kills").fill_null(lit(0u64)))
+        .filter(col("games").gt(lit(0u64)))
         .sort(
             ["games", "unit"],
             SortMultipleOptions::default().with_order_descending_multi([true, false]),

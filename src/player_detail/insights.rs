@@ -2,6 +2,7 @@
 
 use crate::components::charts::{ChartData, LineChart};
 use crate::components::links::UnitLink;
+use crate::components::paged::{page_of, PagedSort, Pager, SortKey, SortTh};
 use crate::components::section::Section;
 use crate::*;
 use leptos::prelude::*;
@@ -247,18 +248,37 @@ fn WinRates(
 /// i.e. "on Killswitch the player goes for SpawningPool → RoachWarren 80% of the games".
 #[component]
 fn ChoiceTable(shares: Vec<ChoiceShare>, units: bool) -> impl IntoView {
+    let sort = PagedSort::new(
+        if units {
+            "player-units-by-map"
+        } else {
+            "player-openings-by-map"
+        },
+        (0, false),
+    );
+    let count = shares.len();
+    // The rows come sorted by context then share: a stable sort by context keeps that order.
+    let rows = move || {
+        page_of(&shares, sort, |share, column| match column {
+            1 => SortKey::Text(share.choice.clone()),
+            2 => SortKey::Number(share.games as f64 / share.context_games.max(1) as f64),
+            3 => SortKey::Number(share.wins as f64 / share.games.max(1) as f64),
+            _ => SortKey::Text(share.context.clone()),
+        })
+        .0
+    };
     view! {
-        <table class=TABLE_CLASS>
+        <table class=TABLE_CLASS data-server-sort>
             <thead class="sticky top-0 bg-base-200">
                 <tr class="text-left text-muted">
-                    <th class="pr-2">"Context"</th>
-                    <th class="pr-2">"Choice"</th>
-                    <th class="pr-2 num">"Share"</th>
-                    <th>"Win rate"</th>
+                    <SortTh label="Context" column=0 sort />
+                    <SortTh label="Choice" column=1 sort />
+                    <SortTh label="Share" column=2 sort descending_first=true class="pr-2 num" />
+                    <SortTh label="Win rate" column=3 sort descending_first=true class="" />
                 </tr>
             </thead>
             <tbody>
-                {shares
+                {move || rows()
                     .into_iter()
                     .map(|share| view! {
                         <tr>
@@ -277,6 +297,7 @@ fn ChoiceTable(shares: Vec<ChoiceShare>, units: bool) -> impl IntoView {
                     .collect_view()}
             </tbody>
         </table>
+        <Pager rows=Signal::derive(move || count) sort />
     }
 }
 
@@ -323,18 +344,47 @@ fn RatingChart(ratings: Vec<RatingPoint>) -> impl IntoView {
         .max()
         .unwrap_or_default()
         .max(min + 1);
-    let chart = ChartData::new(ratings.iter().map(|point| point.date.clone()).collect())
+    // A point per day, else per month or per year: a point per game (thousands for some players)
+    // drew thousands of labels, the chart blocked the page for a minute in Firefox.
+    let (points, period) = rating_periods(&ratings);
+    let chart = ChartData::new(points.iter().map(|(label, _)| label.clone()).collect())
         .with_series(
             "MMR",
-            ratings.iter().map(|point| point.rating as f64).collect(),
+            points.iter().map(|(_, rating)| *rating as f64).collect(),
         );
     view! {
         <Section title="Rating" height="h-40">
             <p class="text-xs text-muted">
-                {format!("From {} to {}, between {min} and {max}", ratings[0].date, ratings[ratings.len() - 1].date)}
+                {format!(
+                    "From {} to {}, between {min} and {max}, the last rating of each {period}",
+                    ratings[0].date,
+                    ratings[ratings.len() - 1].date,
+                )}
             </p>
             <LineChart data=chart class="h-28" />
         </Section>
     }
     .into_any()
+}
+
+/// The most points of the rating chart.
+const MAX_RATING_POINTS: usize = 300;
+
+/// The last rating of each day, or of each month, or of each year, whichever has at most
+/// [`MAX_RATING_POINTS`] points; the ratings are in the order of the games.
+fn rating_periods(ratings: &[RatingPoint]) -> (Vec<(String, i32)>, &'static str) {
+    for (length, period) in [(10, "day"), (7, "month"), (4, "year")] {
+        let mut points: Vec<(String, i32)> = vec![];
+        for point in ratings {
+            let key: String = point.date.chars().take(length).collect();
+            match points.last_mut() {
+                Some((last, rating)) if *last == key => *rating = point.rating,
+                _ => points.push((key, point.rating)),
+            }
+        }
+        if points.len() <= MAX_RATING_POINTS || period == "year" {
+            return (points, period);
+        }
+    }
+    unreachable!("the year is always returned")
 }

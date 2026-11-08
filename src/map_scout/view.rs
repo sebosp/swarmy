@@ -142,7 +142,7 @@ pub fn MapScoutView() -> impl IntoView {
                     ScoutLayer::Commands => "The targets of the commands issued by the players",
                     ScoutLayer::Deaths => "Where the units of the players died",
                 }}
-                ", rotated so that the player always starts on the bottom left. Yellow is early in \
+                ", turned so that the player always starts at the same start location, the circle. Yellow is early in \
                 the time window, red is late, the more opaque the more often it happened in the square."
             </p>
             <Show when=move || loading.get()>
@@ -172,7 +172,24 @@ pub fn MapScoutView() -> impl IntoView {
 #[component]
 fn ScoutMap(scout: MapScout, max_seconds: u32) -> impl IntoView {
     let (width, height) = (scout.width as f32, scout.height as f32);
-    let terrain = scout.terrain.as_ref().map(terrain_rects);
+    // The picture of the map cache, else the terrain levels.
+    let terrain = match &scout.minimap {
+        Some(_) => None,
+        None => scout.terrain.as_ref().map(terrain_rects),
+    };
+    let minimap = scout.minimap.clone().map(|image| {
+        // Outside the group that flips the y axis: the picture is not upside down.
+        view! {
+            <image
+                href=image.data_url
+                x=image.left
+                y=height - image.top
+                width=image.right - image.left
+                height=image.top - image.bottom
+                preserveAspectRatio="none"
+            />
+        }
+    });
     let max_count = scout
         .cells
         .iter()
@@ -221,6 +238,7 @@ fn ScoutMap(scout: MapScout, max_seconds: u32) -> impl IntoView {
             viewBox=format!("0 0 {width} {height}")
             class="w-full max-w-4xl border border-base-content/10 bg-base-100"
         >
+            {minimap}
             // The map y axis goes up, the SVG one goes down.
             <g transform=format!("translate(0 {height}) scale(1 -1)")>
                 {terrain}

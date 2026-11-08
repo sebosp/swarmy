@@ -9,8 +9,33 @@ use crate::{
     settings::actions::trigger_set_current_app_config, DisplayBackendStatus, SELECT_CLASS,
 };
 
+/// Config: in the browser version only what is of this browser and the administrator key, the
+/// paths and the options of the server are set in the server.
 #[component]
 pub fn Config() -> impl IntoView {
+    if crate::components::web_session::is_web() {
+        view! { <WebConfig /> }.into_any()
+    } else {
+        view! { <DesktopConfig /> }.into_any()
+    }
+}
+
+#[component]
+fn WebConfig() -> impl IntoView {
+    // The rows in the grid of the app's Config: the label, the field, its help.
+    view! {
+        <div class="flex flex-col gap-6 p-4 w-full">
+            <div class="grid grid-cols-4 items-start gap-4">
+                <crate::components::web_session::AdminKeyInput />
+                <ConfigAppearance />
+                <ConfigBattleNet />
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn DesktopConfig() -> impl IntoView {
     let (_app_settings, set_app_settings) = signal(AppSettings::default());
     let replay_path = RwSignal::new("".to_string());
     let cache_path = RwSignal::new("".to_string());
@@ -30,6 +55,7 @@ pub fn Config() -> impl IntoView {
     let reduce_motion = RwSignal::new(default_reduce_motion());
     let underline_links = RwSignal::new(false);
     let focus_outline = RwSignal::new(false);
+    let max_table_rows = RwSignal::new(swarmy_common::DEFAULT_MAX_TABLE_ROWS);
     let (backend_response, set_backend_response) = signal(ApiResponse {
         meta: ResponseMeta::incomplete(),
         message: String::new(),
@@ -60,6 +86,11 @@ pub fn Config() -> impl IntoView {
             *reduce_motion.write() = settings.reduce_motion.clone();
             *underline_links.write() = settings.underline_links;
             *focus_outline.write() = settings.focus_outline;
+            *max_table_rows.write() = if settings.max_table_rows == 0 {
+                swarmy_common::DEFAULT_MAX_TABLE_ROWS
+            } else {
+                settings.max_table_rows
+            };
             set_backend_response.update(|val| {
                 val.meta.success = true;
                 val.meta.is_complete = true;
@@ -283,6 +314,8 @@ pub fn Config() -> impl IntoView {
                 </Show>
                 <ConfigAppearance />
                 <ConfigAccessibility reduce_motion underline_links focus_outline />
+                <ConfigTableRows max_table_rows />
+                <ConfigBattleNet />
                 <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <ConfigNumberInput
                     name="scan_max_files"
@@ -352,6 +385,7 @@ pub fn Config() -> impl IntoView {
                                     reduce_motion: reduce_motion.get(),
                                     underline_links: underline_links.get(),
                                     focus_outline: focus_outline.get(),
+                                    max_table_rows: max_table_rows.get(),
                                     ..Default::default()
                                 },
                                 set_backend_response,
@@ -630,6 +664,8 @@ fn ConfigAppearance() -> impl IntoView {
         >
             <OptionSelect options=THEMES value=appearance.theme on_pick=|| () />
         </ConfigRow>
+        // The browser zooms the page itself (Ctrl+= and Ctrl+-).
+        {(!crate::components::web_session::is_web()).then(|| view! {
         <ConfigRow
             label="Zoom"
             help="The size of the whole interface, text, charts and icons, from 50% to 250%. Ctrl+= and Ctrl+- change it in any view, Ctrl+0 resets it; it is saved as it changes."
@@ -649,6 +685,7 @@ fn ConfigAppearance() -> impl IntoView {
                 </button>
             </div>
         </ConfigRow>
+        })}
     }
 }
 
@@ -697,6 +734,199 @@ fn ConfigAccessibility(
             <div class="flex flex-col gap-2">
                 {toggle("Underline the links, not only on hover", underline_links)}
                 {toggle("Always show the focus outline", focus_outline)}
+            </div>
+        </ConfigRow>
+    }
+}
+
+/// The rows a table shows at once: the longer tables have pages, a long table blocks the window
+/// while it is drawn.
+#[component]
+fn ConfigTableRows(max_table_rows: RwSignal<u32>) -> impl IntoView {
+    view! {
+        <ConfigRow
+            label="Rows per table"
+            help="The tables with more rows than this show them in pages, with Previous and Next under the table. Their headers sort all the rows. Between 10 and 10000."
+        >
+            <input
+                type="number"
+                min="10"
+                max="10000"
+                step="10"
+                class="input input-sm w-28 bg-base-200 text-base-content border border-base-content/20 tabular-nums"
+                prop:value=move || max_table_rows.get().to_string()
+                on:change=move |ev| {
+                    if let Ok(rows) = event_target_value(&ev).trim().parse::<u32>() {
+                        let rows = rows.clamp(10, 10_000);
+                        max_table_rows.set(rows);
+                        crate::components::paged::set_table_rows(rows);
+                    }
+                }
+            />
+        </ConfigRow>
+    }
+}
+
+/// The Client ID and Secret of a Battle.net application, for the profiles of the accounts in the
+/// Player view. The backend keeps them (with a remote backend, the server) and never sends the
+/// secret back; Save checks them with Battle.net first.
+#[component]
+fn ConfigBattleNet() -> impl IntoView {
+    // The credentials are of the backend, set by its administrator: in the browser, after the
+    // administrator key above.
+    let admin = crate::components::web_session::use_web_session().admin;
+    let client_id = RwSignal::new(String::new());
+    let client_secret = RwSignal::new(String::new());
+    let status = RwSignal::new(None::<BattleNetStatus>);
+    let message = RwSignal::new(String::new());
+    let refresh = move || {
+        leptos::task::spawn_local(async move {
+            // A refused or failed request says why instead of checking forever.
+            status.set(Some(
+                crate::invoke_json::<BattleNetStatus>("get_battlenet_status", &())
+                    .await
+                    .unwrap_or_else(|error| BattleNetStatus {
+                        error,
+                        ..Default::default()
+                    }),
+            ));
+        })
+    };
+    // Again once signed in: the status is of the administrator.
+    Effect::new(move |_| {
+        if admin.get() {
+            refresh();
+        }
+    });
+    let save = move |client_id: String, client_secret: String| {
+        #[derive(serde::Serialize)]
+        struct Args {
+            client_id: String,
+            client_secret: String,
+        }
+        message.set("Checking with Battle.net...".to_string());
+        leptos::task::spawn_local(async move {
+            match crate::common::invoke_response(
+                "set_battlenet_credentials",
+                &Args {
+                    client_id,
+                    client_secret,
+                },
+            )
+            .await
+            {
+                Ok(response) => message.set(response.message.trim_matches('"').to_string()),
+                Err(err) => message.set(err),
+            }
+            refresh();
+        });
+    };
+    view! {
+        <ConfigRow
+            label="Battle.net API"
+            help="The Client ID and Client Secret of an application created on https://community.developer.battle.net: the Player view then shows the Battle.net profiles of the accounts (best 1v1 finish, ladders and MMR of the season). They are kept by the backend, readable by its user only, the secret is never shown again."
+        >
+            <div class="flex flex-col gap-2 max-w-md">
+                <p class="text-sm" role="status">
+                    {move || match status.get() {
+                        _ if !admin.get() => view! { <span>"Sign in with the administrator key to set them"</span> }.into_any(),
+                        None => view! { <span>"Checking with Battle.net..."</span> }.into_any(),
+                        Some(status) if status.configured && status.working => view! {
+                            <span class="text-success">"✓ Enabled: "</span>
+                            <span>
+                                {if status.from_environment { "set by the environment of the backend, " } else { "" }}
+                                "Battle.net accepts them, the Player view shows the profiles"
+                            </span>
+                        }
+                        .into_any(),
+                        Some(status) if status.configured => view! {
+                            <span class="text-error">"✗ Not working: "</span>
+                            <span>{status.error}</span>
+                        }
+                        .into_any(),
+                        Some(status) if !status.error.is_empty() => view! {
+                            <span class="text-error">"✗ "</span>
+                            <span>{status.error}</span>
+                        }
+                        .into_any(),
+                        Some(_) => view! { <span>"Not set: the Player view shows no Battle.net profiles"</span> }.into_any(),
+                    }}
+                </p>
+                <p class="text-sm text-muted">
+                    "Create an application, its Client ID and Secret, on "
+                    <a
+                        class="nav-link text-base-content"
+                        href="https://community.developer.battle.net/access/clients"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        "community.developer.battle.net"
+                    </a>
+                    "; the profiles come from its "
+                    <a
+                        class="nav-link text-base-content"
+                        href="https://community.developer.battle.net/documentation/starcraft-2/community-apis"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        "StarCraft II community API"
+                    </a>
+                    "."
+                </p>
+                <form
+                    class="flex flex-col gap-2"
+                    on:submit=move |ev| {
+                        ev.prevent_default();
+                        save(client_id.get_untracked(), client_secret.get_untracked());
+                        client_secret.set(String::new());
+                    }
+                >
+                    <input
+                        disabled=move || !admin.get()
+                        type="text"
+                        autocomplete="off"
+                        class="input input-sm bg-base-200 text-base-content border border-base-content/20"
+                        placeholder="Client ID"
+                        aria-label="Battle.net Client ID"
+                        prop:value=move || client_id.get()
+                        on:input=move |ev| client_id.set(event_target_value(&ev))
+                    />
+                    <input
+                        disabled=move || !admin.get()
+                        type="password"
+                        autocomplete="off"
+                        class="input input-sm bg-base-200 text-base-content border border-base-content/20"
+                        placeholder="Client Secret"
+                        aria-label="Battle.net Client Secret"
+                        prop:value=move || client_secret.get()
+                        on:input=move |ev| client_secret.set(event_target_value(&ev))
+                    />
+                    <div class="flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm" disabled=move || !admin.get()>"Save"</button>
+                        <button
+                            type="button"
+                            class="btn btn-outline btn-sm"
+                            disabled=move || !admin.get() || !status.get().is_some_and(|status| status.configured)
+                            title="Ask Battle.net again whether it accepts the Client ID and Secret saved"
+                            on:click=move |_| {
+                                status.set(None);
+                                refresh();
+                            }
+                        >
+                            "Test"
+                        </button>
+                        <button
+                            type="button"
+                            class="btn btn-ghost btn-sm"
+                            disabled=move || !admin.get()
+                            title="Forget the Client ID and Secret saved by the backend"
+                            on:click=move |_| save(String::new(), String::new())
+                        >
+                            "Remove"
+                        </button>
+                    </div>
+                </form>
+                <p class="text-sm" role="status" aria-live="polite">{move || message.get()}</p>
             </div>
         </ConfigRow>
     }

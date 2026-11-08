@@ -70,16 +70,7 @@ pub fn latest_balance_units() -> Result<&'static VersionedBalanceUnits, SwarmyEr
 /// Unit name variants, such as burrowed or sieged, are mapped to the base unit name used by the
 /// balance data strengths and weaknesses.
 pub fn base_unit_name(name: &str) -> &str {
-    match name {
-        "SiegeTankSieged" => "SiegeTank",
-        "VikingAssault" => "VikingFighter",
-        "LiberatorAG" => "Liberator",
-        "ThorAP" => "Thor",
-        "WarpPrismPhasing" => "WarpPrism",
-        "ObserverSiegeMode" => "Observer",
-        "OverseerSiegeMode" => "Overseer",
-        _ => name.strip_suffix("Burrowed").unwrap_or(name),
-    }
+    s2protocol::arrow_store::aggregates::base_unit_name(name)
 }
 
 /// The base unit name of a column of unit names, as [`base_unit_name`] does.

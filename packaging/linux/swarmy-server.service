@@ -7,6 +7,9 @@
 #
 #   SWARMY_SERVE_ADDRESS=0.0.0.0:7878
 #   SWARMY_SERVER_TOKEN=a-long-random-string
+#   # The browser version for anyone, Scan and Optimize with the administrator key instead of the
+#   # token, see docs/Installation.md#browser-version:
+#   #SWARMY_ADMIN_KEY_FILE=/home/me/.config/swarmy/admin-key.sha512
 #   # The settings and personal database, the ones of the swarmy app by default:
 #   #SWARMY_SERVER_DATA_DIR=/home/me/swarmy-server
 

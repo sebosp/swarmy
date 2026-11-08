@@ -3,6 +3,7 @@
 use crate::components::abilities::{fetch_ability_usage, AbilityUsageRows};
 use crate::components::links::{RaceLink, UnitLink};
 use crate::components::patch::ChangeMarker;
+use crate::components::usage_over_time::AbilitiesOverTime;
 use crate::navigation::use_navigation;
 use crate::*;
 use leptos::prelude::*;
@@ -103,20 +104,9 @@ pub fn PatchOverviewView() -> impl IntoView {
                     }}
                 </select>
             </div>
-            <div class="w-64">
-                <label class="block text-sm/6 font-medium text-base-content">"Race"</label>
-                <select
-                    class="select select-sm w-full bg-base-200 text-base-content border border-base-content/20"
-                    on:change=move |ev| navigation.race.set(event_target_value(&ev))
-                >
-                    <option value="" selected=move || navigation.race.get().is_empty()>"All races"</option>
-                    {RACES
-                        .iter()
-                        .map(|race| view! {
-                            <option value=*race selected=move || navigation.race.get() == *race>{*race}</option>
-                        })
-                        .collect_view()}
-                </select>
+            <div>
+                <span class="block text-sm/6 font-medium text-base-content">"Race"</span>
+                <crate::components::race_buttons::RaceButtons value=navigation.race races=&RACES all_label="All races" />
             </div>
             {move || {
                 navigation
@@ -153,7 +143,11 @@ pub fn PatchOverviewView() -> impl IntoView {
                             })
                             .cloned()
                             .collect();
-                        view! { <AbilityUsageRows rows /> }.into_any()
+                        view! {
+                            <AbilityUsageRows rows=rows.clone() />
+                            <AbilitiesOverTime rows />
+                        }
+                        .into_any()
                     }
                     Err(err) => view! {
                         <p class="text-xs text-muted">{format!("No snapshot to count the abilities: {err}")}</p>

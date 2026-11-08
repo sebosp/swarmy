@@ -49,6 +49,10 @@ pub struct MapScout {
     pub enemy_start: Option<(f32, f32)>,
     /// The terrain, None without the map cache.
     pub terrain: Option<MapTerrain>,
+    /// The minimap of the map cache, drawn under the cells as in Map Details; the terrain when
+    /// the map cache has none.
+    #[serde(default)]
+    pub minimap: Option<crate::MapImage>,
 }
 
 /// The terrain levels of a map, to draw it as a minimap.

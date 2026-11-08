@@ -16,9 +16,17 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
 }
+/* The text color of each theme at 65% and 45% opacity, as plain colors: a color-mix() of a
+   variable here made Firefox compute it for every element at each style recalculation, a chart
+   drawn on a long view (the Player view of a player of thousands of games) blocked the page for a
+   minute. Keep them plain colors. daisyUI dark is the default, light is set below. */
 :root {
-  --muted: color-mix(in oklab, var(--color-base-content) 65%, transparent);
-  --faint: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+  --muted: oklch(97.807% 0.029 256.847 / 0.65);
+  --faint: oklch(97.807% 0.029 256.847 / 0.45);
+}
+[data-theme="light"] {
+  --muted: oklch(21% 0.006 285.885 / 0.65);
+  --faint: oklch(21% 0.006 285.885 / 0.45);
 }
 
 /* The shape of the custom themes, daisyUI's variables, High contrast overrides the borders. */
@@ -43,6 +51,8 @@
   --color-base-200: #1f2937;
   --color-base-300: #374151;
   --color-base-content: #ffffff;
+  --muted: #ffffffa6;
+  --faint: #ffffff73;
   --color-primary: #6366f1;
   --color-primary-content: #ffffff;
   --color-secondary: #a855f7;
@@ -68,6 +78,8 @@
   --color-base-200: #0b0b0b;
   --color-base-300: #1f1f1f;
   --color-base-content: #ffffff;
+  --muted: #ffffffa6;
+  --faint: #ffffff73;
   --color-primary: #a5b4fc;
   --color-primary-content: #000000;
   --color-secondary: #e9d5ff;
@@ -127,6 +139,8 @@
   --color-base-200: #292c3c;
   --color-base-300: #232634;
   --color-base-content: #c6d0f5;
+  --muted: #c6d0f5a6;
+  --faint: #c6d0f573;
   --color-primary: #babbf1;
   --color-primary-content: #303446;
   --color-secondary: #ca9ee6;
@@ -151,6 +165,8 @@
   --color-base-200: #1e2030;
   --color-base-300: #181926;
   --color-base-content: #cad3f5;
+  --muted: #cad3f5a6;
+  --faint: #cad3f573;
   --color-primary: #b7bdf8;
   --color-primary-content: #24273a;
   --color-secondary: #c6a0f6;
@@ -175,6 +191,8 @@
   --color-base-200: #181825;
   --color-base-300: #11111b;
   --color-base-content: #cdd6f4;
+  --muted: #cdd6f4a6;
+  --faint: #cdd6f473;
   --color-primary: #b4befe;
   --color-primary-content: #1e1e2e;
   --color-secondary: #cba6f7;
@@ -203,6 +221,8 @@
   --color-base-200: #16161e;
   --color-base-300: #292e42;
   --color-base-content: #c0caf5;
+  --muted: #c0caf5a6;
+  --faint: #c0caf573;
   --color-primary: #7aa2f7;
   --color-primary-content: #1a1b26;
   --color-secondary: #9d7cd8;
@@ -227,6 +247,8 @@
   --color-base-200: #1f2335;
   --color-base-300: #292e42;
   --color-base-content: #c0caf5;
+  --muted: #c0caf5a6;
+  --faint: #c0caf573;
   --color-primary: #7aa2f7;
   --color-primary-content: #24283b;
   --color-secondary: #9d7cd8;
@@ -326,6 +348,14 @@
   --chart-6: #008300;
   --chart-7: #9085e9;
   --chart-8: #e66767;
+  /* The ranks of a player among the players of a patch: top 100, top 10, top 5, the best. Checked
+     with the dataviz validator on #111827: every pair apart for the color vision deficiencies,
+     the text of the badges 4.7:1 or more; the badges also say their rank in words. */
+  --rank-100: #60a5fa;
+  --rank-10: #16a34a;
+  --rank-5: #eab308;
+  --rank-1: #a855f7;
+  --rank-content: #0b1220;
 }
 [data-theme="light"],
 [data-theme="catppuccin-latte"],
@@ -338,6 +368,12 @@
   --chart-6: #008300;
   --chart-7: #6250d6;
   --chart-8: #e34948;
+  /* Checked on #eff1f5, the text 5:1 or more. */
+  --rank-100: #1d4ed8;
+  --rank-10: #15803d;
+  --rank-5: #b45309;
+  --rank-1: #a21caf;
+  --rank-content: #ffffff;
 }
 
 /* Scrollable sections always show their scrollbar, the webview hides it until scrolling. */
@@ -466,3 +502,28 @@ div[data-chart-values] {
   contain: layout paint;
   isolation: isolate;
 }
+
+/* The buttons of the app only (Rerun, swarmy-bevy) in the browser version: dimmed, their title
+   says why, public/web_bridge.js stops their clicks. Not `disabled`, so that the title shows. */
+html[data-web="on"] .native-only {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* The rank badges, see --rank-*. */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  padding: 0 0.4em;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--rank-content);
+}
+.rank-badge.rank-100 { background: var(--rank-100); }
+.rank-badge.rank-10 { background: var(--rank-10); }
+.rank-badge.rank-5 { background: var(--rank-5); }
+.rank-badge.rank-1 { background: var(--rank-1); }

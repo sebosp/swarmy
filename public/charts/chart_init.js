@@ -14,6 +14,8 @@
 // - data-chart-y-max: the maximum of the y axis, so that several charts share the scale.
 // - data-chart-value-suffix: appended to the values, i.e. "%".
 // - data-chart-curve: the curve of the lines, "smooth" by default, "straight" or "stepline".
+// - data-chart-markers: a JSON array of [label, text]: vertical lines at x axis labels.
+// - data-chart-y-decimals: the decimals of the numbers of the y axis.
 //
 // An AdvantageChart is one line around an even middle, as the evaluation graph of a chess game:
 // its values go from -50 (the second side wins for sure) to 50 (the first one does), the area
@@ -58,7 +60,7 @@
     const datasets = multi ? data : [data];
     return {
       series: datasets.map((values, idx) => ({ name: names?.[idx] || `Series ${idx + 1}`, data: values })),
-      showLegend: multi && names !== null,
+      showLegend: multi && names !== null && container.dataset.chartLegend !== "off",
     };
   }
 
@@ -71,7 +73,25 @@
     const suffix = container.dataset.chartValueSuffix || "";
     const yMax = container.dataset.chartYMax ? Number(container.dataset.chartYMax) : undefined;
     const stackType = container.dataset.chartStackType || "";
+    const decimals = Number(container.dataset.chartYDecimals || 0);
+    const markers = parse(container.dataset.chartMarkers, []);
     return {
+      // Vertical lines, i.e. the start of each patch, quiet behind the data.
+      annotations: {
+        xaxis: markers.map(([x, text]) => ({
+          x,
+          borderColor: t.muted,
+          strokeDashArray: 3,
+          label: text
+            ? {
+                text,
+                orientation: "vertical",
+                borderWidth: 0,
+                style: { background: "transparent", color: t.muted, fontSize: "9px", fontFamily: "inherit" },
+              }
+            : undefined,
+        })),
+      },
       series,
       chart: {
         type,
@@ -126,7 +146,7 @@
         max: yMax,
         min: 0,
         forceNiceScale: true,
-        labels: { style: { colors: t.muted, fontSize: "10px" }, formatter: (value) => `${Math.round(value)}${suffix}` },
+        labels: { style: { colors: t.muted, fontSize: "10px" }, formatter: (value) => `${decimals ? Number(value).toFixed(decimals) : Math.round(value)}${suffix}` },
       },
       grid: { borderColor: t.grid, strokeDashArray: 2, padding: { top: -10, bottom: 0 } },
       tooltip: {
@@ -152,8 +172,10 @@
       const options = commonOptions(container, "line");
       const curve = container.dataset.chartCurve || "smooth";
       options.stroke = { curve, width: 2 };
-      // The steps mark each value, i.e. each patch.
-      options.markers = { size: curve === "stepline" ? 3 : 0, hover: { size: 5 } };
+      // The steps mark each value, i.e. each patch. The charts over time have gaps, a period
+      // alone between two gaps would not show without its point.
+      const points = curve === "stepline" || container.dataset.chartMarkers !== undefined;
+      options.markers = { size: points ? 3 : 0, strokeWidth: 0, hover: { size: 5 } };
       options.yaxis.min = undefined;
       return options;
     },

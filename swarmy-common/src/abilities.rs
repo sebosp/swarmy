@@ -450,3 +450,77 @@ pub struct AbilityDetail {
 
 /// The players and games listed in [`AbilityDetail`].
 pub const ABILITY_DETAIL_TOP: usize = 10;
+
+/// The periods of the charts over time.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TimeGrain {
+    Day,
+    #[default]
+    Month,
+    Year,
+}
+
+/// What a chart over time shows.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum UsageSubject {
+    /// [`TrackedAbility::ability`]
+    Ability(String),
+    /// The base name of a unit.
+    Unit(String),
+    /// Terran, Zerg or Protoss: its games and wins.
+    Race(String),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct UsageOverTimeQuery {
+    pub subject: UsageSubject,
+    pub grain: TimeGrain,
+}
+
+/// A subject in a period.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct UsagePoint {
+    /// `2026`, `2026-10` or `2026-10-15`.
+    pub period: String,
+    /// The games of each player of the race, one per player and game.
+    pub player_games: u64,
+    /// The player games in which the ability or unit was used.
+    pub games_used: u64,
+    /// Those games won.
+    pub wins: u64,
+    /// The commands of the ability or the units made.
+    pub uses: u64,
+    /// The units lost, the kills and the resources of the units killed; of a unit only.
+    pub died: u64,
+    pub kills: u64,
+    pub value_killed: u64,
+}
+
+impl UsagePoint {
+    pub fn per_game(&self) -> f64 {
+        self.uses as f64 / self.player_games.max(1) as f64
+    }
+
+    pub fn used_percent(&self) -> f64 {
+        100. * self.games_used as f64 / self.player_games.max(1) as f64
+    }
+
+    pub fn win_percent(&self) -> f64 {
+        100. * self.wins as f64 / self.games_used.max(1) as f64
+    }
+}
+
+/// The first period with games of a patch.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct PatchStart {
+    pub period: String,
+    /// The version of the balance data closest to the games.
+    pub patch: u32,
+}
+
+/// A subject over the periods of the snapshot, oldest first.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct UsageOverTime {
+    pub points: Vec<UsagePoint>,
+    pub patches: Vec<PatchStart>,
+}

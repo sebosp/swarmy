@@ -149,7 +149,10 @@ fn SetupStatus() -> impl IntoView {
                             } else {
                                 "Replays directory".to_string()
                             },
-                            if remote && replay_path.is_empty() {
+                            if crate::components::web_session::is_web() && replay_path.is_empty() {
+                                view! { <span class="text-muted">"Kept by the server"</span> }
+                                    .into_any()
+                            } else if remote && replay_path.is_empty() {
                                 view! { <span class="text-muted">"Not sent by the backend, update it to swarmy 0.2.3 or later"</span> }.into_any()
                             } else {
                                 path_view(replay_path)
@@ -206,12 +209,14 @@ pub fn Home() -> impl IntoView {
                     (PvT, TvZ, ZvP...) and player vs player records before a match."
                 </p>
                 <p class="mt-2 text-sm text-muted">
-                    "Set the replay directory in Config, then Optimize it into a snapshot in Scan. The \
-                    Tour walks through every view, the Changelog has what is new and Help describes \
-                    how the statistics are calculated."
+                    {(!crate::components::web_session::is_web())
+                        .then_some("Set the replay directory in Config, then Optimize it into a snapshot in Scan. ")}
+                    "The Tour walks through every view, the Changelog has what is new and Help \
+                    describes how the statistics are calculated."
                 </p>
             </div>
             <SetupStatus />
+            {(!crate::components::web_session::is_web()).then(|| view! { <OpenLink /> })}
             <div>
                 <h2 class="text-base/7 font-semibold text-base-content">"Where the data comes from"</h2>
                 <ul class="mt-1 list-disc list-inside text-sm text-muted space-y-1">
@@ -254,6 +259,51 @@ pub fn Home() -> impl IntoView {
                     "Open an issue on GitHub"
                 </button>
             </div>
+        </div>
+    }
+}
+
+/// Opens in the app a link of the browser version of swarmy, i.e. one sent by someone: the view and
+/// what it shows. The data is the one of the backend of the app, it should be the server of the
+/// link.
+#[component]
+fn OpenLink() -> impl IntoView {
+    let navigation = crate::navigation::use_navigation();
+    let link = RwSignal::new(String::new());
+    let error = RwSignal::new(None::<&'static str>);
+    let open = move || {
+        let text = link.get_untracked();
+        match text.split_once('#') {
+            Some((_, route)) if route.starts_with('/') => {
+                error.set(None);
+                crate::navigation::open_route(&navigation, route);
+            }
+            _ => error.set(Some("This is not a link of a swarmy view, they look like http://server:7878/#/replay-detail?replay=1234")),
+        }
+    };
+    view! {
+        <div>
+            <h2 class="text-base/7 font-semibold text-base-content">"Open a link"</h2>
+            <p class="text-sm text-muted">
+                "A link of the browser version of swarmy, the address of a view in the browser, opens the same view here."
+            </p>
+            <form
+                class="mt-2 flex items-center gap-2"
+                on:submit=move |ev| {
+                    ev.prevent_default();
+                    open();
+                }
+            >
+                <input
+                    type="url"
+                    class="input input-sm w-96 bg-base-200 text-base-content border border-base-content/20"
+                    placeholder="http://server:7878/#/player?name=Serral"
+                    prop:value=move || link.get()
+                    on:input=move |ev| link.set(event_target_value(&ev))
+                />
+                <button class="btn btn-sm" type="submit">"Open"</button>
+            </form>
+            <p class="mt-1 text-sm text-error" role="alert">{move || error.get()}</p>
         </div>
     }
 }

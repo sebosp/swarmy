@@ -5,7 +5,6 @@
 
 use super::data::BENCHMARK_MINUTES;
 use crate::data::*;
-use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
 use polars::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -19,7 +18,6 @@ pub const MIN_WINNER_SAMPLES: u32 = 5;
 
 /// The stats of a benchmark minute are the last ones of the seconds before it, they are written
 /// every 7 seconds.
-const STATS_WINDOW_SECONDS: f64 = 15.;
 
 /// The medians by race, enemy race and minute, with the games they come from.
 pub type WinnerBenchmarks = HashMap<(String, String), (Vec<Benchmark>, u32)>;
@@ -101,37 +99,11 @@ pub fn winner_benchmarks(
             col("race"),
             col("enemy_race"),
         ]);
-    let game_ids = u64_values(&players, "ext_fs_id")?;
-    let stats = scan_snapshot_ipc(ipc_path, STATS_IPC)?.filter(is_in_replays(&game_ids));
-    let minutes = BENCHMARK_MINUTES
-        .iter()
-        .map(|minute| {
-            let end = *minute as f64 * 60. * GAME_LOOPS_PER_SECOND;
-            let start = end - STATS_WINDOW_SECONDS * GAME_LOOPS_PER_SECOND;
-            stats
-                .clone()
-                .filter(
-                    col("ext_replay_loop")
-                        .gt(lit(start as i64))
-                        .and(col("ext_replay_loop").lt_eq(lit(end as i64))),
-                )
-                .sort(["ext_replay_loop"], Default::default())
-                .group_by([col("ext_fs_id"), col("player_id")])
-                .agg([
-                    col("workers_active_count").last().alias("workers"),
-                    col("food_used").last().alias("supply"),
-                    col("minerals_collection_rate")
-                        .last()
-                        .alias("minerals_rate"),
-                    col("vespene_collection_rate").last().alias("vespene_rate"),
-                    (col("minerals_used_current_army") + col("vespene_used_current_army"))
-                        .last()
-                        .alias("army_value"),
-                ])
-                .with_column(lit(*minute).cast(DataType::UInt32).alias("minute"))
-        })
-        .collect::<Vec<_>>();
-    let medians = concat(minutes, Default::default())?
+    let medians = scan_snapshot_ipc(ipc_path, GAME_MINUTES_IPC)?
+        .filter(col("minute").is_in(
+            lit(Series::new("minutes".into(), BENCHMARK_MINUTES.as_slice())).implode(false),
+            false,
+        ))
         .join(
             winners,
             [col("ext_fs_id"), col("player_id")],

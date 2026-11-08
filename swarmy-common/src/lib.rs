@@ -1,3 +1,5 @@
+pub mod battlenet;
+pub use battlenet::*;
 pub mod settings;
 pub use settings::*;
 pub mod error;
@@ -43,6 +45,19 @@ pub const UNIT_DIED_IPC: &str = "unit_died.arrow";
 pub const UPGRADES_IPC: &str = "upgrades.arrow";
 pub const CMD_TARGET_POINT_IPC: &str = "cmd_target_point.arrow";
 pub const CMD_TARGET_UNIT_IPC: &str = "cmd_target_unit.arrow";
+pub const CMD_NO_TARGET_IPC: &str = "cmd_no_target.arrow";
+pub const UNIT_INIT_IPC: &str = "unit_init.arrow";
+pub const GAME_ACTIONS_IPC: &str = "game_actions.arrow";
+pub const GAME_SELECTIONS_IPC: &str = "game_selections.arrow";
+pub const MESSAGES_IPC: &str = "messages.arrow";
+/// The aggregations of s2protocol, see `s2protocol::arrow_store::aggregates`.
+pub const GAME_ABILITIES_IPC: &str = "game_abilities.arrow";
+pub const GAME_UNITS_IPC: &str = "game_units.arrow";
+pub const GAME_PLAYERS_IPC: &str = "game_players.arrow";
+pub const GAME_MINUTES_IPC: &str = "game_minutes.arrow";
+pub const ABILITY_USAGE_IPC: &str = "ability_usage.arrow";
+pub const UNIT_USAGE_IPC: &str = "unit_usage.arrow";
+pub const PLAYER_USAGE_IPC: &str = "player_usage.arrow";
 
 pub const IPC_DIR: &str = "ipcs";
 

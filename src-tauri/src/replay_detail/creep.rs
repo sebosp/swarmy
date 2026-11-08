@@ -164,10 +164,7 @@ pub fn compute_creep_stats(ipc_path: &str) -> Result<CreepStats, SwarmyError> {
     for (idx, id) in ids.iter().enumerate() {
         by_game.entry(*id).or_default().push(idx);
     }
-    let durations = scan_snapshot_ipc(ipc_path, STATS_IPC)?
-        .group_by([col("ext_fs_id")])
-        .agg([game_seconds().max()])
-        .collect()?;
+    let durations = game_durations(ipc_path)?.collect()?;
     let durations: HashMap<u64, u32> = u64_values(&durations, "ext_fs_id")?
         .into_iter()
         .zip(u32_values(&durations, "game_seconds")?)

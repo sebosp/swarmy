@@ -8,6 +8,7 @@ use crate::components::links::{
 };
 use crate::components::loading::Loading;
 use crate::components::name_select::NameSelect;
+use crate::components::paged::{page_of, PagedSort, Pager, SortKey, SortTh};
 use crate::components::section::Panel;
 use crate::components::units::UnitsTable;
 use crate::navigation::use_navigation;
@@ -97,6 +98,7 @@ pub fn PlayerDetailView() -> impl IntoView {
             {move || detail.get().map(|detail| view! {
                 <PlayerHeader detail=detail.clone() />
                 <AccountsPanel detail=detail.clone() reload />
+                <super::battlenet::BattleNetProfiles accounts=detail.accounts.clone() />
                 {
                     let player = detail.clone();
                     move || {
@@ -304,21 +306,32 @@ fn AccountsPanel(detail: PlayerDetail, reload: RwSignal<u32>) -> impl IntoView {
 
 #[component]
 fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) -> impl IntoView {
+    let sort = PagedSort::new("player-opponents", (1, true));
+    let count = opponents.len();
+    let rows = move || {
+        page_of(&opponents, sort, |record, column| match column {
+            0 => SortKey::Text(record.opponent.to_lowercase()),
+            2 => SortKey::Number(record.wins as f64),
+            3 => SortKey::Number(record.wins as f64 / record.games.max(1) as f64),
+            _ => SortKey::Number(record.games as f64),
+        })
+        .0
+    };
     view! {
         <div>
             <h2 class=HEADING_CLASS>"Opponents"</h2>
             <p class="text-xs text-faint">"Click on the record to filter the matches below."</p>
-            <table class=TABLE_CLASS>
+            <table class=TABLE_CLASS data-server-sort>
                 <thead>
                     <tr class="text-left text-muted">
-                        <th class="pr-2">"Opponent"</th>
-                        <th class="pr-2 num">"Games"</th>
-                        <th class="pr-2">"W - L"</th>
-                        <th>"Win rate"</th>
+                        <SortTh label="Opponent" column=0 sort />
+                        <SortTh label="Games" column=1 sort descending_first=true class="pr-2 num" />
+                        <SortTh label="W - L" column=2 sort descending_first=true />
+                        <SortTh label="Win rate" column=3 sort descending_first=true class="" />
                     </tr>
                 </thead>
                 <tbody>
-                    {opponents
+                    {move || rows()
                         .into_iter()
                         .map(|record| {
                             let name = record.opponent.clone();
@@ -356,19 +369,40 @@ fn OpponentsTable(opponents: Vec<OpponentRecord>, opponent: RwSignal<String>) ->
                         .collect_view()}
                 </tbody>
             </table>
+            <Pager rows=Signal::derive(move || count) sort />
         </div>
     }
 }
 
 #[component]
 fn MatchesTable(matches: Vec<PlayerMatch>, opponent: RwSignal<String>) -> impl IntoView {
-    let visible_matches = move || {
+    let sort = PagedSort::new("player-matches", (1, true));
+    let visible_matches = Memo::new(move |_| {
         let opponent = opponent.get();
         matches
             .iter()
             .filter(|game| opponent.is_empty() || game.opponent == opponent)
             .cloned()
             .collect::<Vec<_>>()
+    });
+    // Another opponent: back to the first page.
+    Effect::new(move |_| {
+        opponent.track();
+        sort.page.set(0);
+    });
+    let rows = move || {
+        visible_matches.with(|games| {
+            page_of(games, sort, |game, column| match column {
+                0 => SortKey::Number(game.ext_fs_id as f64),
+                2 => SortKey::Number(game.protocol_version as f64),
+                3 => SortKey::Text(game.map_title.clone()),
+                4 => SortKey::Text(game.race.clone()),
+                5 => SortKey::Text(game.opponent.to_lowercase()),
+                // The date, then the id for the games of a day.
+                _ => SortKey::Text(format!("{} {:012}", game.date, game.ext_fs_id)),
+            })
+            .0
+        })
     };
     view! {
         <div>
@@ -380,19 +414,19 @@ fn MatchesTable(matches: Vec<PlayerMatch>, opponent: RwSignal<String>) -> impl I
                         .then(|| format!(" against {}", clean_player_name_clan_escapes(&opponent)))
                 }}
             </h2>
-            <table class=TABLE_CLASS>
+            <table class=TABLE_CLASS data-server-sort>
                 <thead>
                     <tr class="text-left text-muted">
-                        <th class="pr-2">"ID"</th>
-                        <th class="pr-2">"Date"</th>
-                        <th class="pr-2">"Protocol"</th>
-                        <th class="pr-2">"Map"</th>
-                        <th class="pr-2">"Race"</th>
-                        <th>"Opponent"</th>
+                        <SortTh label="ID" column=0 sort descending_first=true />
+                        <SortTh label="Date" column=1 sort descending_first=true />
+                        <SortTh label="Protocol" column=2 sort descending_first=true />
+                        <SortTh label="Map" column=3 sort />
+                        <SortTh label="Race" column=4 sort />
+                        <SortTh label="Opponent" column=5 sort class="" />
                     </tr>
                 </thead>
                 <tbody>
-                    {move || visible_matches()
+                    {move || rows()
                         .into_iter()
                         .map(|game| view! {
                             <tr>
@@ -415,6 +449,7 @@ fn MatchesTable(matches: Vec<PlayerMatch>, opponent: RwSignal<String>) -> impl I
                         .collect_view()}
                 </tbody>
             </table>
+            <Pager rows=Signal::derive(move || visible_matches.with(Vec::len)) sort />
         </div>
     }
 }

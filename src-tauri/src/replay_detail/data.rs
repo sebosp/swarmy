@@ -92,6 +92,21 @@ pub const BENCHMARK_MINUTES: [u32; 4] = [4, 6, 8, 10];
 /// The army and bases are counted at this game second.
 pub const SNAPSHOT_SECONDS: u32 = 600;
 
+/// The units that do not move by themselves, their commands aimed at a point are rally points:
+/// the larvae, the eggs (Larva -> Egg -> the unit, born where the egg is) and the cocoons of the
+/// morphs. They are not the first scout.
+pub const NOT_SCOUTS: [&str; 9] = [
+    "Larva",
+    "Egg",
+    "BanelingCocoon",
+    "RavagerCocoon",
+    "LurkerMPEgg",
+    "BroodLordCocoon",
+    "OverlordCocoon",
+    "TransportOverlordCocoon",
+    "",
+];
+
 fn loop_seconds(game_loop: i64) -> u32 {
     (game_loop.max(0) as f64 / GAME_LOOPS_PER_SECOND) as u32
 }
@@ -208,6 +223,9 @@ struct PlayerAccumulator {
     /// The last time each production structure, by tag, finished a unit.
     production_finished: HashMap<u32, (String, u32)>,
     production_idle: BTreeMap<String, (usize, u32)>,
+    /// The intervals between two stats updates in which the supply was full (at 200 or blocked):
+    /// production cannot start then, it is not idle time.
+    supply_full: Vec<(u32, u32)>,
     benchmarks: Vec<Benchmark>,
     army_at_10: Vec<UnitCount>,
     bases_at_10: usize,
@@ -235,7 +253,7 @@ struct ControlAccumulator {
 pub const COMPUTER_CONTROL: u8 = 3;
 
 /// The casters counted for [`AbilityEfficiency`], with the structures that are injected.
-const CASTERS: [&str; 6] = [
+pub const CASTERS: [&str; 6] = [
     "Queen",
     "Nexus",
     "OrbitalCommand",
@@ -318,6 +336,12 @@ pub fn try_query_replay_detail(
     match super::creep::creep_stats_cached(&ipc_path) {
         Ok(stats) => super::creep::annotate(&mut detail, &stats),
         Err(err) => tracing::warn!("No creep stats: {err:?}"),
+    }
+    match crate::player_detail::game_insights::energy_averages_cached(&ipc_path) {
+        Ok(averages) => {
+            crate::player_detail::game_insights::annotate_energy(&mut detail, &averages)
+        }
+        Err(err) => tracing::warn!("No energy averages: {err:?}"),
     }
     Ok(detail)
 }
@@ -516,6 +540,10 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                         + stats.vespene_killed_economy
                         + stats.vespene_killed_technology,
                 };
+                // At 200 or blocked below it, the production cannot start.
+                if stats.food_made > 0 && stats.food_used >= stats.food_made && interval > 0 {
+                    acc.supply_full.push((seconds - interval, seconds));
+                }
                 if stats.food_made > 0
                     && stats.food_used >= stats.food_made
                     && stats.food_made < 200
@@ -960,6 +988,18 @@ fn opening(build_order: &[BuildOrderEntry], balance: &VersionedBalanceUnits) -> 
     opening
 }
 
+/// The idle seconds of a production structure between the end of its previous unit and the start
+/// of the next one, without the time the supply was full (at 200, or blocked: then it is the
+/// supply block that cost the time).
+pub fn idle_seconds(finished: u32, started: u32, supply_full: &[(u32, u32)]) -> u32 {
+    let gap = started.saturating_sub(finished);
+    let full: u32 = supply_full
+        .iter()
+        .map(|(start, end)| end.min(&started).saturating_sub(*start.max(&finished)))
+        .sum();
+    gap.saturating_sub(full)
+}
+
 /// Adds the idle time of the production structure since it finished its previous unit.
 fn register_production(
     acc: &mut PlayerAccumulator,
@@ -979,7 +1019,7 @@ fn register_production(
     let idle = acc.production_idle.entry(structure).or_default();
     match previous {
         // Reactors produce two units at once, the overlap is not idle time.
-        Some((_, finished)) => idle.1 += started.saturating_sub(finished),
+        Some((_, finished)) => idle.1 += idle_seconds(finished, started, &acc.supply_full),
         None => idle.0 += 1,
     }
 }
@@ -1007,6 +1047,9 @@ fn register_scout(
         .filter_map(|(_, other)| other.start)
         .collect();
     for unit in units {
+        if NOT_SCOUTS.contains(&base_unit_name(&unit.name)) {
+            continue;
+        }
         let SC2UnitCmdData::TargetPoint(target) = &unit.cmd.data else {
             continue;
         };
@@ -1197,5 +1240,22 @@ mod tests {
         assert_eq!(engagements[0].losses.len(), 2);
         assert_eq!(engagements[0].losses[0].resources.minerals, 300);
         assert_eq!(engagements[0].losses[0].units, "1xMarine");
+    }
+}
+
+#[cfg(test)]
+mod idle_tests {
+    use super::idle_seconds;
+
+    #[test]
+    fn it_leaves_out_the_time_the_supply_was_full() {
+        // Idle from 100 to 160, the supply full from 120 to 140 and from 150 to 200.
+        assert_eq!(
+            idle_seconds(100, 160, &[(120, 140), (150, 200), (10, 20)]),
+            30
+        );
+        assert_eq!(idle_seconds(100, 160, &[]), 60);
+        // A unit started before the previous one finished, a reactor.
+        assert_eq!(idle_seconds(100, 90, &[(0, 300)]), 0);
     }
 }

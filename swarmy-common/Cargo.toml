@@ -1,6 +1,6 @@
 [package]
 name = "swarmy-common"
-version = "0.2.3"
+version = "0.2.4"
 description = "Swarmy Common, shared between tauri/leptos"
 authors = ["Seb Ospina <kraige@gmail.com>"]
 edition = "2021"
