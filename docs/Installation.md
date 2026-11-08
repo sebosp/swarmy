@@ -216,3 +216,26 @@ everyone is the administrator.
 
 For a binary that is not from a package, `scripts/install-server-service-over-ssh.sh <host>` installs
 the service on another computer.
+
+## Battle.net
+
+The Player view can show the public Battle.net profiles of a player's three most played accounts:
+the best 1v1 finish, the games played and the ladders of the current season with their rank, wins,
+losses and MMR, from the [StarCraft II community API](https://community.developer.battle.net/documentation/starcraft-2/community-apis).
+It needs a Battle.net application of your own:
+
+1. Sign in to [community.developer.battle.net](https://community.developer.battle.net) and create a
+   client (API Access, Create Client). swarmy uses the client credentials flow: the redirect URLs
+   and the service URL of the form are not used, any address will do.
+2. In swarmy, Config, Battle.net API: paste the Client ID and the Client Secret, Save, then Test.
+   Config says whether they work, and lets you Test them again or Remove them. In the browser
+   version only the administrator sets them, after typing the administrator key.
+
+The credentials stay in the backend: `battlenet.json` in its data directory, readable by its user
+only, never sent back to the views or the browser. For a server, `SWARMY_BATTLENET_CLIENT_ID` and
+`SWARMY_BATTLENET_CLIENT_SECRET` in its environment (i.e. `/etc/swarmy/server.env`) replace the file,
+and Config says that they come from the environment. Never commit them or share the Client Secret;
+if it leaks, generate a new one in the Battle.net page of the client.
+
+The profiles are kept 30 minutes. The accounts of the Americas, Europe, Korea and Taiwan have
+profiles; the ones of China have no community API.
