@@ -24,9 +24,6 @@ pub fn BattleNetProfiles(accounts: Vec<PlayerAccount>) -> impl IntoView {
     }
     Some(view! {
         <Panel title="Battle.net">
-            <p class="text-xs text-muted">
-                "The public profiles of the accounts on Battle.net: the best 1v1 finish, the games and the ladders of the current season."
-            </p>
             <div class="mt-1 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {accounts
                     .into_iter()

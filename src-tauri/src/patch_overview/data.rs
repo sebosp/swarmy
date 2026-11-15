@@ -1,9 +1,12 @@
 //! The units of each patch from the s2protocol multi versioned balance data.
 
-use crate::replay_rerun::decisions::{balance_units, has_cost};
-use s2protocol::game_events::{UnitShortRef, VersionedBalanceUnit};
+use crate::replay_rerun::decisions::{balance_units, has_cost, latest_balance_units};
+use s2protocol::game_events::{Cost, UnitRef, UnitShortRef, UpgradeLevel, VersionedBalanceUnit};
 use std::collections::{BTreeMap, BTreeSet};
 use swarmy_common::*;
+
+/// A list of a unit in the balance data, i.e. what it is strong against or trains.
+type Listed<T> = fn(&VersionedBalanceUnit) -> &[T];
 
 /// Shown when the unit or the property is not in a patch.
 const MISSING: &str = "-";
@@ -37,6 +40,43 @@ fn format_number(value: f32) -> String {
         .to_string()
 }
 
+/// A cost as the game shows it: `100m 100g, 2 supply, 114 s` (the time in game seconds at Faster
+/// speed); the parts that are not set are left out.
+fn format_cost(cost: &Cost) -> String {
+    let mut parts = vec![];
+    let mut resources = vec![];
+    if let Some(minerals) = cost.minerals {
+        resources.push(format!("{minerals}m"));
+    }
+    if let Some(vespene) = cost.vespene {
+        resources.push(format!("{vespene}g"));
+    }
+    if !resources.is_empty() {
+        parts.push(resources.join(" "));
+    }
+    if let Some(supply) = cost.supply.filter(|supply| *supply > 0.) {
+        parts.push(format!("{} supply", format_number(supply)));
+    }
+    if let Some(energy) = cost.energy {
+        parts.push(format!("{energy} energy"));
+    }
+    if let Some(time) = cost.time {
+        let seconds = time / crate::replay_rerun::decisions::NORMAL_SECONDS_PER_FASTER_SECOND;
+        parts.push(format!(
+            "{} s",
+            format_number((seconds * 10.).round() / 10.)
+        ));
+    }
+    if let Some(cooldown) = cost.cooldown {
+        parts.push(format!("{} s cooldown", format_number(cooldown)));
+    }
+    if parts.is_empty() {
+        PRESENT.to_string()
+    } else {
+        parts.join(", ")
+    }
+}
+
 fn unit_ids(units: &[UnitShortRef]) -> String {
     units
         .iter()
@@ -63,6 +103,11 @@ pub fn compare_values(previous: &str, value: &str) -> PatchChange {
             PatchChange::Decreased
         };
     }
+    // The costs (`100m 100g, 114 s`) and the other texts with numbers in the same places: all
+    // the numbers up or the same is an increase, all down a decrease, mixed a change.
+    if let Some(change) = compare_numbers_in(previous, value) {
+        return change;
+    }
     let items = |list: &str| -> BTreeSet<String> {
         list.split(", ")
             .filter(|item| !item.is_empty())
@@ -75,6 +120,117 @@ pub fn compare_values(previous: &str, value: &str) -> PatchChange {
         (false, true) => PatchChange::Decreased,
         _ => PatchChange::Changed,
     }
+}
+
+/// The numbers of a text and the text without them, `100m 100g, 114 s` is `[100, 100, 114]` and
+/// `#m #g, # s`.
+fn numbers_and_skeleton(text: &str) -> (Vec<f32>, String) {
+    let mut numbers = vec![];
+    let mut skeleton = String::new();
+    let mut number = String::new();
+    for c in text.chars().chain(std::iter::once(' ')) {
+        if c.is_ascii_digit() || (c == '.' && !number.is_empty()) {
+            number.push(c);
+        } else {
+            if !number.is_empty() {
+                if let Ok(parsed) = number.parse::<f32>() {
+                    numbers.push(parsed);
+                    skeleton.push('#');
+                }
+                number.clear();
+            }
+            skeleton.push(c);
+        }
+    }
+    (numbers, skeleton)
+}
+
+/// How two texts with numbers in the same places compare, None when they have none or differ
+/// elsewhere.
+fn compare_numbers_in(previous: &str, value: &str) -> Option<PatchChange> {
+    let (before, skeleton_before) = numbers_and_skeleton(previous);
+    let (after, skeleton_after) = numbers_and_skeleton(value);
+    if before.is_empty() || before.len() != after.len() || skeleton_before != skeleton_after {
+        return None;
+    }
+    let up = before.iter().zip(&after).any(|(b, a)| a > b);
+    let down = before.iter().zip(&after).any(|(b, a)| a < b);
+    Some(match (up, down) {
+        (true, false) => PatchChange::Increased,
+        (false, true) => PatchChange::Decreased,
+        (false, false) => PatchChange::Same,
+        (true, true) => PatchChange::Changed,
+    })
+}
+
+/// The id of a level of an upgrade: the upgrade's own when the level has none (`Stimpack`,
+/// `ShieldWall`, the one-level upgrades).
+pub fn level_id(upgrade: &s2protocol::game_events::Upgrade, level: &UpgradeLevel) -> String {
+    if level.id.is_empty() {
+        upgrade.id.clone()
+    } else {
+        level.id.clone()
+    }
+}
+
+/// The upgrades of a unit as trees: the levels of each upgrade, a level under the level it
+/// requires (`TerranInfantryWeaponsLevel2` needs `Level1`), with the structures it requires.
+pub fn upgrade_trees(unit: &VersionedBalanceUnit) -> Vec<UpgradeNode> {
+    let mut trees = vec![];
+    for upgrade in &unit.upgrades.inner {
+        let node_of = |level: &UpgradeLevel| UpgradeNode {
+            id: level_id(upgrade, level),
+            cost: format_cost(&level.cost),
+            requires_units: level
+                .requires
+                .iter()
+                .flat_map(|requirement| requirement.unit.iter().map(|unit| unit.id.clone()))
+                .collect(),
+            children: vec![],
+        };
+        let parent_of = |level: &UpgradeLevel| -> Option<String> {
+            level
+                .requires
+                .iter()
+                .flat_map(|requirement| requirement.upgrade.iter())
+                .map(|required| required.id.clone())
+                .find(|required| {
+                    upgrade
+                        .levels
+                        .iter()
+                        .any(|other| level_id(upgrade, other) == *required)
+                })
+        };
+        // The roots first, then each level under its parent, in the order of the levels.
+        let mut roots: Vec<UpgradeNode> = vec![];
+        for level in &upgrade.levels {
+            let node = node_of(level);
+            match parent_of(level) {
+                Some(parent) => {
+                    if !attach(&mut roots, &parent, node.clone()) {
+                        roots.push(node);
+                    }
+                }
+                None => roots.push(node),
+            }
+        }
+        trees.extend(roots);
+    }
+    trees
+}
+
+/// Puts the node under the node of `parent_id`, wherever it is in the trees.
+fn attach(nodes: &mut [UpgradeNode], parent_id: &str, node: UpgradeNode) -> bool {
+    for candidate in nodes.iter_mut() {
+        if candidate.id == parent_id {
+            candidate.children.push(node);
+            return true;
+        }
+        if attach(&mut candidate.children, parent_id, node.clone()) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Adds the change from the previous patch to each value.
@@ -188,12 +344,141 @@ pub fn try_query_unit_overview(unit_name: String) -> Result<PatchUnit, SwarmyErr
             Some(unit.producer.as_ref()?.id.clone())
         }),
     ];
+    rows.extend([
+        row("Supply provided", Benefit, &|unit| {
+            // The townhalls, the Overlords, the Pylons and the Supply Depots: the units that use
+            // supply have a negative number here.
+            let supply = unit.misc.supply?;
+            (supply > 0.).then(|| format_number(supply))
+        }),
+        row("Energy", Benefit, &|unit| {
+            Some(unit.cost.as_ref()?.energy?.to_string())
+        }),
+        row("Life regeneration", Benefit, &|unit| {
+            Some(format_number(unit.life.regen_rate?))
+        }),
+        row("Shield regeneration", Benefit, &|unit| {
+            Some(format_number(unit.shields.as_ref()?.regen_rate))
+        }),
+        row("Shield armor", Benefit, &|unit| {
+            unit.shields.as_ref()?;
+            Some(unit.shield_armor.start.to_string())
+        }),
+        row("Acceleration", Benefit, &|unit| {
+            Some(format_number(unit.movement.as_ref()?.acceleration))
+        }),
+        row("Movement", Neutral, &|unit| {
+            Some(unit.movement.as_ref()?.kind.clone())
+        }),
+        row("Radius", Neutral, &|unit| {
+            Some(format_number(unit.misc.radius?))
+        }),
+        row("Footprint", Neutral, &|unit| unit.misc.footprint.clone()),
+        row("Cargo size", Cost, &|unit| {
+            let size = unit.misc.cargo_size?;
+            (size > 0).then(|| size.to_string())
+        }),
+        row("Cargo capacity", Benefit, &|unit| {
+            Some(unit.misc.cargo_capacity?.to_string())
+        }),
+        row("Build score", Neutral, &|unit| {
+            Some(unit.score.build?.to_string())
+        }),
+        row("Kill score", Neutral, &|unit| {
+            Some(unit.score.kill?.to_string())
+        }),
+        row("Abilities", Neutral, &|unit| {
+            let abilities: Vec<&str> = unit
+                .abilities
+                .inner
+                .iter()
+                .filter(|ability| {
+                    ability
+                        .commands
+                        .iter()
+                        .any(|command| !command.meta.name.is_empty())
+                })
+                .map(|ability| ability.id.as_str())
+                .collect();
+            (!abilities.is_empty()).then(|| abilities.join(", "))
+        }),
+    ]);
+    // What the unit trains and builds, one row per unit with its cost in that patch.
+    let productions: [(&str, Listed<UnitRef>); 2] = [
+        ("Trains", |unit| &unit.trains.inner),
+        ("Builds", |unit| &unit.builds.inner),
+    ];
+    for (label, list) in productions {
+        let names: BTreeSet<String> = units
+            .iter()
+            .flatten()
+            .flat_map(|unit| list(unit).iter().map(|produced| produced.id.clone()))
+            .collect();
+        for name in names {
+            let mut production_row = row(label, Cost, &|unit| {
+                let produced = list(unit).iter().find(|produced| produced.id == name)?;
+                Some(
+                    produced
+                        .cost
+                        .as_ref()
+                        .map(format_cost)
+                        .unwrap_or_else(|| PRESENT.to_string()),
+                )
+            });
+            production_row.unit = Some(name);
+            rows.push(production_row);
+        }
+    }
+    // The upgrades of the unit (its weapons and armor levels) and the researches of a structure,
+    // one row per level with its cost.
+    let upgrade_levels: BTreeSet<String> = units
+        .iter()
+        .flatten()
+        .flat_map(|unit| {
+            unit.upgrades.inner.iter().flat_map(|upgrade| {
+                upgrade
+                    .levels
+                    .iter()
+                    .map(move |level| level_id(upgrade, level))
+            })
+        })
+        .collect();
+    for id in upgrade_levels {
+        rows.push(row(&format!("Upgrade {id}"), Cost, &|unit| {
+            let level = unit
+                .upgrades
+                .inner
+                .iter()
+                .flat_map(|upgrade| {
+                    upgrade
+                        .levels
+                        .iter()
+                        .map(move |level| (level_id(upgrade, level), level))
+                })
+                .find(|(level_id, _)| *level_id == id)
+                .map(|(_, level)| level)?;
+            Some(format_cost(&level.cost))
+        }));
+    }
+    let researches: BTreeSet<String> = units
+        .iter()
+        .flatten()
+        .flat_map(|unit| unit.researches.iter())
+        .flat_map(|researches| researches.inner.iter().map(|research| research.id.clone()))
+        .collect();
+    for research_id in researches {
+        rows.push(row(&format!("Research {research_id}"), Cost, &|unit| {
+            let research = unit
+                .researches
+                .as_ref()?
+                .inner
+                .iter()
+                .find(|research| research.id == research_id)?;
+            Some(format_cost(&research.cost))
+        }));
+    }
     // One row per unit countered or countering in any patch, a list of names is too packed.
-    let counters: [(
-        &str,
-        PatchRowKind,
-        fn(&VersionedBalanceUnit) -> &[UnitShortRef],
-    ); 2] = [
+    let counters: [(&str, PatchRowKind, Listed<UnitShortRef>); 2] = [
         ("Strong vs", Benefit, |unit| &unit.strengths.inner),
         ("Weak vs", Cost, |unit| &unit.weaknesses.inner),
     ];
@@ -248,11 +533,20 @@ pub fn try_query_unit_overview(unit_name: String) -> Result<PatchUnit, SwarmyErr
             weapon_misc(unit)?.targets
         }));
     }
+    // The dependency tree of the upgrades, of the latest patch that has the unit.
+    let upgrade_trees = units
+        .iter()
+        .rev()
+        .flatten()
+        .next()
+        .map(|unit| upgrade_trees(unit))
+        .unwrap_or_default();
     Ok(PatchUnit {
         name: unit_name,
         race,
         versions,
         rows,
+        upgrade_trees,
     })
 }
 
@@ -323,6 +617,67 @@ mod tests {
     }
 
     #[test]
+    fn it_compares_the_numbers_inside_texts() {
+        assert_eq!(
+            compare_values("100m 100g, 114 s", "150m 150g, 114 s"),
+            PatchChange::Increased
+        );
+        assert_eq!(
+            compare_values("175m, 2 supply, 35.7 s", "150m, 2 supply, 35.7 s"),
+            PatchChange::Decreased
+        );
+        assert_eq!(
+            compare_values("100m 100g, 114 s", "150m 100g, 100 s"),
+            PatchChange::Changed
+        );
+        assert_eq!(
+            compare_values("100m 100g, 114 s", "100m, 114 s"),
+            PatchChange::Changed,
+            "another skeleton"
+        );
+    }
+
+    #[test]
+    fn the_upgrade_levels_hang_from_the_level_they_need() {
+        let balance = latest_balance_units().unwrap();
+        let trees = upgrade_trees(&balance["Marine"]);
+        let weapons = trees
+            .iter()
+            .find(|node| node.id == "TerranInfantryWeaponsLevel1")
+            .expect("the first level is a root");
+        assert_eq!(weapons.children.len(), 1);
+        let level2 = &weapons.children[0];
+        assert_eq!(level2.id, "TerranInfantryWeaponsLevel2");
+        assert_eq!(level2.requires_units, ["Armory"]);
+        assert_eq!(level2.children[0].id, "TerranInfantryWeaponsLevel3");
+        assert!(weapons.requires_units.is_empty());
+        // A one-level upgrade without a level id takes the upgrade's.
+        assert!(trees.iter().any(|node| node.id == "Stimpack"), "{trees:?}");
+    }
+
+    #[test]
+    fn it_formats_the_costs() {
+        let cost = Cost {
+            minerals: Some(100),
+            vespene: Some(100),
+            supply: None,
+            time: Some(160.),
+            energy: None,
+            cooldown: None,
+            life: None,
+        };
+        assert_eq!(format_cost(&cost), "100m 100g, 114.3 s");
+        let queen = Cost {
+            minerals: Some(175),
+            vespene: None,
+            supply: Some(2.),
+            time: Some(50.),
+            ..cost.clone()
+        };
+        assert_eq!(format_cost(&queen), "175m, 2 supply, 35.7 s");
+    }
+
+    #[test]
     fn it_formats_numbers_without_trailing_zeros() {
         assert_eq!(format_number(25.), "25");
         assert_eq!(format_number(2.25), "2.25");
@@ -333,14 +688,17 @@ mod tests {
     fn it_lists_melee_units_with_their_patches() {
         let list = try_list_patch_units().unwrap();
         assert!(list.versions.windows(2).all(|pair| pair[0] < pair[1]));
-        assert!(list
-            .units
-            .iter()
-            .any(|unit| unit.name == "Marine" && unit.race == "Terran"));
-        assert!(!list
-            .units
-            .iter()
-            .any(|unit| unit.name.contains("Gluescreen")));
+        assert!(
+            list.units
+                .iter()
+                .any(|unit| unit.name == "Marine" && unit.race == "Terran")
+        );
+        assert!(
+            !list
+                .units
+                .iter()
+                .any(|unit| unit.name.contains("Gluescreen"))
+        );
         let marine = try_query_unit_overview("Marine".to_string()).unwrap();
         let minerals = marine
             .rows
@@ -348,14 +706,18 @@ mod tests {
             .find(|row| row.label == "Minerals")
             .unwrap();
         assert!(minerals.values.iter().all(|value| value.value == "50"));
-        assert!(minerals
-            .values
-            .iter()
-            .all(|value| value.change == PatchChange::Same));
-        assert!(marine
-            .rows
-            .iter()
-            .any(|row| row.label == "GuassRifle range"));
+        assert!(
+            minerals
+                .values
+                .iter()
+                .all(|value| value.change == PatchChange::Same)
+        );
+        assert!(
+            marine
+                .rows
+                .iter()
+                .any(|row| row.label == "GuassRifle range")
+        );
         // One row per countered unit.
         let strong_vs: Vec<&PatchUnitRow> = marine
             .rows

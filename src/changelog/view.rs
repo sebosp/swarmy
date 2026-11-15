@@ -5,6 +5,75 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-11-15",
+        &[
+            "s2protocol 6.0.0, Rebuild from scratch once: the target of a command at a unit is named (it was empty for 97% of the commands), the selections and control groups keep the dead units until the game removes them and read the long remove masks as the game does (94% of the selections match the game, 90% before). A replay with a damaged header is skipped instead of stopping Optimize.",
+            "The server log says once per game version that it has no balance data for it, instead of once per replay.",
+        ],
+    ),
+    (
+        "2026-11-13",
+        &[
+            "Optimize: the analysis of the games for the Player view (its last step) reads each day of the snapshot in groups of 500 games and analyses them 16 at a time, one day after the other: it took 53 GB for 100,000 AI Arena games, a day now takes 4 GB at most, and a day is 3 times faster.",
+            "Optimize adds up to 500,000 replays at a time (100,000 before, an AI Arena download has 120,000): Config, Max number of files to optimize, sets it in the swarmy app; a server uses the default.",
+            "Optimize: a damaged replay (cut short, i.e. an interrupted download) is skipped instead of stopping Optimize (nom-mpq returns an error instead of panicking).",
+        ],
+    ),
+    (
+        "2026-11-12",
+        &[
+            "Unit Overview opens at once: the Morphs of a unit come from a table of each patch made from the replays and checked against the patch's balance data, instead of sorting every unit of the snapshot at the first visit (up to 13 GB of memory on the AI Arena snapshot, 0.5 GB now) (src-tauri/src/patch_overview/unit_stats/forms/README.md).",
+            "Replay, Deaths: the legend reads from 1 < to > the highest density of the game, in deaths per cell.",
+            "Config: the Save button stays at the bottom of the window, whatever the zoom, and says when there are unsaved changes (Check of the Remote Backend tries the values typed, only Save stores them).",
+            "Removed: Map Scout (it no longer worked) and the Map lessons of Map Details with their Show in swarmy-bevy (not useful, and the query took 13 GB on the AI Arena snapshot). The Deaths of each replay stay; where things happen on a map comes back as layers shared with swarmy-bevy.",
+        ],
+    ),
+    (
+        "2026-11-11",
+        &[
+            "Replay, Win chance: the turning points are a table like the Engagements, the units lost with their icons and links and the ▲▼ of the trade; hovering the time of a turning point shades that span of the chart.",
+            "Replay: the units lost in an engagement are one per line; the Build time lost of the Resources is gone until its computation is revisited (it summed the build times of every unit lost, 71 minutes in a 12 minute game); the Win chance keeps its chart without the paragraph.",
+            "Unit Overview: the unit and its dropdown on one line with the icon at the right, the title line and the notes are gone; the Upgrades tree says what a level requires, without the cost (the patch table has it); the Forms are the Morphs, under the Upgrades, one change per line and a wide table, only what the unit changes into (the Hydralisk is not a form of the Lurker); the snapshot panel is Stats; the numbers of the exceptional games line up with their headers.",
+            "Unit Overview: the upgrades of the unit as a dependency tree, each level under the level it requires with its cost and the structure it needs; the Forms of the unit, the types it changes into in the games (a Roach burrows, a Siege Tank sieges, a Hatchery becomes a Lair) with how often and the life, armor, speed, weapons and abilities of each form side by side, a documented query of the snapshot (src-tauri/src/patch_overview/unit_stats/forms/README.md). The costs that changed are compared number by number: a cheaper upgrade is a green ▼, not a dot.",
+            "Race Detail is Race Overview, and its matchups leave out the mirror (always 50%). Patch Overview and Unit Overview in proper case; a change that is neither up nor down is a dot in the color of its kind instead of yellow, the previous value of a change reads like the new one, the legend line of Unit Overview is gone and so is the 〃 of the unchanged values (the cell stays empty). The chart controls (Show, Per, the ability over time) are buttons, a dropdown at the bottom of the page opened below the window. The abilities of Unit Overview open the Ability view. The energy comparison reads above/below/at patch average.",
+            "Replay: the map of the header has three views, Bases (the default), Deaths and Over time. Deaths draws where the units died as a height map: a kernel density on 2-cell squares with the Silverman bandwidth, a floor at 5% of the peak, six classes of the same area in a light-to-dark brown ramp with contour lines, the minimap faded underneath; the whole estimate is one Polars query (src-tauri/src/replay_detail/death_density/README.md, with its SQL), the view only draws the cells. Over time draws each fight as a translucent disc sized by the resources lost, colored from the start of the game to the end (viridis, 5 or 7 classes), the latest on top with a thicker ring, with a legend. The deaths themselves are a documented query too (src-tauri/src/replay_detail/deaths/README.md). The conventions come from a research of cartography and conflict mapping.",
+            "Unit Overview: the rest of the balance data of each patch, with the changes between patches: the supply a townhall, Overlord, Pylon or Supply Depot provides, energy, life and shield regeneration, shield armor, acceleration, movement, radius, footprint, cargo, scores, the abilities, what the unit trains and builds with its cost, the levels of its upgrades and the researches of a structure with their cost; the upgrades, researches, abilities and weapons show their icon from the game textures, in Unit Overview and in the changes of a patch. The abilities show their icon wherever they are named (the Abilities of a replay, the Patch Overview, the Ability view), so do the upgrades of the build order, and the units lost in an engagement are links with their icon.",
+            "Replay: the fights are drawn on the map only while their coordinates are hovered in Engagements; the first kill says what died to what and where, the badges of a player are one per line; the Creep section sits under the header, shorter, and collapses; every coordinate says \"Show coords on map\".",
+            "Replay: the map of the game in the header that stays in view, with the minerals and geysers as in Map Details, the bases of each player in their color (the start location as a ring) and the fights as dashed circles. The Engagements table says where each fight was: hover the position to see its center and spread on the map, with the x and y lines. The map, the bases (src-tauri/src/replay_detail/bases/README.md) and the fight centers (src-tauri/src/replay_detail/epicenters/README.md, the mean of the deaths and their root mean square distance) are documented queries of the snapshot.",
+            "Replay: the players left the top bar, they are in the header of their sections with their lock; the bar shows the date with how long ago it was, the duration and the patch, spaced out. The map sits between the two players, as wide as in Map Details. The expansions, the build order, the proxy and the chosen opening show their position: hover it to see the structures on the map. The openings read as a tree, the shared first structures once. The Economy table lost the line about the median of the winners, the values keep their tooltip. The Win chance and the header with the map collapse like the other sections (the header keeps the players and their locks).",
+            "The Battle.net API section of Config is gone from the browser version: the Client ID and Secret of a server are set on the server (its environment or its data directory), and the server refuses to read or set them from a browser, administrator key or not. The swarmy app keeps the section.",
+        ],
+    ),
+    (
+        "2026-11-10",
+        &[
+            "The Player view keeps the player compared with in the address (#/player?name=Serral&vs=Maru): the comparison can be shared and the Back button undoes it. Opening the player compared with swaps the two sides. Two players who never met still compare their preferred strategies, instead of empty tables.",
+            "Progress follows any player of the snapshot, chosen in the field above its charts (#/progress?name=Clem): the Main Player Name of Config stays the default, and a backend of a tournament, i.e. rsl.swarmy.nl, has none.",
+            "The goals of Progress of a visitor of the browser version stay in their browser: a public server has many visitors at a time, only its administrator saves goals on the server.",
+            "Map Details: the top players leave out the observers, the matchups leave out the arcade races, and the map drawn is the version of the newest game. Each statistic of the view is now one documented query (src-tauri/src/map_details/<query>/README.md, with its SQL equivalent, checked by the tests).",
+            "Map Details: the Long Range Unit Spots preview (where the Siege Tanks sieged) is removed, it did not add value. The on/off options of Config are all checkboxes now.",
+            "Config: Show Polars Debug Information. A line above each table and panel of Map Details names the query behind it and its file, with a GitHub button that opens it in the repository, where its documentation and SQL are: to read how a number is made or to report one that looks wrong. The other views follow as their queries are documented.",
+            "Map List: its query is documented too (src-tauri/src/map_stats/maps/README.md); the observers are not players when filtering by player.",
+            "The charts over time (Race Detail, Ability, Unit Overview) and the snapshot panel of the Unit Overview: documented queries with tests on small synthetic games (src-tauri/src/usage_over_time/, src-tauri/src/patch_overview/unit_stats/), the debug line of the Config shows them.",
+            "Ability and the Home summary: documented queries too (src-tauri/src/ability_detail/player_games/README.md, src-tauri/src/snapshot_stats/summary/README.md); the Ability matchups pair the players of a 1v1 by position, two A.I. with the same name no longer hide each other.",
+            "Player: the economy benchmarks of the insights are a documented query (src-tauri/src/player_detail/benchmarks/README.md); a 1v1 with observers counts, a game against an arcade race does not.",
+            "Map Scout: its six queries are documented and tested on synthetic games (src-tauri/src/map_scout/); the observers are not players when choosing the games.",
+            "Patch Overview: the ability usage of the snapshot is three documented queries (src-tauri/src/ability_usage/), tested on synthetic games.",
+            "Replay: the patch timings, the medians of the winners and the answers to the openings are documented queries (src-tauri/src/replay_detail/{patch_timings,winner_benchmarks,opening_answers}/); the players are the tracker's, the observers never count.",
+            "Progress and Race Detail: their statistics are documented queries too (src-tauri/src/progress/, src-tauri/src/race_detail/). Progress takes the tracker id of the player from the snapshot's players table instead of the position in the replay, and its opponents leave out the observers.",
+            "Replay List: the observers are not players of a game any more: a casted 1v1 is a 1v1, its matchup TvZ and not ?vTvZ, and the caster is not in its Players column. The rank badge of a game with two abilities at the same rank picks the most used one, the same each time it is shown. Its queries are documented too (src-tauri/src/replay_list/<query>/README.md).",
+            "Player: each statistic of the view is a documented query too (src-tauri/src/player_detail/<query>/README.md, Show Polars Debug Information names them). The races of the games are Terran, Zerg, Protoss or Other, whatever the language of the replay; a snapshot without the protocol version shows version 0 instead of reading the replays.",
+            "Player: the Battle.net profiles are kept by the backend (battlenet-profiles.json in its data directory) and shown at once; one older than 30 minutes is refreshed in the background, the ladders of a profile are asked together. The paragraphs explaining the Accounts and Battle.net panels are gone, so is the one about the analysis of the games. The most effective unit and the best trade are chosen among the units the player really builds (at least 0.5% of their production), not a unit of the few games of another race. The Previous and Next of the paged tables rendered their code instead of the buttons.",
+            "Home is shorter: the snapshot and, when nothing is set up yet, where to start. Open a link is gone (paste the address in the browser or the app address bar), where the data comes from moved to Help, the backend versions are one under the other, the replays watched on this computer show an eye.",
+        ],
+    ),
+    (
+        "2026-11-09",
+        &[
+            "The server (swarmy --serve) writes an access log, a JSON line per request with the view that asked, the command, its arguments and how long it took, and serves Prometheus metrics on /metrics for its administrator: to see which views are used and which queries are slow. The visitors are not identified, no address is written.",
+        ],
+    ),
+    (
         "2026-11-08",
         &[
             "The turning points of Replay Detail wrap their long unit lists, and the charts of many months (Player view) show as many dates under the chart as fit, the tooltip says the date. The matchups and top players of Map Details, the units and opponents of the Player view, are one under the other on a narrow window.",
@@ -178,7 +247,9 @@ const CHANGELOG: &[(&str, &[&str])] = &[
     ),
     (
         "2026-10-09",
-        &["Replays have a sequential id (ext_fs_id), the clan tags of the player names are decoded."],
+        &[
+            "Replays have a sequential id (ext_fs_id), the clan tags of the player names are decoded.",
+        ],
     ),
     (
         "2026-10-06",
@@ -192,10 +263,7 @@ const CHANGELOG: &[(&str, &[&str])] = &[
         "2026-06-07",
         &["The map caches are downloaded once, to a global location shared by the snapshots."],
     ),
-    (
-        "2026-05-24",
-        &["Replays can be previewed in Rerun."],
-    ),
+    ("2026-05-24", &["Replays can be previewed in Rerun."]),
     (
         "2026-05-23",
         &["Replay List, with buttons to copy the path of a replay and open its directory."],

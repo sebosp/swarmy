@@ -1,11 +1,14 @@
 [package]
 name = "swarmy"
-version = "0.2.4"
+version = "0.2.5"
 description = "Swarmy Tauri App"
 authors = ["Seb Ospina <kraige@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lints]
+workspace = true
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -18,7 +21,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-nom-mpq = "2.0.13"
+nom-mpq = "2.0.14"
 swarmy-common = { path = "../swarmy-common" }
 tauri = { version = "2", features = ["tracing"] }
 tauri-plugin-opener = "2"
@@ -39,12 +42,23 @@ rayon = "1"
 png = "0.18"
 base64 = "0.22"
 clap = { version = "4.6.7", features = ["derive", "env"] }
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+# json: the access log of `--serve`, a JSON line per request, see access_log.rs.
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 tracing-appender = "0.2.5"
 dirs = "7.0.0"
 
 [dev-dependencies]
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
+# The tests of the queries: the SQL of each README runs on the same frames as the Polars plan
+# (`sql` is not in `full`), and the two results are compared with assert_dataframe_equal!.
+polars = { workspace = true, features = ["sql"] }
+polars-testing = "0.55"
+# The benchmarks of the queries on a real snapshot, benches/queries.rs, see scripts/bench.sh.
+criterion = "0.8"
+
+[[bench]]
+name = "queries"
+harness = false
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 polars = { workspace = true }
@@ -64,6 +78,8 @@ sha2 = "0.10"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "tracing"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 futures-util = "0.3"
+# The metrics of the server, GET /metrics, see access_log.rs.
+prometheus = { version = "0.14", default-features = false }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

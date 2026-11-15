@@ -19,7 +19,8 @@ Replay Detail view, see the Help view for how each one is calculated.
 - [x] Map resources (Map Details): minerals and vespene of the map, gold minerals and rich vespene, and the distance from each start location to its main base mineral fields and geysers, from the Objects of the map cache, over the Minimap.tga of the map cache.
 - [x] Trades: engagements with the resources and mining time lost by each side, and the trade ratio of each unit type.
 - [x] What kills my units: losses by killer unit type, per game and per player.
-- [x] Where I lose my units on each map: the Deaths layer of Map Scout.
+- [ ] Where I lose my units on each map: was the Deaths layer of Map Scout, removed on 2026-11-12;
+  the Deaths of each replay remain.
 - [x] Idle production: time between units of the same production structure.
 - [x] Macro cadence: injects, chrono boosts and MULEs per game. The intervals between them are still to do.
 - [x] Commands per minute through the game, per minute in Replay Detail and on average in Player.
@@ -37,7 +38,7 @@ Replay Detail view, see the Help view for how each one is calculated.
 - [x] Bases at 10 minutes and how often games end in a base trade.
 - [x] Upgrade priorities: the first upgrade researched.
 - [x] Map veto help: win rate of each player per map.
-- [x] Scouting habits: when and with which unit the enemy start location is first scouted, and Map Scout.
+- [x] Scouting habits: when and with which unit the enemy start location is first scouted.
 
 ## Missing data
 - [ ] Camera positions are only read from the replay files, adding them to the snapshot would allow camera based statistics (where the player looks) across games.

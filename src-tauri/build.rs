@@ -27,5 +27,34 @@ fn main() {
             dependency.to_uppercase()
         );
     }
+    git_revision();
     tauri_build::build()
+}
+
+/// The commit swarmy is built from and whether the tree has uncommitted changes, for the links
+/// to the queries in the repository (`AppVersions::git_sha`). `SWARMY_GIT_SHA` and
+/// `SWARMY_GIT_DIRTY` in the environment win: a build from a copy of the tree without `.git`
+/// (the deploy script) sets them.
+fn git_revision() {
+    println!("cargo:rerun-if-env-changed=SWARMY_GIT_SHA");
+    println!("cargo:rerun-if-env-changed=SWARMY_GIT_DIRTY");
+    println!("cargo:rerun-if-changed=../.git/HEAD");
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(args)
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    };
+    let sha = std::env::var("SWARMY_GIT_SHA")
+        .ok()
+        .or_else(|| git(&["rev-parse", "HEAD"]))
+        .unwrap_or_default();
+    let dirty = match std::env::var("SWARMY_GIT_DIRTY") {
+        Ok(value) => value == "1" || value == "true",
+        Err(_) => git(&["status", "--porcelain"]).is_none_or(|status| !status.is_empty()),
+    };
+    println!("cargo:rustc-env=SWARMY_GIT_SHA={sha}");
+    println!("cargo:rustc-env=SWARMY_GIT_DIRTY={}", dirty as u8);
 }

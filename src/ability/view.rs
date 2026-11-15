@@ -2,9 +2,11 @@
 //! and by matchup, the games with the most uses, and when it is first used.
 
 use crate::components::abilities::group_digits;
-use crate::components::charts::{BarChart, ChartData, CHART_COLORS};
+use crate::components::charts::{BarChart, CHART_COLORS, ChartData};
+use crate::components::debug::Debuggable;
 use crate::components::links::{MapLink, PlayerLink, RaceLink, ReplayLink, UnitLink};
 use crate::components::loading::Loading;
+use crate::components::unit_icon::UnitIcon;
 use crate::components::usage_over_time::UsageOverTimeChart;
 use crate::navigation::use_navigation;
 use crate::*;
@@ -67,7 +69,7 @@ pub fn AbilityView() -> impl IntoView {
             <AbilitySelect />
             <Show when=move || navigation.ability.get().is_empty()>
                 <p class="text-sm">
-                    "Choose an ability above, or click on one in Replay Detail, Race Detail or the Patch Overview."
+                    "Choose an ability above, or click on one in Replay Detail, Race Overview or the Patch Overview."
                 </p>
             </Show>
             <Show when=move || loading.get()>
@@ -175,9 +177,14 @@ fn AbilityDetailContent(detail: AbilityDetail) -> impl IntoView {
     };
     let totals = detail.totals.clone();
     let fastest = detail.fastest.clone();
+    // Every panel adds up the same rows: one query, one debug line for the view.
     view! {
+        <Debuggable query="ability_detail::player_games" view_source=crate::source!()>
         <div class="space-y-1">
-            <h1 class="text-xl font-semibold text-base-content">{tracked.label}</h1>
+            <h1 class="text-xl font-semibold text-base-content">
+                <UnitIcon unit_name=tracked.ability size="w-8 h-8" />
+                {tracked.label}
+            </h1>
             <p class="text-sm text-muted">
                 {format!("{} of the ", tracked.cost.label())}
                 <UnitLink unit_name=tracked.unit.to_string() />
@@ -304,6 +311,7 @@ fn AbilityDetailContent(detail: AbilityDetail) -> impl IntoView {
                 </tbody>
             </table>
         </div>
+        </Debuggable>
     }
     .into_any()
 }

@@ -10,7 +10,7 @@ games of a `swarmy --serve` backend; the first steps in the app, Rerun and swarm
 |---|---|
 | ![Home](screenshots/home.png) Home: the snapshot and where it comes from | ![Config in the browser](screenshots/config_web.png) Config in the browser: the administrator key, the theme and the Battle.net API |
 | ![Scan in the browser](screenshots/scan_web.png) Scan: the snapshot of the server | ![Map List](screenshots/map_list.png) Map List |
-| ![Map Details](screenshots/map_details.png) Map Details: the minimap, the matchups, the top players | ![Map Scout](screenshots/map_scout.png) Map Scout, experimental |
+| ![Map Details](screenshots/map_details.png) Map Details: the minimap, the matchups, the top players | |
 | ![Replay List](screenshots/replay_list.png) Replay List with the best rank of each game | ![Replay Detail](screenshots/replay_detail.png) Replay Detail: the win chance and its turning points |
 | ![Replay Detail lessons](screenshots/replay_detail_lessons.png) The openings, expansions, resources and macro of both players | ![Replay Detail charts](screenshots/replay_detail_charts.png) The engagements and the chat |
 | ![Player](screenshots/player.png) Player: the accounts | ![Player Battle.net](screenshots/player_battlenet.png) The Battle.net profiles, the games per month and the units |

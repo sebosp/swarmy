@@ -34,6 +34,7 @@ pub fn trigger_fetch_query_map_stats(
                         success: false,
                         duration_ms: 0,
                         is_complete: true,
+                        ..Default::default()
                     },
                     message: format!("Error fetching map stats: {:?}", e),
                 };

@@ -4,6 +4,13 @@
 //!
 //! The uses are the commands of the players, a command is not always cast, i.e. a Psionic Storm
 //! can be cancelled before the High Templar is in range.
+//!
+//! The three frames are query files of this directory (AGENTS.md, "A query is a file"), run
+//! together once per snapshot and kept in memory.
+
+pub mod by_player;
+pub mod game_uses;
+pub mod totals;
 
 use crate::data::*;
 use crate::host::SwarmyHost;
@@ -86,138 +93,30 @@ impl AbilityUsage {
     }
 }
 
-/// The tracked abilities and their race, to keep the uses of the abilities of the race of the
-/// player: a Zerg that took a Ghost with a Neural Parasite does not use EMP.
-fn abilities_frame() -> Result<LazyFrame, SwarmyError> {
-    let abilities: Vec<&str> = TRACKED_ABILITIES.iter().map(|t| t.ability).collect();
-    let races: Vec<&str> = TRACKED_ABILITIES.iter().map(|t| t.race).collect();
-    Ok(DataFrame::new(
-        abilities.len(),
-        vec![
-            Column::new("ability".into(), abilities),
-            Column::new("race".into(), races),
-        ],
-    )?
-    .lazy())
-}
-
-/// The commands of the tracked abilities of both cmd files, the uses of each player in each game.
-///
-/// The cmd files have one row per unit selected when the command was given, a Psionic Storm
-/// commanded with four High Templar selected is four rows, the commands are counted once by their
-/// sequence number.
-fn player_game_uses(ipc_path: &str) -> Result<LazyFrame, SwarmyError> {
-    let abilities: Vec<&str> = TRACKED_ABILITIES.iter().map(|t| t.ability).collect();
-    Ok(scan_snapshot_ipc(ipc_path, GAME_ABILITIES_IPC)?
-        .filter(is_one_of("ability", &abilities))
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            col("ability"),
-            col("uses").cast(DataType::UInt64),
-        ]))
-}
+/// The queries of the usage, for the debug links of the views that show it.
+pub const QUERIES: [QueryMeta; 3] = [game_uses::META, totals::META, by_player::META];
 
 pub fn compute_ability_usage(ipc_path: &str) -> Result<AbilityUsage, SwarmyError> {
-    let players = snapshot_players(ipc_path)?.select([
-        col("ext_fs_id"),
-        col("player_name"),
-        col("race"),
-        col("patch"),
-    ]);
-    // The games of every patch, and once more as the games of all the patches.
-    let players = concat(
-        [
-            players.clone(),
-            players.with_column(lit(ALL_PATCHES).cast(DataType::UInt32).alias("patch")),
-        ],
-        UnionArgs::default(),
-    )?;
-    let game_uses = player_game_uses(ipc_path)?
-        .join(
-            players.clone(),
-            [col("ext_fs_id"), col("player_name")],
-            [col("ext_fs_id"), col("player_name")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .join(
-            abilities_frame()?,
-            [col("ability"), col("race")],
-            [col("ability"), col("race")],
-            JoinArgs::new(JoinType::Inner),
-        );
-    let race_games = players
-        .clone()
-        .group_by([col("patch"), col("race")])
-        .agg([len().cast(DataType::UInt64).alias("player_games")]);
-    let player_games = players
-        .group_by([col("patch"), col("race"), col("player_name")])
-        .agg([len().cast(DataType::UInt64).alias("games")]);
-
-    let totals = game_uses
-        .clone()
-        .group_by([col("patch"), col("race"), col("ability")])
-        .agg([
-            len().cast(DataType::UInt64).alias("games_used"),
-            col("uses").sum(),
-        ])
-        .join(
-            race_games,
-            [col("patch"), col("race")],
-            [col("patch"), col("race")],
-            JoinArgs::new(JoinType::Inner),
-        );
-    let by_game = game_uses
-        .clone()
-        .select([
-            col("patch"),
-            col("ability"),
-            col("uses"),
-            col("ext_fs_id"),
-            col("player_name"),
-        ])
-        .sort(
-            ["patch", "ability", "uses"],
-            SortMultipleOptions::default().with_order_descending_multi([false, false, true]),
-        );
-    let by_player = game_uses
-        .group_by([
-            col("patch"),
-            col("race"),
-            col("ability"),
-            col("player_name"),
-        ])
-        .agg([col("uses").sum()])
-        .join(
-            player_games,
-            [col("patch"), col("race"), col("player_name")],
-            [col("patch"), col("race"), col("player_name")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .filter(col("games").gt_eq(lit(ABILITY_RANK_MIN_GAMES as u64)))
-        .with_column(
-            (col("uses").cast(DataType::Float64) / col("games").cast(DataType::Float64))
-                .alias("per_game"),
-        )
-        .sort(
-            ["patch", "ability", "per_game", "player_name"],
-            SortMultipleOptions::default().with_order_descending_multi([false, false, true, false]),
-        );
-    // One plan, the scans of the cmd files and the players are shared by the three results.
-    let [totals, by_game, by_player]: [DataFrame; 3] =
-        collect_all(vec![totals, by_game, by_player])?
-            .try_into()
-            .map_err(|_| SwarmyError::Other("The ability usage returned no results".into()))?;
+    let source = IpcSnapshot::at(ipc_path);
+    let tracked = game_uses::tracked_abilities();
+    // One plan, the scans of the abilities and the players are shared by the three results.
+    let [totals, by_game, by_player]: [DataFrame; 3] = collect_all(vec![
+        totals::plan(&source, tracked.clone())?,
+        game_uses::plan(&source, tracked.clone())?,
+        by_player::plan(&source, tracked)?,
+    ])?
+    .try_into()
+    .map_err(|_| SwarmyError::Other("The ability usage returned no results".into()))?;
 
     let mut usage = AbilityUsage::default();
     for (((patch, ability), uses), (player_name, games)) in u32_values(&by_player, "patch")?
         .into_iter()
         .zip(str_values(&by_player, "ability")?)
-        .zip(u64_values(&by_player, "uses")?)
+        .zip(u32_values(&by_player, "uses")?)
         .zip(
             str_values(&by_player, "player_name")?
                 .into_iter()
-                .zip(u64_values(&by_player, "games")?),
+                .zip(u32_values(&by_player, "games")?),
         )
     {
         usage
@@ -230,37 +129,43 @@ pub fn compute_ability_usage(ipc_path: &str) -> Result<AbilityUsage, SwarmyError
                 uses: uses as usize,
             });
     }
-    for (((patch, ability), uses), (ext_fs_id, player_name)) in u32_values(&by_game, "patch")?
+    // The uses of each game, the most first (the game rows come by game).
+    let mut game_rows: Vec<(u32, String, u32, u64, String)> = u32_values(&by_game, "patch")?
         .into_iter()
         .zip(str_values(&by_game, "ability")?)
-        .zip(u64_values(&by_game, "uses")?)
+        .zip(u32_values(&by_game, "uses")?)
         .zip(
             u64_values(&by_game, "ext_fs_id")?
                 .into_iter()
                 .zip(str_values(&by_game, "player_name")?),
         )
-    {
+        .map(|(((patch, ability), uses), (ext_fs_id, player_name))| {
+            (patch, ability, uses, ext_fs_id, player_name)
+        })
+        .collect();
+    game_rows.sort_by(|a, b| (a.0, &a.1, b.2, a.3, &a.4).cmp(&(b.0, &b.1, a.2, b.3, &b.4)));
+    for (patch, ability, uses, ext_fs_id, player_name) in game_rows {
         if patch != ALL_PATCHES {
             usage
                 .player_game
                 .entry((ext_fs_id, player_name))
                 .or_default()
-                .insert(ability.clone(), uses as u32);
+                .insert(ability.clone(), uses);
         }
         usage
             .game_uses
             .entry((patch, ability))
             .or_default()
-            .push(uses as u32);
+            .push(uses);
     }
     let mut rows: Vec<AbilityPatchUsage> = u32_values(&totals, "patch")?
         .into_iter()
         .zip(str_values(&totals, "ability")?)
-        .zip(u64_values(&totals, "player_games")?)
+        .zip(u32_values(&totals, "player_games")?)
         .zip(
-            u64_values(&totals, "games_used")?
+            u32_values(&totals, "games_used")?
                 .into_iter()
-                .zip(u64_values(&totals, "uses")?),
+                .zip(u32_values(&totals, "uses")?),
         )
         .map(
             |(((patch, ability), player_games), (games_used, uses))| AbilityPatchUsage {
@@ -346,7 +251,13 @@ pub fn annotate(detail: &mut ReplayDetail, usage: &AbilityUsage) {
                     ability: tracked.ability.to_string(),
                     uses,
                     game_rank: usage.game_rank(patch, tracked.ability, uses),
-                    player_rank: usage.player_rank(patch, tracked.ability, &summary.player.name),
+                    player_rank: usage.player_rank(
+                        patch,
+                        tracked.ability,
+                        crate::player_detail::game_insights::name_without_clan(
+                            &summary.player.name,
+                        ),
+                    ),
                     patch: patch_usage,
                 })
             })
@@ -364,7 +275,9 @@ pub fn try_query_ability_usage(replay_path: String) -> Result<AbilityUsageTable,
 pub async fn query_ability_usage(host: &dyn SwarmyHost) -> Result<ApiResponse, SwarmyError> {
     let app_config = load_stored_app_settings(host)?;
     run_query(move || {
-        ApiResponseBuilder::new().process_result(try_query_ability_usage(app_config.replay_path))
+        ApiResponseBuilder::new()
+            .with_sources(QUERIES.map(QuerySource::from))
+            .process_result(try_query_ability_usage(app_config.replay_path))
     })
     .await
 }
@@ -436,9 +349,20 @@ pub fn annotate_replay_list(
                 let Some(rank) = usage.game_rank(patch, ability, *uses) else {
                     continue;
                 };
+                // The same rank twice: the most used ability, then the first by name, so that
+                // the list shows the same highlight each time (the uses come from a map).
                 let better = best.as_ref().is_none_or(|best| {
-                    (rank.rank, rank.top_percent() as u64)
-                        < (best.rank.rank, best.rank.top_percent() as u64)
+                    (
+                        rank.rank,
+                        rank.top_percent() as u64,
+                        std::cmp::Reverse(*uses),
+                        ability.as_str(),
+                    ) < (
+                        best.rank.rank,
+                        best.rank.top_percent() as u64,
+                        std::cmp::Reverse(best.uses),
+                        best.ability.as_str(),
+                    )
                 });
                 if *uses > 0 && better {
                     best = Some(GameRankHighlight {

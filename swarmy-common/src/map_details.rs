@@ -1,4 +1,4 @@
-use crate::{GamesWins, MapTerrain, ReplayListEntry};
+use crate::{GamesWins, ReplayListEntry};
 use serde::{Deserialize, Serialize};
 
 /// Contains the statistics of the games played in a map, identified by its title.
@@ -23,16 +23,21 @@ pub struct MapDetails {
     pub top_players: Vec<GamesWins>,
     /// The newest games first.
     pub recent_games: Vec<ReplayListEntry>,
-    /// The terrain, None without the map cache.
-    pub terrain: Option<MapTerrain>,
     /// The width and height of the map in map units.
     #[serde(default)]
     pub map_size: (f32, f32),
-    /// The minimap of the map cache, None without the map cache.
+    /// The picture of the map, empty without the map cache.
     #[serde(default)]
+    pub picture: MapPicture,
+}
+
+/// The picture of a map from its map cache, drawn by the Map Details and the Replay views: the
+/// minimap, the terrain levels when the cache has no minimap, and the resources with the start
+/// locations on top. All None without the map cache.
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct MapPicture {
     pub minimap: Option<MapImage>,
-    /// The resources and start locations, None without the map cache.
-    #[serde(default)]
+    pub terrain: Option<MapTerrain>,
     pub resources: Option<MapResources>,
 }
 
@@ -101,73 +106,13 @@ pub struct MapResources {
     pub start_locations: Vec<StartLocation>,
 }
 
-/// The map cells grouped in a siege spot, a square of this many cells per side.
-pub const SIEGE_SPOT_CELLS: u32 = 4;
-
-/// Where Siege Tanks sieged on a map and the enemy units they killed while sieged there, from
-/// the games of the snapshot. swarmy-bevy reads it as JSON with `--siege-spots`.
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
-pub struct SiegeSpot {
-    /// The spot, the map cell divided by [`SIEGE_SPOT_CELLS`].
-    pub x: u32,
-    pub y: u32,
-    /// The times a tank sieged in the spot.
-    pub sieges: usize,
-    /// The enemy units that cost resources killed by the tanks sieged in the spot.
-    pub kills: usize,
-    /// The games with a siege in the spot.
-    pub games: usize,
-}
-
-impl SiegeSpot {
-    pub fn kills_per_siege(&self) -> f64 {
-        self.kills as f64 / self.sieges.max(1) as f64
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
-pub struct SiegeSpots {
-    pub map_title: String,
-    /// [`SIEGE_SPOT_CELLS`]
-    pub spot_cells: u32,
-    /// The games of the map with at least one siege.
-    pub games: usize,
-    pub sieges: usize,
-    pub kills: usize,
-    /// The most kills first.
-    pub spots: Vec<SiegeSpot>,
-}
-
-/// The cells of a side of a map spot of the map layers, as the siege spots.
-pub const MAP_LAYER_CELLS: u32 = 4;
-
-/// A spot of a map layer: the map cell divided by [`MAP_LAYER_CELLS`].
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
-pub struct MapLayerSpot {
-    pub x: u32,
-    pub y: u32,
-    /// The units died, the structures built or the tumors placed in the spot.
-    pub count: usize,
-    /// The games with at least one in the spot.
-    pub games: usize,
-}
-
-/// What happens where on a map in the games of the snapshot, drawn by swarmy-bevy.
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
-pub struct MapLayer {
-    /// `fights`, `proxies`, `creep` or `early_buildings`.
-    pub kind: String,
-    pub label: String,
-    pub description: String,
-    /// The most counted first.
-    pub spots: Vec<MapLayerSpot>,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
-pub struct MapLayers {
-    pub map_title: String,
-    /// [`MAP_LAYER_CELLS`]
-    pub spot_cells: u32,
-    pub games: usize,
-    pub layers: Vec<MapLayer>,
+/// The terrain levels of a map, to draw it as a minimap.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct MapTerrain {
+    /// The levels, `width` per row, starting from the bottom of the map.
+    pub levels: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    /// The side, in map units, of each level square.
+    pub cell_size: u32,
 }

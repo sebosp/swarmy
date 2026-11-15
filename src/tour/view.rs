@@ -3,7 +3,7 @@
 
 use crate::navigation::*;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, ARROW_LEFT, ARROW_RIGHT, ARROW_SQUARE_OUT};
+use phosphor_leptos::{ARROW_LEFT, ARROW_RIGHT, ARROW_SQUARE_OUT, Icon, IconWeight};
 
 /// A step of the tour.
 struct TourStep {
@@ -14,7 +14,7 @@ struct TourStep {
     points: &'static [&'static str],
 }
 
-const STEPS: [TourStep; 14] = [
+const STEPS: [TourStep; 13] = [
     TourStep {
         title: "Configure the directories",
         page: "Config",
@@ -48,14 +48,6 @@ const STEPS: [TourStep; 14] = [
         points: &[
             "The win rates of each matchup, the top players and the recent games of the map.",
             "The minimap, the resources and the start locations from the map cache.",
-            "Siege Tank spots: where the tanks sieged and how many enemy units they killed there, Show in swarmy-bevy draws all of them as bars on the terrain.",
-        ],
-    },
-    TourStep {
-        title: "Scout a map",
-        page: MAP_SCOUT_PAGE,
-        points: &[
-            "Where the units of the first minutes go on a map, i.e. the scouting paths and the proxies, for all the players or one.",
         ],
     },
     TourStep {

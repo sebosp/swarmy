@@ -5,7 +5,8 @@ use swarmy_common::{PatchChange, PatchRowKind};
 
 /// The marker and its color: a red up triangle when the unit costs more (or got worse), a green
 /// down triangle when it costs less, green up and red down for the properties that are better
-/// the higher they are, i.e. life.
+/// the higher they are, i.e. life; a change that is neither up nor down (another target, another
+/// producer) is a dot in the color of the kind: red for a cost, green for a benefit.
 pub fn change_marker(
     kind: PatchRowKind,
     change: PatchChange,
@@ -16,7 +17,9 @@ pub fn change_marker(
     const WORSE_DOWN: (&str, &str) = ("▼", "text-error");
     match (kind, change) {
         (_, PatchChange::Same) => None,
-        (_, PatchChange::Changed) => Some(("●", "text-warning")),
+        (PatchRowKind::Cost, PatchChange::Changed) => Some(("●", "text-error")),
+        (PatchRowKind::Benefit, PatchChange::Changed) => Some(("●", "text-success")),
+        (PatchRowKind::Neutral, PatchChange::Changed) => Some(("●", "text-base-content")),
         // A benefit added, i.e. a unit it is strong against, is better.
         (PatchRowKind::Benefit, PatchChange::Added) => Some(BETTER_UP),
         (PatchRowKind::Benefit, PatchChange::Removed) => Some(WORSE_DOWN),

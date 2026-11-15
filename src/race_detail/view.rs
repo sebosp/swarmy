@@ -3,6 +3,7 @@
 
 use crate::components::abilities::AbilityUsageRows;
 use crate::components::charts::GamesWinsChart;
+use crate::components::debug::Debuggable;
 use crate::components::links::{MapLink, PlayerLink, UnitLink};
 use crate::components::loading::Loading;
 use crate::components::usage_over_time::UsageOverTimeChart;
@@ -41,21 +42,26 @@ fn WinRate(wins: usize, games: usize) -> impl IntoView {
     }
 }
 
+/// A section of the view; `query` is the query file behind it (Show Polars Debug Information),
+/// empty for a section that is not a query of this view.
 fn section<V: IntoView + 'static>(
     title: &'static str,
     description: &'static str,
+    query: &'static str,
     content: V,
 ) -> impl IntoView {
     view! {
-        <div class="rounded-md border border-base-content/15 bg-base-200/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
-                {title}
-            </h2>
-            <div class="p-2 space-y-1">
-                <p class="text-xs text-faint">{description}</p>
-                {content}
+        <Debuggable query=query view_source=crate::source!()>
+            <div class="rounded-md border border-base-content/15 bg-base-200/40">
+                <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
+                    {title}
+                </h2>
+                <div class="p-2 space-y-1">
+                    <p class="text-xs text-faint">{description}</p>
+                    {content}
+                </div>
             </div>
-        </div>
+        </Debuggable>
     }
 }
 
@@ -84,7 +90,7 @@ pub fn RaceDetailView() -> impl IntoView {
     });
     view! {
         <div class="p-2 space-y-2 overflow-y-auto">
-            <h1 class="text-xl font-semibold text-base-content">"Race Detail"</h1>
+            <h1 class="text-xl font-semibold text-base-content">"Race Overview"</h1>
             <p class="text-xs text-faint">
                 "The games of a race in the snapshot: its matchups, the maps it wins the most on, the units it makes and the abilities with energy or a cooldown it uses."
             </p>
@@ -126,20 +132,26 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
     let letter = detail.race.chars().next().unwrap_or('?');
     let mirror = format!("{letter}v{letter}");
     let units: Vec<RaceUnitStats> = detail.units.iter().take(UNITS_SHOWN).cloned().collect();
+    // Shown in a Debuggable block, a closure: taken out of `detail` first.
+    let header = format!("{} games of {} players.", detail.player_games, detail.race);
     view! {
-        <p class="text-sm text-muted">
-            {format!("{} games of {} players.", detail.player_games, detail.race)}
-        </p>
+        <Debuggable query="race_detail::player_games" view_source=crate::source!()>
+            <p class="text-sm text-muted">
+                {header}
+            </p>
+        </Debuggable>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {section(
                 "Matchups",
-                "The 1v1 games against each race, the mirror is always 50%.",
+                "The 1v1 games against the other races; the mirror is left out, it is always 50%.",
+                "race_detail::matchups",
                 view! {
                     <table class=TABLE_CLASS>
                         <tbody>
                             {detail
                                 .matchups
                                 .iter()
+                                .filter(|matchup| matchup.label != mirror)
                                 .map(|matchup| view! {
                                     <tr>
                                         <td class="pr-3 text-base-content">{matchup.label.clone()}</td>
@@ -154,6 +166,7 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
             {section(
                 "By patch",
                 "The 1v1 games that are not mirrors, by the patch of the balance data closest to the game.",
+                "race_detail::by_patch",
                 view! {
                     <table class=TABLE_CLASS>
                         <tbody>
@@ -175,12 +188,14 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
             {section(
                 "Over time",
                 "How the race does as the players adapt to the patches.",
+                "",
                 view! { <UsageOverTimeChart subject=UsageSubject::Race(detail.race.clone()) /> },
             )}
         </div>
         {section(
             "Maps",
             "The maps with at least 5 1v1 games that are not mirrors, the best win rate first. Few games make the win rates of a map vary a lot.",
+                "race_detail::maps",
             view! {
                 <table class=TABLE_CLASS>
                     <thead>
@@ -230,6 +245,7 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
         {section(
             "Units",
             "The army units made, in how many games, how many per game they were made, their kills per unit of the units that cost resources and the win rate of the games they were made in.",
+                "race_detail::units",
             view! {
                 <table class=TABLE_CLASS>
                     <thead>
@@ -263,11 +279,13 @@ fn RaceDetailSections(detail: RaceDetail) -> impl IntoView {
         {section(
             "Abilities",
             "The abilities with energy or a cooldown commanded in all the games of the race in the snapshot.",
+                "",
             view! { <AbilityUsageRows rows=detail.abilities.clone() show_race=false /> },
         )}
         {section(
             "Players",
             "The players with the most games of the race.",
+                "race_detail::top_players",
             view! {
                 <table class=TABLE_CLASS>
                     <tbody>

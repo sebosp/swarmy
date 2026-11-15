@@ -1,24 +1,33 @@
 //! Build orders, expansions, resources, engagements, macro, unit choices and chat of a replay.
 
+use super::map_modes::{MapMode, MapModeLegend, density_marks, over_time_marks};
 use super::notes::ReplayNotesPanel;
 use crate::components::abilities::AbilityUses;
-use crate::components::brand_icon::{native_title, BrandIcon};
-use crate::components::charts::{AdvantageChart, BarChart, ChartData, LineChart, CHART_COLORS};
+use crate::components::brand_icon::{BrandIcon, native_title};
+use crate::components::charts::{
+    AdvantageChart, BarChart, CHART_COLORS, ChartData, LineChart, chart_clear_highlight,
+    chart_highlight,
+};
+use crate::components::debug::Debuggable;
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker, UnitCountLinks, UnitLink,
 };
 use crate::components::loading::Loading;
+use crate::components::map_cell::{MapCell, MapHighlight, MapHighlightContext, MapSpots};
+use crate::components::map_picture::{MapFrame, MapMarks, MapPicture};
+use crate::components::unit_icon::UnitIcon;
 use crate::components::units::UnitsTable;
 use crate::navigation::use_navigation;
 use crate::replay_list::actions::{
     trigger_swarmy_bevy_on_replay, trigger_swarmy_bevy_on_replay_at, trigger_swarmy_rerun_on_replay,
 };
+use crate::scan::arrow_ipc_stats::time_ago;
 use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use phosphor_leptos::{
-    Icon, IconWeight, CARET_DOUBLE_RIGHT, CARET_DOWN, CARET_LEFT, CARET_RIGHT, EXPORT, LOCK_SIMPLE,
+    CARET_DOUBLE_RIGHT, CARET_DOWN, CARET_LEFT, CARET_RIGHT, EXPORT, Icon, IconWeight, LOCK_SIMPLE,
     LOCK_SIMPLE_OPEN,
 };
 use swarmy_common::*;
@@ -42,6 +51,9 @@ pub fn ReplayDetailView() -> impl IntoView {
     let loading = RwSignal::new(false);
     let hide_workers = RwSignal::new(false);
     let whole_game = RwSignal::new(false);
+    // The spot hovered in the tables (the Engagements, the bases), highlighted on the map of the
+    // header.
+    provide_context(MapHighlightContext::new());
     // Without a replay chosen, the newest one of the snapshot is shown.
     if navigation.replay_id.get_untracked().is_none() {
         go_to_replay(None, ReplayStep::Latest, error);
@@ -147,12 +159,17 @@ pub fn ReplayDetailView() -> impl IntoView {
                                         />
                                     }
                                 })}
-                            {detail.creep.clone().map(|creep| view! { <CreepPanel creep /> })}
                             <PlayerSections
                                 players=detail.players.clone()
                                 snapshot_seconds=detail.snapshot_seconds
                                 hide_workers
                                 whole_game
+                                map=detail.map.clone()
+                                bases=detail.bases.clone()
+                                death_density=detail.death_density.clone()
+                                engagements=detail.engagements.clone()
+                                duration=detail.duration_seconds
+                                creep=detail.creep.clone()
                             />
                             <Engagements engagements=detail.engagements />
                             <Messages messages=detail.messages />
@@ -236,46 +253,10 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
         let map_title = map_title.clone();
         Signal::derive(move || locks.read().map_title.as_deref() == Some(map_title.as_str()))
     };
-    // The winners first, then the losers.
-    let mut ordered: Vec<&ReplayPlayerSummary> = detail.players.iter().collect();
-    ordered.sort_by_key(|summary| result_order(&summary.player.result));
-    let players = ordered
-        .into_iter()
-        .map(|summary| {
-            let player_name = summary.player.name.clone();
-            let locked = {
-                let player_name = player_name.clone();
-                Signal::derive(move || locks.read().player_names.contains(&player_name))
-            };
-            let toggle = {
-                let player_name = player_name.clone();
-                Callback::new(move |_| {
-                    locks.update(|locks| {
-                        if let Some(idx) = locks
-                            .player_names
-                            .iter()
-                            .position(|name| *name == player_name)
-                        {
-                            locks.player_names.remove(idx);
-                        } else {
-                            locks.player_names.push(player_name.clone());
-                        }
-                    })
-                })
-            };
-            view! {
-                <span class="flex items-center gap-1">
-                    <LockToggle
-                        locked
-                        on_toggle=toggle
-                        title="Lock the player: the previous and next replays are of this player"
-                    />
-                    <ResultMarker result=summary.player.result.clone() />
-                    <PlayerLink player_name />
-                </span>
-            }
-        })
-        .collect_view();
+    // "3 days ago" next to the date; the date is `YYYY-MM-DD HH:MM`.
+    let ago = chrono::NaiveDateTime::parse_from_str(&detail.replay_date, "%Y-%m-%d %H:%M")
+        .ok()
+        .map(time_ago);
     let toggle_map = Callback::new(move |_| {
         let map_title = map_title.clone();
         locks.update(|locks| {
@@ -304,8 +285,9 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
             }
         });
     };
-    // One bar: the navigation, the replay with its map and players (each once, lockable), and the
-    // actions as icons, their title says what they do.
+    // One bar: the navigation, the replay with its date, length, patch and map (lockable), and
+    // the actions as icons, their title says what they do. The players are in the header of
+    // their sections, which stays in view.
     view! {
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-base-content/15 bg-base-200/40 p-2 text-sm">
             <div class="join">
@@ -350,17 +332,20 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
                     <Icon icon=CARET_DOUBLE_RIGHT weight=IconWeight::Bold />
                 </button>
             </div>
-            <div>
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span class="text-base font-semibold text-base-content">
                     "Replay " <ReplayLink ext_fs_id=detail.ext_fs_id />
                 </span>
+                <span class="text-muted tabular-nums" title="When the game was played">
+                    {detail.replay_date.clone()}
+                    {ago.map(|ago| view! { <span class="text-faint">{format!(" ({ago})")}</span> })}
+                </span>
+                <span class="text-muted" title="The length of the game, in game time">
+                    "duration "
+                    <span class="tabular-nums">{format_game_time(detail.duration_seconds)}</span>
+                </span>
                 <span class="text-muted">
-                    {format!(
-                        " · {} · {} · patch ",
-                        detail.replay_date,
-                        format_game_time(detail.duration_seconds),
-                    )}
-                    <PatchLink version=detail.protocol_version />
+                    "patch " <PatchLink version=detail.protocol_version />
                 </span>
             </div>
             <span class="flex items-center gap-1">
@@ -371,7 +356,6 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
                 />
                 <MapLink map_title=detail.map_title.clone() />
             </span>
-            {players}
             <div class="ml-auto flex items-center gap-1">
                 <span class="text-xs text-muted">{move || exported.get()}</span>
                 <button
@@ -400,25 +384,167 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
     }
 }
 
+/// An expansion started or a base lost, see [`base_events`].
+struct BaseEvent {
+    seconds: u32,
+    new_base: bool,
+    text: String,
+    /// Where the townhall stands, for the map.
+    at: Option<(f32, f32)>,
+    average: Option<PatchAverage>,
+}
+
 /// The expansions started and the bases lost, by time, with the expansions compared to the
 /// average of the patch.
-fn base_events(summary: &ReplayPlayerSummary) -> Vec<(u32, bool, String, Option<PatchAverage>)> {
-    let mut events: Vec<(u32, bool, String, Option<PatchAverage>)> = summary
+fn base_events(summary: &ReplayPlayerSummary) -> Vec<BaseEvent> {
+    let mut events: Vec<BaseEvent> = summary
         .expansions
         .iter()
-        .map(|entry| {
-            let text = format!("{} at {} supply", entry.name, entry.supply);
-            (entry.seconds, true, text, entry.patch_average.clone())
+        .map(|entry| BaseEvent {
+            seconds: entry.seconds,
+            new_base: true,
+            text: format!("{} at {} supply", entry.name, entry.supply),
+            at: entry.at,
+            average: entry.patch_average.clone(),
         })
-        .chain(
-            summary
-                .bases_lost
-                .iter()
-                .map(|event| (event.seconds, false, event.text.clone(), None)),
-        )
+        .chain(summary.bases_lost.iter().map(|event| BaseEvent {
+            seconds: event.seconds,
+            new_base: false,
+            text: event.text.clone(),
+            at: event.at,
+            average: None,
+        }))
         .collect();
-    events.sort_by_key(|(seconds, _, _, _)| *seconds);
+    events.sort_by_key(|event| event.seconds);
     events
+}
+
+/// The structures of an opening are joined with this, as the backend writes them.
+const OPENING_SEPARATOR: &str = " → ";
+
+/// A structure of the tree of the openings, see [`opening_rows`].
+#[derive(Debug, Default)]
+struct OpeningNode {
+    name: String,
+    children: Vec<OpeningNode>,
+    /// The answer that ends here: the leaves.
+    answer: Option<OpeningAnswer>,
+    among_the_best: bool,
+}
+
+impl OpeningNode {
+    /// Adds an opening under this node, a child per structure.
+    fn insert(&mut self, structures: &[&str], answer: &OpeningAnswer, among_the_best: bool) {
+        let Some((first, rest)) = structures.split_first() else {
+            self.answer = Some(answer.clone());
+            self.among_the_best = among_the_best;
+            return;
+        };
+        let child = match self.children.iter().position(|child| child.name == *first) {
+            Some(idx) => &mut self.children[idx],
+            None => {
+                self.children.push(OpeningNode {
+                    name: first.to_string(),
+                    ..Default::default()
+                });
+                self.children.last_mut().expect("just pushed")
+            }
+        };
+        child.insert(rest, answer, among_the_best);
+    }
+}
+
+/// A row of the tree of the openings: the branch lines before the structure, the structure, and
+/// the answer on the last structure of an opening.
+#[derive(Debug, Clone, PartialEq)]
+struct OpeningRow {
+    branches: String,
+    name: String,
+    answer: Option<OpeningAnswer>,
+    /// The opening of the player in this game ends here.
+    chosen: bool,
+    among_the_best: bool,
+}
+
+/// The answers as a tree: an opening shares its first structures with the ones before it, so that
+/// `Barracks → Factory → Starport` and `Barracks → Factory → Armory` read as one Barracks, one
+/// Factory and two branches. The answers keep their order, the best first; the player's own
+/// opening is added when it is not among them.
+fn opening_rows(answers: &OpeningAnswers, own: &str) -> Vec<OpeningRow> {
+    let mut root = OpeningNode::default();
+    for answer in &answers.answers {
+        let structures: Vec<&str> = answer.opening.split(OPENING_SEPARATOR).collect();
+        root.insert(&structures, answer, true);
+    }
+    if let Some(answer) = answers
+        .own
+        .as_ref()
+        .filter(|own| !answers.answers.contains(own))
+    {
+        let structures: Vec<&str> = answer.opening.split(OPENING_SEPARATOR).collect();
+        root.insert(&structures, answer, false);
+    }
+    fn walk(
+        nodes: &[OpeningNode],
+        prefix: &str,
+        path: &[&str],
+        own: &str,
+        rows: &mut Vec<OpeningRow>,
+    ) {
+        let roots = path.is_empty();
+        let count = nodes.len();
+        for (idx, node) in nodes.iter().enumerate() {
+            let last = idx + 1 == count;
+            // The roots have no branch lines, their children hang from them.
+            let (branch, below) = match (roots, last) {
+                (true, _) => ("", ""),
+                (false, true) => ("└─ ", "   "),
+                (false, false) => ("├─ ", "│  "),
+            };
+            let mut full_path: Vec<&str> = path.to_vec();
+            full_path.push(&node.name);
+            rows.push(OpeningRow {
+                branches: format!("{prefix}{branch}"),
+                name: node.name.clone(),
+                answer: node.answer.clone(),
+                chosen: node.answer.is_some() && full_path.join(OPENING_SEPARATOR) == own,
+                among_the_best: node.among_the_best,
+            });
+            walk(
+                &node.children,
+                &format!("{prefix}{below}"),
+                &full_path,
+                own,
+                rows,
+            );
+        }
+    }
+    let mut rows = vec![];
+    walk(&root.children, "", &[], own, &mut rows);
+    rows
+}
+
+/// The footprint of a townhall in map cells, for the highlight.
+const TOWNHALL_CELLS: f32 = 5.;
+
+/// The footprint of a tech structure in map cells, for the highlight.
+const STRUCTURE_CELLS: f32 = 3.;
+
+/// The spots of the structures of the opening of the player, from the build order: where each of
+/// the first tech structures was built, for the map.
+fn opening_spots(summary: &ReplayPlayerSummary) -> Vec<MapHighlight> {
+    summary
+        .opening
+        .iter()
+        .filter_map(|name| {
+            summary
+                .build_order
+                .iter()
+                .find(|entry| entry.name == *name)
+                .and_then(|entry| entry.at)
+        })
+        .map(|at| MapHighlight::around(at, STRUCTURE_CELLS))
+        .collect()
 }
 
 /// How the time compares to the average of the patch, green when faster, red when slower.
@@ -451,36 +577,102 @@ fn player_grid_style(players: usize) -> String {
     format!("grid-template-columns: {columns}")
 }
 
+/// The gutter between two players, see [`player_grid_style`].
+fn gutter(header: bool) -> AnyView {
+    view! {
+        <div
+            class="scroll-gutter flex items-center justify-center text-faint text-xs select-none"
+            title="Scroll the page here, without scrolling a section"
+        >
+            {header.then_some("⇕")}
+        </div>
+    }
+    .into_any()
+}
+
 /// The cells of the players with a gutter between them, see [`player_grid_style`].
 fn with_gutters(cells: Vec<AnyView>, header: bool) -> Vec<AnyView> {
     let mut out = Vec::with_capacity(cells.len() * 2);
     for (idx, cell) in cells.into_iter().enumerate() {
         if idx > 0 {
-            out.push(
-                view! {
-                    <div
-                        class="scroll-gutter flex items-center justify-center text-faint text-xs select-none"
-                        title="Scroll the page here, without scrolling a section"
-                    >
-                        {header.then_some("⇕")}
-                    </div>
-                }
-                .into_any(),
-            );
+            out.push(gutter(header));
         }
         out.push(cell);
     }
     out
 }
 
+/// The width of the map in the header, the one of the Map Details view (`max-w-md`).
+const HEADER_MAP_COLUMN: &str = "minmax(0,28rem)";
+
+/// The header of the players with the map of the game between the first two (after the only one
+/// of a game alone), in place of the first gutter: the cells and the columns of their grid, with
+/// the map and without it (the header collapsed, the map's cell empty and as narrow as a gutter).
+fn header_with_map(headers: Vec<AnyView>, map: Option<AnyView>) -> (Vec<AnyView>, String, String) {
+    let mut cells = Vec::with_capacity(headers.len() * 2 + 1);
+    let mut columns = vec![];
+    let mut map = map;
+    let players = headers.len();
+    for (idx, header) in headers.into_iter().enumerate() {
+        if idx == 1
+            && let Some(map) = map.take()
+        {
+            cells.push(map);
+            columns.push(HEADER_MAP_COLUMN);
+        } else if idx > 0 {
+            cells.push(gutter(true));
+            columns.push("1.25rem");
+        }
+        cells.push(header);
+        columns.push("minmax(0,1fr)");
+    }
+    if players < 2
+        && let Some(map) = map.take()
+    {
+        cells.push(map);
+        columns.push(HEADER_MAP_COLUMN);
+    }
+    let style = |columns: &[&str]| format!("grid-template-columns: {}", columns.join(" "));
+    let without_map: Vec<&str> = columns
+        .iter()
+        .map(|column| {
+            if *column == HEADER_MAP_COLUMN {
+                "1.25rem"
+            } else {
+                column
+            }
+        })
+        .collect();
+    (cells, style(&columns), style(&without_map))
+}
+
+/// The arrow that collapses or expands a section, as in the other views.
+fn collapse_toggle(collapsed: RwSignal<bool>) -> impl IntoView {
+    view! {
+        <button
+            type="button"
+            class="btn btn-ghost btn-xs btn-square"
+            aria-expanded=move || (!collapsed.get()).to_string()
+            title=move || if collapsed.get() { "Expand this section" } else { "Collapse this section" }
+            on:click=move |_| collapsed.update(|collapsed| *collapsed = !*collapsed)
+        >
+            {move || {
+                let icon = if collapsed.get() { CARET_RIGHT } else { CARET_DOWN };
+                view! { <Icon icon=icon weight=IconWeight::Bold size="14px" /> }
+            }}
+        </button>
+    }
+}
+
 /// A band with the same section of every player side by side, the cells of a band share the grid
 /// row so the bands line up whatever the content of each player.
-fn section_band<V: IntoView + 'static>(
-    title: impl IntoView + 'static,
+// `use<..>`: the view does not borrow `players`, edition 2024 would capture its lifetime.
+fn section_band<V: IntoView + 'static, T: IntoView + 'static, U: Fn(&ReplayPlayerSummary) -> V>(
+    title: T,
     height: &'static str,
     players: &[ReplayPlayerSummary],
-    content: impl Fn(&ReplayPlayerSummary) -> V,
-) -> impl IntoView {
+    content: U,
+) -> impl IntoView + use<V, T, U> {
     let cells = players
         .iter()
         .map(|summary| {
@@ -498,24 +690,117 @@ fn section_band<V: IntoView + 'static>(
                 class:border-b=move || !collapsed.get()
                 style="border-color: color-mix(in oklab, var(--color-base-content) 15%, transparent)"
             >
-                <button
-                    type="button"
-                    class="btn btn-ghost btn-xs btn-square"
-                    aria-expanded=move || (!collapsed.get()).to_string()
-                    title=move || if collapsed.get() { "Expand this section" } else { "Collapse this section" }
-                    on:click=move |_| collapsed.update(|collapsed| *collapsed = !*collapsed)
-                >
-                    {move || {
-                        let icon = if collapsed.get() { CARET_RIGHT } else { CARET_DOWN };
-                        view! { <Icon icon=icon weight=IconWeight::Bold size="14px" /> }
-                    }}
-                </button>
+                {collapse_toggle(collapsed)}
                 {title}
             </h3>
             <div class="grid" class:hidden=move || collapsed.get() style=player_grid_style(players.len())>
                 {cells}
             </div>
         </div>
+    }
+}
+
+/// The color of a player as CSS.
+fn player_rgb(player: &ReplayPlayer) -> String {
+    let [r, g, b, _] = player.color;
+    format!("rgb({r},{g},{b})")
+}
+
+/// The map of the game with the bases of the players in their colors, the first one as a ring;
+/// the spot hovered in the tables (a fight with its spread, a structure) is drawn on it
+/// (`MapHighlightContext`). The buttons above switch to the deaths as a height map and to the
+/// fights over time (`map_modes`).
+#[component]
+fn ReplayMap(
+    map: swarmy_common::MapPicture,
+    players: Vec<ReplayPlayer>,
+    bases: Vec<PlayerBase>,
+    death_density: Vec<DensityCell>,
+    engagements: Vec<Engagement>,
+    duration: u32,
+) -> impl IntoView {
+    let mode = RwSignal::new(MapMode::default());
+    let fights = engagements.iter().filter(|e| e.epicenter.is_some()).count();
+    let peak = death_density
+        .iter()
+        .map(|cell| cell.density)
+        .fold(0., f32::max);
+    let marks: MapMarks = Box::new(move |frame: &MapFrame| {
+        let frame = *frame;
+        let base_marks = bases
+            .iter()
+            .map(|base| {
+                let (x, y) = frame.to_svg(base.x, base.y);
+                let color = players
+                    .iter()
+                    .find(|player| player.name == base.player)
+                    .map(player_rgb)
+                    .unwrap_or_else(|| "#ffffff".to_string());
+                let title = format!(
+                    "{} · {} at {}",
+                    clean_player_name_clan_escapes(&base.player),
+                    base.unit_type,
+                    format_game_time(base.seconds),
+                );
+                let start = base.seconds == 0;
+                view! {
+                    {start
+                        .then(|| {
+                            view! {
+                                <circle cx=x cy=y r=4.5 fill="none" stroke=color.clone() stroke-width=1>
+                                    <title>{format!("{title}, the start location")}</title>
+                                </circle>
+                            }
+                        })}
+                    <circle cx=x cy=y r=2.2 fill=color fill-opacity=0.9 stroke="black" stroke-width=0.3>
+                        <title>{title}</title>
+                    </circle>
+                }
+            })
+            .collect_view();
+        let death_density = death_density.clone();
+        let engagements = engagements.clone();
+        // The surface or the discs of the mode under the bases, which stay for orientation.
+        let mode_marks = move || match mode.get() {
+            MapMode::Bases => ().into_any(),
+            MapMode::Deaths => density_marks(&death_density, &frame),
+            MapMode::OverTime => over_time_marks(&engagements, duration, &frame),
+        };
+        view! {
+            <g>{mode_marks}</g>
+            <g>{base_marks}</g>
+        }
+        .into_any()
+    });
+    let base_opacity = Signal::derive(move || mode.get().base_opacity());
+    view! {
+        <div class="flex justify-center pb-1">
+            <div class="join">
+                {MapMode::ALL
+                    .into_iter()
+                    .map(|this| {
+                        view! {
+                            <button
+                                type="button"
+                                class=move || {
+                                    if mode.get() == this {
+                                        "btn btn-xs btn-primary join-item"
+                                    } else {
+                                        "btn btn-xs btn-ghost join-item"
+                                    }
+                                }
+                                title=this.help()
+                                on:click=move |_| mode.set(this)
+                            >
+                                {this.label()}
+                            </button>
+                        }
+                    })
+                    .collect_view()}
+            </div>
+        </div>
+        <MapPicture picture=map marks compact=true base_opacity />
+        {move || view! { <MapModeLegend mode=mode.get() duration fights peak /> }}
     }
 }
 
@@ -527,24 +812,63 @@ fn PlayerSections(
     snapshot_seconds: u32,
     hide_workers: RwSignal<bool>,
     whole_game: RwSignal<bool>,
+    /// The map of the game, None without its map cache.
+    map: Option<swarmy_common::MapPicture>,
+    bases: Vec<PlayerBase>,
+    death_density: Vec<DensityCell>,
+    engagements: Vec<Engagement>,
+    duration: u32,
+    /// The creep of a Zerg 1v1, shown under the header.
+    creep: Option<CreepSummary>,
 ) -> impl IntoView {
+    let locks = use_navigation().replay_locks;
     let chart_scale = CommandsScale::of_players(&players);
     // The kinds of the Focus shown, the same for every player so that they compare.
     let focus_shown = RwSignal::new(Vec::<FocusKind>::new());
     let all_players = players.clone();
+    // Collapsed, the header keeps the players and their locks: the map and the badges go.
+    let header_collapsed = RwSignal::new(false);
     let player_headers = players
         .iter()
-        .map(|summary| {
-            let [r, g, b, _] = summary.player.color;
+        .enumerate()
+        .map(|(idx, summary)| {
+            let player_name = summary.player.name.clone();
+            // A locked player is kept when going to the previous or next replay.
+            let locked = {
+                let player_name = player_name.clone();
+                Signal::derive(move || locks.read().player_names.contains(&player_name))
+            };
+            let toggle = {
+                let player_name = player_name.clone();
+                Callback::new(move |_| {
+                    locks.update(|locks| {
+                        if let Some(idx) = locks
+                            .player_names
+                            .iter()
+                            .position(|name| *name == player_name)
+                        {
+                            locks.player_names.remove(idx);
+                        } else {
+                            locks.player_names.push(player_name.clone());
+                        }
+                    })
+                })
+            };
             view! {
                 <div class="px-2 py-1">
                     <div class="flex items-center gap-2 text-base text-base-content">
+                        {(idx == 0).then(|| collapse_toggle(header_collapsed))}
+                        <LockToggle
+                            locked
+                            on_toggle=toggle
+                            title="Lock the player: the previous and next replays are of this player"
+                        />
                         <span
                             class="inline-block w-3 h-3 rounded-full"
-                            style=format!("background: rgb({r},{g},{b})")
+                            style=format!("background: {}", player_rgb(&summary.player))
                         ></span>
                         <ResultMarker result=summary.player.result.clone() />
-                        <PlayerLink player_name=summary.player.name.clone() />
+                        <PlayerLink player_name />
                         <span class="text-sm text-muted">
                             <RaceLink race=summary.player.race.clone() />
                         </span>
@@ -558,20 +882,45 @@ fn PlayerSections(
                                 }
                             })}
                     </div>
-                    <PlayerBadges summary=summary.clone() />
+                    <div class:hidden=move || header_collapsed.get()>
+                        <PlayerBadges summary=summary.clone() />
+                    </div>
                 </div>
             }
             .into_any()
         })
         .collect::<Vec<_>>();
+    let replay_players: Vec<ReplayPlayer> = players.iter().map(|s| s.player.clone()).collect();
+    let map_cell = map.map(|map| {
+        view! {
+            <div class="self-start" class:p-1=move || !header_collapsed.get()>
+                <div class:hidden=move || header_collapsed.get()>
+                    <Debuggable query="replay_detail::bases" view_source=crate::source!()>
+                        <ReplayMap map players=replay_players bases death_density engagements duration />
+                    </Debuggable>
+                </div>
+            </div>
+        }
+        .into_any()
+    });
+    let (header_cells, expanded_style, collapsed_style) = header_with_map(player_headers, map_cell);
     view! {
         <div class="space-y-2">
+            // The header stays in view: the players over their columns, the map of the game with
+            // the bases and the fights between them.
             <div
                 class="sticky top-0 z-10 grid rounded-md border border-base-content/20 bg-base-100"
-                style=player_grid_style(players.len())
+                style=move || {
+                    if header_collapsed.get() {
+                        collapsed_style.clone()
+                    } else {
+                        expanded_style.clone()
+                    }
+                }
             >
-                {with_gutters(player_headers, true)}
+                {header_cells}
             </div>
+            {creep.map(|creep| view! { <CreepPanel creep /> })}
 
             {section_band(
                 view! {
@@ -619,8 +968,8 @@ fn PlayerSections(
 
             {section_band(
                 view! {
-                    <span title="In the 1v1 games of the snapshot, the openings of the race (its first three tech structures) that won the most against the opening of the opponent in this game, from at least 5 games. The win rates are pulled towards 50% by 5 wins and 5 losses, so that few games do not rank first">
-                        "Against the opponent's opening"
+                    <span title="In the 1v1 games of the snapshot, the openings of the race (its first three tech structures) that won the most against the opening of the opponent in this game, from at least 5 games. The win rates are pulled towards 50% by 5 wins and 5 losses, so that few games do not rank first. Hover the chosen opening to see its structures on the map">
+                        "Opening"
                     </span>
                 },
                 "h-28",
@@ -635,49 +984,61 @@ fn PlayerSections(
                         }
                             .into_any();
                     }
-                    let own = summary.opening.join(" → ");
+                    let own = summary.opening.join(OPENING_SEPARATOR);
+                    // Hovering the chosen opening shows its structures on the map.
+                    let spots = opening_spots(summary);
+                    let rows = opening_rows(&answers, &own);
                     view! {
+                        <Debuggable query="replay_detail::opening_answers::answers" view_source=crate::source!()>
                         <p class="text-xs text-muted" title="The opening of the opponent in this game, the openings below answered it best">
                             "vs "
                             <span class="text-error font-medium">{answers.enemy_opening.clone()}</span>
                         </p>
                         <table class=TABLE_CLASS>
                             <tbody>
-                                {answers
-                                    .answers
-                                    .iter()
-                                    .map(|answer| {
-                                        let chosen = answer.opening == own;
-                                        let class = if chosen { "pr-2 text-warning" } else { "pr-2" };
+                                {rows
+                                    .into_iter()
+                                    .map(|row| {
+                                        let class = if row.chosen { "pr-2 text-warning" } else { "pr-2" };
+                                        let name = if row.chosen {
+                                            let title = if row.among_the_best {
+                                                "Chosen build order: the opening of the player in this game. Show its structures on map"
+                                            } else {
+                                                "Chosen build order: the opening of the player in this game, not among the best answers. Show its structures on map"
+                                            };
+                                            view! {
+                                                <MapSpots spots=spots.clone() title=title.to_string()>
+                                                    {row.name}
+                                                </MapSpots>
+                                            }
+                                                .into_any()
+                                        } else {
+                                            row.name.into_any()
+                                        };
                                         view! {
-                                            <tr title=chosen.then_some("Chosen build order: the opening of the player in this game")>
-                                                <td class=class>{answer.opening.clone()}</td>
+                                            <tr>
+                                                <td class=class>
+                                                    <span class="font-mono whitespace-pre text-faint">{row.branches}</span>
+                                                    {name}
+                                                </td>
                                                 <td class="pr-2 num">
-                                                    {format!(
-                                                        "{:.0}% of {}",
-                                                        100. * answer.win_rate(),
-                                                        answer.games,
-                                                    )}
+                                                    {row
+                                                        .answer
+                                                        .map(|answer| {
+                                                            format!(
+                                                                "{:.0}% of {}",
+                                                                100. * answer.win_rate(),
+                                                                answer.games,
+                                                            )
+                                                        })}
                                                 </td>
                                             </tr>
                                         }
                                     })
                                     .collect_view()}
-                                {answers
-                                    .own
-                                    .filter(|own| !answers.answers.contains(own))
-                                    .map(|own| {
-                                        view! {
-                                            <tr title="Chosen build order: the opening of the player in this game, not among the best answers">
-                                                <td class="pr-2 text-warning">{own.opening.clone()}</td>
-                                                <td class="pr-2 num">
-                                                    {format!("{:.0}% of {}", 100. * own.win_rate(), own.games)}
-                                                </td>
-                                            </tr>
-                                        }
-                                    })}
                             </tbody>
                         </table>
+                        </Debuggable>
                     }
                         .into_any()
                 },
@@ -692,13 +1053,20 @@ fn PlayerSections(
                         <ul class="text-xs text-muted font-mono">
                             {base_events(summary)
                                 .into_iter()
-                                .map(|(seconds, new_base, text, average)| {
+                                .map(|event| {
                                     view! {
                                         <li>
-                                            <ResultMarker result=if new_base { "Win" } else { "Loss" }
+                                            <ResultMarker result=if event.new_base { "Win" } else { "Loss" }
                                                 .to_string() />
-                                            {format!("{} {text}", format_game_time(seconds))}
-                                            <PatchComparison seconds average />
+                                            {format!("{} {} ", format_game_time(event.seconds), event.text)}
+                                            {event
+                                                .at
+                                                .map(|(x, y)| {
+                                                    view! {
+                                                        <MapCell x y size=TOWNHALL_CELLS centered=true />
+                                                    }
+                                                })}
+                                            <PatchComparison seconds=event.seconds average=event.average />
                                         </li>
                                     }
                                 })
@@ -741,12 +1109,6 @@ fn PlayerSections(
                                     <td class="pr-2">"Mining time lost"</td>
                                     <td class="pr-2">
                                         {format_game_time(resources.mining_seconds_lost)}
-                                    </td>
-                                </tr>
-                                <tr title="The build time of the units and structures lost">
-                                    <td class="pr-2">"Build time lost"</td>
-                                    <td class="pr-2">
-                                        {format_game_time(resources.build_seconds_lost)}
                                     </td>
                                 </tr>
                             </tbody>
@@ -864,7 +1226,10 @@ fn PlayerSections(
                 &players,
                 move |summary| {
                     let enemy_benchmarks = enemy_benchmarks(&all_players, summary);
+                    // Owned: the debug line takes its children by value.
+                    let summary = summary.clone();
                     view! {
+                        <Debuggable query="replay_detail::winner_benchmarks::medians" view_source=crate::source!()>
                         <table class=TABLE_CLASS>
                             <thead>
                                 <tr class="text-left text-muted">
@@ -874,19 +1239,6 @@ fn PlayerSections(
                                     <th class="pr-2 num">"Income/min"</th>
                                     <th class="num">"Army value"</th>
                                 </tr>
-                                {(!summary.winner_benchmarks.is_empty())
-                                    .then(|| {
-                                        view! {
-                                            <tr class="text-left text-faint">
-                                                <th colspan="5" class="font-normal">
-                                                    {format!(
-                                                        "/ the median of the {} winners of the matchup in the patch",
-                                                        summary.winner_games,
-                                                    )}
-                                                </th>
-                                            </tr>
-                                        }
-                                    })}
                             </thead>
                             <tbody class="tabular-nums">
                                 {summary
@@ -954,6 +1306,7 @@ fn PlayerSections(
                                     .collect_view()}
                             </tbody>
                         </table>
+                        </Debuggable>
                     }
                 },
             )}
@@ -1100,10 +1453,24 @@ fn PlayerSections(
                                                     <td class="pr-2 num">{entry.supply}</td>
                                                     <td class="text-base-content">
                                                         {if entry.is_upgrade {
-                                                            entry.name.into_any()
+                                                            view! {
+                                                                <span class="whitespace-nowrap">
+                                                                    <UnitIcon unit_name=entry.name.clone() />
+                                                                    {entry.name}
+                                                                </span>
+                                                            }
+                                                                .into_any()
                                                         } else {
                                                             view! { <UnitLink unit_name=entry.name /> }.into_any()
                                                         }}
+                                                        {entry
+                                                            .at
+                                                            .map(|(x, y)| {
+                                                                view! {
+                                                                    " "
+                                                                    <MapCell x y centered=true />
+                                                                }
+                                                            })}
                                                         <PatchComparison
                                                             seconds=entry.seconds
                                                             average=entry.patch_average
@@ -1128,13 +1495,16 @@ fn PlayerSections(
 fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
     let badge = "inline-block rounded bg-base-300 px-1.5 py-0.5 text-xs text-muted";
     let opening = (!summary.opening.is_empty()).then(|| summary.opening.join(" → "));
+    let spots = opening_spots(&summary);
     view! {
-        <div class="mt-1 flex flex-wrap gap-1">
+        <div class="mt-1 flex flex-col items-start gap-1">
             {opening
                 .map(|opening| {
                     view! {
-                        <span class=badge title="The first tech structures">
-                            {format!("Opening: {opening}")}
+                        <span class=badge>
+                            <MapSpots spots title="The first tech structures. Show them on map".to_string()>
+                                {format!("Opening: {opening}")}
+                            </MapSpots>
                         </span>
                     }
                 })}
@@ -1158,11 +1528,17 @@ fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
                     }
                 })}
             {summary
-                .first_kill_seconds
-                .map(|seconds| {
+                .first_kill
+                .clone()
+                .map(|kill| {
                     view! {
                         <span class=badge>
-                            {format!("First kill at {}", format_game_time(seconds))}
+                            {format!("First kill at {}: {} ", format_game_time(kill.seconds), kill.text)}
+                            {kill
+                                .at
+                                .map(|(x, y)| {
+                                    view! { <MapCell x y centered=true /> }
+                                })}
                         </span>
                     }
                 })}
@@ -1172,10 +1548,15 @@ fn PlayerBadges(summary: ReplayPlayerSummary) -> impl IntoView {
                     view! {
                         <span class="inline-block rounded bg-warning/20 px-1.5 py-0.5 text-xs text-warning">
                             {format!(
-                                "Proxy: {} at {}",
+                                "Proxy: {} at {} ",
                                 proxy.text,
                                 format_game_time(proxy.seconds),
                             )}
+                            {proxy
+                                .at
+                                .map(|(x, y)| {
+                                    view! { <MapCell x y size=STRUCTURE_CELLS centered=true /> }
+                                })}
                         </span>
                     }
                 })}
@@ -1559,15 +1940,21 @@ fn CreepPanel(creep: CreepSummary) -> impl IntoView {
         "tumors cleaned",
     );
     let figure = |value: String| view! { <span class="font-medium text-base-content tabular-nums">{value}</span> };
+    let collapsed = RwSignal::new(false);
     view! {
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
+            <h2
+                class="flex items-center gap-1 px-2 py-1 text-base/7 font-semibold text-base-content bg-base-200/80 rounded-t-md"
+                class:border-b=move || !collapsed.get()
+                style="border-color: color-mix(in oklab, var(--color-base-content) 15%, transparent)"
+            >
+                {collapse_toggle(collapsed)}
                 "Creep"
             </h2>
-            <div class="px-2 py-1 space-y-1">
+            <div class="px-2 py-1 space-y-1" class:hidden=move || collapsed.get()>
                 <p class="text-xs text-faint">
                     {format!(
-                        "The creep tumors {zerg} placed, by the Queens and by the tumors spreading, and the ones {opponent} killed (with scans, detectors, Oracle revelations or Observers, then the army), against the {} {} games of the snapshot.",
+                        "The creep tumors {zerg} placed and {opponent} cleaned up ({} {} average).",
                         creep.games,
                         creep.matchup,
                     )}
@@ -1714,77 +2101,38 @@ fn WinChanceChart(
     let above = side_label("▲", first.clone(), team_color(&chances.first_team));
     let below = side_label("▼", second.clone(), team_color(&chances.second_team));
     let turning_points = chances.turning_points.clone();
+    let collapsed = RwSignal::new(false);
     view! {
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
-            <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
+            <h2
+                class="flex items-center gap-1 px-2 py-1 text-base/7 font-semibold text-base-content bg-base-200/80 rounded-t-md"
+                class:border-b=move || !collapsed.get()
+                style="border-color: color-mix(in oklab, var(--color-base-content) 15%, transparent)"
+            >
+                {collapse_toggle(collapsed)}
                 "Win chance"
             </h2>
-            <div class="px-2 py-1">
-                <p class="text-xs text-muted">
-                    "Who the game favors every 30 seconds, from the army value, income, workers and resources killed of each side, \
-                    as they turned out in thousands of games of the snapshot. It does not see the mistakes: \
-                    a side ahead can still lose a fight, take a bad engagement or blunder the game away."
-                </p>
+            <div class="px-2 py-1" class:hidden=move || collapsed.get()>
                 <Show when=move || empty>
                     <p class="text-xs text-faint">"The game ended before 02:00."</p>
                 </Show>
                 <Show when=move || !empty>
                     {above.clone()}
-                    <AdvantageChart data=data.clone() />
+                    <AdvantageChart data=data.clone() id=WIN_CHANCE_CHART_ID.to_string() />
                     {below.clone()}
                 </Show>
                 {(!turning_points.is_empty())
                     .then(|| {
                         view! {
                             <h3 class="mt-1 text-sm font-semibold text-base-content">"Turning points"</h3>
-                            <ul class="text-xs text-muted space-y-1">
-                                {turning_points
-                                    .into_iter()
-                                    .map(|point| {
-                                        let favored = if point.change > 0. {
-                                            &first
-                                        } else {
-                                            &second
-                                        };
-                                        let location = replay_location.clone();
-                                        let start = point.start_seconds;
-                                        view! {
-                                            <li class="flex items-center gap-2">
-                                                <span class="font-mono">
-                                                    {format!(
-                                                        "{}-{}",
-                                                        format_game_time(point.start_seconds),
-                                                        format_game_time(point.end_seconds),
-                                                    )}
-                                                </span>
-                                                <span>
-                                                    {format!("{favored} +{:.0}%", point.change.abs() * 100.)}
-                                                </span>
-                                                <span class="text-muted min-w-0 flex-1">
-                                                    // A space after each comma of the unit lists, so
-                                                    // that the line wraps.
-                                                    {point
-                                                        .engagement
-                                                        .as_deref()
-                                                        .map(|text| text.replace(',', ", ").replace(",  ", ", "))
-                                                        .unwrap_or_else(|| {
-                                                            "no fight: the economy or the army changed".to_string()
-                                                        })}
-                                                </span>
-                                                <button
-                                                    class="btn btn-ghost btn-xs native-only"
-                                                    title=native_title("Open the replay in swarmy-bevy at this moment")
-                                                    on:click=move |_ev: MouseEvent| {
-                                                        trigger_swarmy_bevy_on_replay_at(&location, Some(start))
-                                                    }
-                                                >
-                                                    <BrandIcon name="bevy" />
-                                                </button>
-                                            </li>
-                                        }
-                                    })
-                                    .collect_view()}
-                            </ul>
+                            <table class=TABLE_CLASS>
+                                <tbody class="divide-y divide-base-content/10">
+                                    {turning_points
+                                        .into_iter()
+                                        .flat_map(|point| turning_point_rows(point, &first, &second, &replay_location))
+                                        .collect_view()}
+                                </tbody>
+                            </table>
                         }
                     })}
             </div>
@@ -1792,11 +2140,121 @@ fn WinChanceChart(
     }
 }
 
-/// The units dying close in time, with what each side lost and who traded badly.
+/// The id of the Win chance chart, for the band of the turning point hovered.
+const WIN_CHANCE_CHART_ID: &str = "win-chance-chart";
+
+/// The rows of a turning point: the first with its time (hovered, a band over the chart), who it
+/// favored and the first loss of its biggest fight, one more row per other loss; the losses with
+/// the trade arrows and the units of the Engagements table, "no fight" when the economy or the
+/// army moved the chance.
+fn turning_point_rows(
+    point: TurningPoint,
+    first: &str,
+    second: &str,
+    replay_location: &str,
+) -> Vec<AnyView> {
+    let favored = if point.change > 0. { first } else { second };
+    let (start, end) = (point.start_seconds, point.end_seconds);
+    let (from, to) = (format_game_time(start), format_game_time(end));
+    let time = format!("{from}-{to}");
+    let location = replay_location.to_string();
+    let most_lost = point
+        .losses
+        .iter()
+        .map(|loss| loss.resources.total())
+        .max()
+        .unwrap_or_default();
+    let least_lost = point
+        .losses
+        .iter()
+        .map(|loss| loss.resources.total())
+        .min()
+        .unwrap_or_default();
+    let loss_cells = |loss: &EngagementLoss| {
+        let lost = loss.resources.total();
+        let bad_trade = engagement_bad_trade(lost, most_lost, least_lost);
+        let good_trade =
+            lost == least_lost && engagement_bad_trade(most_lost, most_lost, least_lost);
+        view! {
+            <td class="pr-2 whitespace-nowrap">
+                {bad_trade.then(|| view! { <span class="text-error" title="Bad trade">"▼ "</span> })}
+                {good_trade.then(|| view! { <span class="text-success" title="Good trade">"▲ "</span> })}
+                <PlayerLink player_name=loss.player.clone() />
+            </td>
+            <td class="pr-2 num whitespace-nowrap">{format!("{} lost", format_resources(lost))}</td>
+            <td><UnitCountLinks counts=loss.units.clone() /></td>
+        }
+        .into_any()
+    };
+    let rows = if point.losses.is_empty() {
+        vec![
+            view! {
+                <td class="pr-2 text-faint" colspan="3">"no fight: the economy or the army changed"</td>
+            }
+            .into_any(),
+        ]
+    } else {
+        point.losses.iter().map(loss_cells).collect()
+    };
+    let count = rows.len();
+    rows.into_iter()
+        .enumerate()
+        .map(|(idx, cells)| {
+            let (from, to, time) = (from.clone(), to.clone(), time.clone());
+            let location = location.clone();
+            let first_row = idx == 0;
+            view! {
+                <tr>
+                    <td class="pr-2 font-mono whitespace-nowrap">
+                        {first_row
+                            .then(|| {
+                                view! {
+                                    <span
+                                        class="map-cell"
+                                        tabindex="0"
+                                        title="Show on the chart"
+                                        on:mouseenter=move |_| chart_highlight(WIN_CHANCE_CHART_ID, &from, &to)
+                                        on:mouseleave=move |_| chart_clear_highlight(WIN_CHANCE_CHART_ID)
+                                    >
+                                        {time}
+                                    </span>
+                                }
+                            })}
+                    </td>
+                    <td class="pr-2 whitespace-nowrap">
+                        {first_row.then(|| format!("{favored} +{:.0}%", point.change.abs() * 100.))}
+                    </td>
+                    {cells}
+                    <td class="whitespace-nowrap">
+                        {(idx + 1 == count)
+                            .then(|| {
+                                view! {
+                                    <button
+                                        class="btn btn-ghost btn-xs native-only"
+                                        title=native_title("Open the replay in swarmy-bevy at this moment")
+                                        on:click=move |_ev: MouseEvent| {
+                                            trigger_swarmy_bevy_on_replay_at(&location, Some(start))
+                                        }
+                                    >
+                                        <BrandIcon name="bevy" />
+                                    </button>
+                                }
+                            })}
+                    </td>
+                </tr>
+            }
+            .into_any()
+        })
+        .collect()
+}
+
+/// The units dying close in time, with what each side lost and who traded badly, and where on
+/// the map: hovering the position shows the fight on the map of the header.
 #[component]
 fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
     let empty = engagements.is_empty();
     view! {
+        <Debuggable query="replay_detail::epicenters" view_source=crate::source!()>
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
             <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
                 "Engagements"
@@ -1809,6 +2267,9 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                     <thead class="sticky top-0 bg-base-200">
                         <tr class="text-left text-muted">
                             <th class="pr-2">"Time"</th>
+                            <th class="pr-2" title="The center of the deaths of the fight, in map units">
+                                "Coordinates"
+                            </th>
                             <th class="pr-2">"Player"</th>
                             <th class="pr-2">"Lost"</th>
                             <th
@@ -1841,11 +2302,30 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                     format_game_time(engagement.start_seconds),
                                     format_game_time(engagement.end_seconds),
                                 );
+                                let epicenter = engagement.epicenter.clone();
                                 engagement
                                     .losses
                                     .into_iter()
                                     .enumerate()
                                     .map(|(idx, loss)| {
+                                        let where_ = (idx == 0)
+                                            .then(|| epicenter.clone())
+                                            .flatten()
+                                            .map(|epicenter| {
+                                                view! {
+                                                    <MapCell
+                                                        x=epicenter.x
+                                                        y=epicenter.y
+                                                        size=(epicenter.radius * 2.).max(2.)
+                                                        round=true
+                                                        title=format!(
+                                                            "Show coord with radius on map: the center of the {} deaths of the fight, spread {:.0} around it",
+                                                            epicenter.deaths,
+                                                            epicenter.radius,
+                                                        )
+                                                    />
+                                                }
+                                            });
                                         let lost = loss.resources.total();
                                         let bad_trade = engagement_bad_trade(
                                             lost,
@@ -1860,6 +2340,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                                 <td class="pr-2 font-mono">
                                                     {(idx == 0).then(|| time.clone())}
                                                 </td>
+                                                <td class="pr-2 tabular-nums">{where_}</td>
                                                 <td class="pr-2">
                                                     {bad_trade
                                                         .then(|| {
@@ -1889,7 +2370,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                                                 <td class="pr-2 font-mono">
                                                     {format_game_time(loss.mining_seconds)}
                                                 </td>
-                                                <td>{loss.units}</td>
+                                                <td><UnitCountLinks counts=loss.units lines=true /></td>
                                             </tr>
                                         }
                                     })
@@ -1900,6 +2381,7 @@ fn Engagements(engagements: Vec<Engagement>) -> impl IntoView {
                 </table>
             </div>
         </div>
+        </Debuggable>
     }
 }
 
@@ -1974,7 +2456,9 @@ fn lesson_help(title: &str, cost: u32) -> (String, String) {
     };
     (
         what.to_string(),
-        format!("About {cost} minerals and vespene lost, estimated as {estimate}. The estimates compare the mistakes: the most costly is first."),
+        format!(
+            "About {cost} minerals and vespene lost, estimated as {estimate}. The estimates compare the mistakes: the most costly is first."
+        ),
     )
 }
 
@@ -1998,11 +2482,11 @@ fn EnergyBar(efficiency: AbilityEfficiency) -> impl IntoView {
     let comparison = average.map(|average| {
         let difference = 100. * (share - average);
         let (text, class) = if difference >= 5. {
-            ("more than the patch average", "text-success")
+            ("above patch average", "text-success")
         } else if difference <= -5. {
-            ("less than the patch average", "text-error")
+            ("below patch average", "text-error")
         } else {
-            ("about the patch average", "text-info")
+            ("at patch average", "text-info")
         };
         (text, class, average)
     });
@@ -2056,5 +2540,55 @@ fn EnergyBar(efficiency: AbilityEfficiency) -> impl IntoView {
                 </p>
             })}
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn answer(opening: &str, games: u32, wins: u32) -> OpeningAnswer {
+        OpeningAnswer {
+            opening: opening.to_string(),
+            games,
+            wins,
+        }
+    }
+
+    #[test]
+    fn the_openings_are_a_tree_with_the_own_one_added() {
+        let answers = OpeningAnswers {
+            enemy_opening: "SpawningPool → RoachWarren → Lair".to_string(),
+            answers: vec![
+                answer("Barracks → Factory → Starport", 20, 12),
+                answer("Barracks → Factory → Armory", 12, 7),
+                answer("Barracks → Barracks → Factory", 8, 4),
+            ],
+            own: Some(answer("Barracks → EngineeringBay → Factory", 6, 2)),
+        };
+        let rows = opening_rows(&answers, "Barracks → EngineeringBay → Factory");
+        let lines: Vec<String> = rows
+            .iter()
+            .map(|row| format!("{}{}", row.branches, row.name))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "Barracks",
+                "├─ Factory",
+                "│  ├─ Starport",
+                "│  └─ Armory",
+                "├─ Barracks",
+                "│  └─ Factory",
+                "└─ EngineeringBay",
+                "   └─ Factory",
+            ]
+        );
+        // The stats are on the last structure of each opening, the chosen one is the own.
+        assert!(rows[0].answer.is_none() && rows[1].answer.is_none());
+        assert_eq!(rows[2].answer.as_ref().map(|a| a.games), Some(20));
+        assert!(rows.iter().filter(|row| row.chosen).count() == 1);
+        assert!(rows[7].chosen && !rows[7].among_the_best);
+        assert!(rows[2].among_the_best);
     }
 }

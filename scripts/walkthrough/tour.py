@@ -141,12 +141,8 @@ if key:
 chapter("Map List")
 view("#/map-list", 5); snap("map_list"); scroll(600); time.sleep(1)
 
-chapter("Map Details: the minimap, the matchups, the resources, the lessons")
+chapter("Map Details: the minimap, the matchups, the resources")
 view("#/map-details?map=Winter%20Madness%20LE", 6); snap("map_details"); scroll(700); scroll(700); time.sleep(1)
-
-chapter("Map Scout, experimental: where the first units go")
-view("#/map-scout?map=Winter%20Madness%20LE", 3)
-click_text("button", "^Scout$", 7); snap("map_scout")
 
 chapter("Replay List: the games, their best rank")
 view("#/replay-list", 6); snap("replay_list"); scroll(500); time.sleep(1)

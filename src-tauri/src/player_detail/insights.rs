@@ -1,9 +1,8 @@
 //! Statistics of a player from the analysis of each of its games, compared to the snapshot.
 
-use super::data::add_game;
+use super::benchmarks::{self, BenchmarkAverage, BenchmarkTable};
+use super::game_results::add_game;
 use crate::data::*;
-use crate::replay_detail::data::BENCHMARK_MINUTES;
-use polars::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex, OnceLock};
 use swarmy_common::*;
@@ -11,34 +10,8 @@ use swarmy_common::*;
 /// The games shown in the recent form.
 pub const RECENT_FORM_GAMES: usize = 10;
 
-/// The stats are sampled every 160 game loops (~7 seconds), the first sample after the minute.
-
-/// The average economy at a minute, i.e. of a matchup in the snapshot.
-#[derive(Debug, Default, Clone)]
-struct BenchmarkAverage {
-    games: usize,
-    workers: f32,
-    supply: f32,
-    income: f32,
-    army_value: f32,
-}
-
-impl BenchmarkAverage {
-    fn add(&mut self, workers: i32, supply: i32, income: i32, army_value: i32) {
-        // Running averages, to avoid keeping the samples around.
-        self.games += 1;
-        let weight = 1. / self.games as f32;
-        self.workers += (workers as f32 - self.workers) * weight;
-        self.supply += (supply as f32 - self.supply) * weight;
-        self.income += (income as f32 - self.income) * weight;
-        self.army_value += (army_value as f32 - self.army_value) * weight;
-    }
-}
-
-type BenchmarkTable = HashMap<(String, u32), BenchmarkAverage>;
-
-/// The average economy per matchup and minute of every game in the snapshot, it does not change
-/// until the snapshot is optimized again.
+/// The average economy per matchup and minute of every game in the snapshot
+/// (`benchmarks.rs`), it does not change until the snapshot is optimized again.
 fn snapshot_benchmarks(ipc_path: &str) -> Result<Arc<BenchmarkTable>, SwarmyError> {
     static CACHE: OnceLock<Mutex<HashMap<String, Arc<BenchmarkTable>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(Default::default);
@@ -49,7 +22,7 @@ fn snapshot_benchmarks(ipc_path: &str) -> Result<Arc<BenchmarkTable>, SwarmyErro
     {
         return Ok(table);
     }
-    let table = compute_benchmarks(ipc_path)?;
+    let table = benchmarks::shape(benchmarks::plan(&IpcSnapshot::at(ipc_path))?.collect()?)?;
     let table = Arc::new(table);
     if let Ok(mut cache) = cache.lock() {
         cache.insert(ipc_path.to_string(), table.clone());
@@ -57,83 +30,6 @@ fn snapshot_benchmarks(ipc_path: &str) -> Result<Arc<BenchmarkTable>, SwarmyErro
     Ok(table)
 }
 
-/// The average economy per matchup and minute of the 1v1 games of the snapshot: the first stats
-/// sample after each minute of each player, averaged per matchup of the player.
-fn compute_benchmarks(ipc_path: &str) -> Result<BenchmarkTable, SwarmyError> {
-    let game = [col("ext_fs_id")];
-    // The matchup of each player of the 1v1 games, its race against the race of the other one.
-    let matchups = scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            race_letter_expr("player_race").alias("race"),
-        ])
-        .filter(len().over(game.clone())?.eq(lit(2)))
-        .with_column(
-            concat_str(
-                [
-                    col("race"),
-                    lit("v"),
-                    col("race").reverse().over(game.clone())?,
-                ],
-                "",
-                false,
-            )
-            .alias("matchup"),
-        );
-    // The stats are by tracker player id.
-    let player_matchups = scan_snapshot_ipc(ipc_path, GAME_PLAYERS_IPC)?
-        .select([col("ext_fs_id"), col("player_name"), col("player_id")])
-        .join(
-            matchups,
-            [col("ext_fs_id"), col("player_name")],
-            [col("ext_fs_id"), col("player_name")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .select([col("ext_fs_id"), col("player_id"), col("matchup")])
-        .unique(None, UniqueKeepStrategy::First);
-    let measures = ["workers", "supply", "income", "army_value"];
-    let averages = scan_snapshot_ipc(ipc_path, GAME_MINUTES_IPC)?
-        .filter(col("minute").is_in(
-            lit(Series::new("minutes".into(), BENCHMARK_MINUTES.as_slice())).implode(false),
-            false,
-        ))
-        .with_column((col("minerals_rate") + col("vespene_rate")).alias("income"))
-        .join(
-            player_matchups,
-            [col("ext_fs_id"), col("player_id")],
-            [col("ext_fs_id"), col("player_id")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .group_by([col("matchup"), col("minute")])
-        .agg(
-            std::iter::once(len().alias("games"))
-                .chain(measures.map(|measure| col(measure).cast(DataType::Float32).mean()))
-                .collect::<Vec<_>>(),
-        )
-        .collect()?;
-    let matchups = str_values(&averages, "matchup")?;
-    let minutes = u32_values(&averages, "minute")?;
-    let games = averages.column("games")?.cast(&DataType::UInt64)?;
-    let games = games.u64()?;
-    let [workers, supply, income, army_value] =
-        measures.map(|measure| f32_values(&averages, measure).unwrap_or_default());
-    Ok(matchups
-        .into_iter()
-        .zip(minutes)
-        .enumerate()
-        .map(|(idx, key)| {
-            let average = BenchmarkAverage {
-                games: games.get(idx).unwrap_or_default() as usize,
-                workers: workers[idx],
-                supply: supply[idx],
-                income: income[idx],
-                army_value: army_value[idx],
-            };
-            (key, average)
-        })
-        .collect())
-}
 /// The share of each choice in each context, most chosen first.
 fn choice_shares(choices: Vec<(String, String, bool)>) -> Vec<ChoiceShare> {
     let mut context_games: HashMap<String, usize> = HashMap::new();

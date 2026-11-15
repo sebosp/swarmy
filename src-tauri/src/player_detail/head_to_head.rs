@@ -1,51 +1,12 @@
 //! The games between two players and what each one played in them.
 
-use super::data::name_without_clan;
+use super::name_without_clan;
 use crate::data::*;
 use crate::replay_detail::data::analyze_replay_cached;
 use polars::prelude::*;
 use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use swarmy_common::*;
-
-/// The players of the snapshot by games played, identified by their name without the clan tag.
-/// The players of the snapshot by their accounts, see `details_with_players`.
-pub fn try_list_players(
-    replay_path: String,
-    groups: std::collections::HashMap<String, String>,
-) -> Result<Vec<GamesWins>, SwarmyError> {
-    let ipc_path = build_ipc_path(&sanitize_replay_path(&replay_path)?)?;
-    let players = details_with_players(&ipc_path, &groups)?
-        .select([col("player"), col("ext_fs_id"), col("player_result")])
-        .filter(col("player").neq(lit("")))
-        .group_by([col("player")])
-        .agg([
-            col("ext_fs_id")
-                .n_unique()
-                .cast(DataType::UInt64)
-                .alias("games"),
-            col("player_result")
-                .eq(lit("Win"))
-                .sum()
-                .cast(DataType::UInt64)
-                .alias("wins"),
-        ])
-        .sort(
-            ["games", "player"],
-            SortMultipleOptions::default().with_order_descending_multi([true, false]),
-        )
-        .collect()?;
-    Ok(str_values(&players, "player")?
-        .into_iter()
-        .zip(u64_values(&players, "games")?)
-        .zip(u64_values(&players, "wins")?)
-        .map(|((label, games), wins)| GamesWins {
-            label,
-            games: games as usize,
-            wins: wins as usize,
-        })
-        .collect())
-}
 
 /// The side of the player in the analysis of a game.
 fn side(detail: &ReplayDetail, player_name: &str) -> Option<(u8, HeadToHeadSide)> {

@@ -97,6 +97,7 @@ pub fn trigger_fetch_query_replay_list(
                         success: false,
                         duration_ms: 0,
                         is_complete: true,
+                        ..Default::default()
                     },
                     message: format!("Error fetching replay list: {:?}", e),
                 };

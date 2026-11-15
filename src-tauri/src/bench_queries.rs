@@ -29,13 +29,11 @@ fn bench_queries() {
         });
     }
     let players = timed("list_players", || {
-        crate::player_detail::head_to_head::try_list_players(replays.clone(), Default::default())
+        crate::player_detail::try_list_players(&replays, &Default::default())
     })
     .unwrap_or_default();
-    let maps = timed("list_maps", || {
-        crate::map_details::data::try_list_maps(replays.clone())
-    })
-    .unwrap_or_default();
+    let maps =
+        timed("list_maps", || crate::map_details::try_list_maps(&replays)).unwrap_or_default();
     let player = players.first().map(|p| p.label.clone()).unwrap_or_default();
     let opponent = players.get(1).map(|p| p.label.clone()).unwrap_or_default();
     let map = maps.first().map(|m| m.label.clone()).unwrap_or_default();
@@ -44,16 +42,16 @@ fn bench_queries() {
         crate::try_get_snapshot_metadata(replays.clone(), caches.clone())
     });
     let list = timed("replay_list", || {
-        crate::replay_list::data::try_query_replay_list(
-            replays.clone(),
+        crate::replay_list::try_query_replay_list(
+            &replays,
             ReplayListQuery::default(),
             None,
             &Default::default(),
         )
     });
     timed("replay_list player", || {
-        crate::replay_list::data::try_query_replay_list(
-            replays.clone(),
+        crate::replay_list::try_query_replay_list(
+            &replays,
             ReplayListQuery {
                 player_name: player.clone(),
                 ..Default::default()
@@ -89,7 +87,7 @@ fn bench_queries() {
         crate::replay_detail::creep::compute_creep_stats(&ipc)
     });
     let detail = timed("replay_detail", || {
-        crate::replay_detail::data::try_query_replay_detail(replays.clone(), ext_fs_id)
+        crate::replay_detail::data::try_query_replay_detail(replays.clone(), &caches, ext_fs_id)
     });
     for summary in detail.iter().flat_map(|detail| detail.players.iter()) {
         let abilities: Vec<String> = summary
@@ -123,7 +121,7 @@ fn bench_queries() {
         );
     }
     timed("replay_detail cached", || {
-        crate::replay_detail::data::try_query_replay_detail(replays.clone(), ext_fs_id)
+        crate::replay_detail::data::try_query_replay_detail(replays.clone(), &caches, ext_fs_id)
     });
     timed("adjacent_replay", || {
         crate::replay_detail::navigation::try_adjacent_replay(
@@ -136,39 +134,16 @@ fn bench_queries() {
         )
     });
     timed("map_stats", || {
-        crate::map_stats::data::try_query_map_stats(replays.clone(), MapStatsQuery::default())
+        crate::map_stats::try_query_map_stats(&replays, &MapStatsQuery::default())
     });
     timed("map_details", || {
-        crate::map_details::data::try_query_map_details(
-            replays.clone(),
-            caches.clone(),
-            map.clone(),
-        )
-    });
-    timed("map_scout", || {
-        crate::map_scout::data::try_query_map_scout(
-            replays.clone(),
-            caches.clone(),
-            MapScoutQuery {
-                map_title: map.clone(),
-                max_seconds: 180,
-                ..Default::default()
-            },
-        )
+        crate::map_details::try_query_map_details(&replays, &caches, &map)
     });
     timed("player_detail", || {
-        crate::player_detail::data::try_query_player_detail(
-            replays.clone(),
-            player.clone(),
-            Default::default(),
-        )
+        crate::player_detail::try_query_player_detail(&replays, &player, &Default::default())
     });
     timed("player_detail cached", || {
-        crate::player_detail::data::try_query_player_detail(
-            replays.clone(),
-            player.clone(),
-            Default::default(),
-        )
+        crate::player_detail::try_query_player_detail(&replays, &player, &Default::default())
     });
     timed("head_to_head", || {
         crate::player_detail::head_to_head::try_query_head_to_head(
@@ -184,21 +159,18 @@ fn bench_queries() {
         crate::ability_usage::try_query_ability_usage(replays.clone())
     });
     timed("ability_detail", || {
-        crate::ability_detail::try_query_ability_detail(
-            replays.clone(),
-            "Transfusion.Execute".to_string(),
-        )
+        crate::ability_detail::try_query_ability_detail(&replays, "Transfusion.Execute")
     });
     timed("race_detail", || {
-        crate::race_detail::try_query_race_detail(replays.clone(), "Terran".to_string())
+        crate::race_detail::try_query_race_detail(&replays, "Terran")
     });
     timed("race_detail cached", || {
-        crate::race_detail::try_query_race_detail(replays.clone(), "Zerg".to_string())
+        crate::race_detail::try_query_race_detail(&replays, "Zerg")
     });
     timed("usage_over_time day", || {
         crate::usage_over_time::try_query_usage_over_time(
-            replays.clone(),
-            UsageOverTimeQuery {
+            &replays,
+            &UsageOverTimeQuery {
                 subject: UsageSubject::Ability("Transfusion.Execute".to_string()),
                 grain: TimeGrain::Day,
             },
@@ -206,8 +178,8 @@ fn bench_queries() {
     });
     timed("usage_over_time month", || {
         crate::usage_over_time::try_query_usage_over_time(
-            replays.clone(),
-            UsageOverTimeQuery {
+            &replays,
+            &UsageOverTimeQuery {
                 subject: UsageSubject::Unit("Marine".to_string()),
                 grain: TimeGrain::Month,
             },
@@ -215,17 +187,14 @@ fn bench_queries() {
     });
     timed("usage_over_time year", || {
         crate::usage_over_time::try_query_usage_over_time(
-            replays.clone(),
-            UsageOverTimeQuery {
+            &replays,
+            &UsageOverTimeQuery {
                 subject: UsageSubject::Race("Zerg".to_string()),
                 grain: TimeGrain::Year,
             },
         )
     });
     timed("unit_snapshot_stats", || {
-        crate::patch_overview::unit_stats::try_query_unit_snapshot_stats(
-            replays.clone(),
-            "Marine".to_string(),
-        )
+        crate::patch_overview::unit_stats::try_query_unit_snapshot_stats(&replays, "Marine")
     });
 }

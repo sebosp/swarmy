@@ -75,6 +75,20 @@ pub struct PatchUnitRow {
     pub values: Vec<PatchValue>,
 }
 
+/// A level of an upgrade of a unit in the dependency tree of the upgrades: its requirements and
+/// the levels that require it.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct UpgradeNode {
+    /// The id of the level, i.e. `TerranInfantryWeaponsLevel2`; the icons are by it.
+    pub id: String,
+    /// The cost, as the Unit Overview writes it: `175m 175g, 136 s`.
+    pub cost: String,
+    /// The structures it needs, i.e. `Armory`.
+    pub requires_units: Vec<String>,
+    /// The levels that need this one.
+    pub children: Vec<UpgradeNode>,
+}
+
 /// A unit and its properties in every patch.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct PatchUnit {
@@ -83,6 +97,10 @@ pub struct PatchUnit {
     /// The protocol versions, oldest first, the row values are in the same order.
     pub versions: Vec<u32>,
     pub rows: Vec<PatchUnitRow>,
+    /// The upgrades of the unit in the latest patch as trees: the first level of each upgrade,
+    /// the levels that require it under it.
+    #[serde(default)]
+    pub upgrade_trees: Vec<UpgradeNode>,
 }
 
 /// A property of a unit that changed in a patch.
@@ -161,6 +179,30 @@ impl ExceptionalUnitGame {
     }
 }
 
+/// A change of type of a unit in the games, `Roach` to `RoachBurrowed`
+/// (`patch_overview::unit_stats::forms`).
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct UnitFormChange {
+    pub from: String,
+    pub to: String,
+    /// How many times in the snapshot.
+    pub changes: u32,
+}
+
+/// A form of a unit (the unit itself included) with its stats in the latest balance data, for the
+/// comparison of the forms in the Unit Overview; empty strings for what the form has not.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct UnitForm {
+    pub name: String,
+    pub life: String,
+    pub armor: String,
+    pub speed: String,
+    /// The weapons with their range, `CrucioShockCannon (13)`.
+    pub weapons: String,
+    /// The abilities with a named command, comma separated.
+    pub abilities: String,
+}
+
 /// How a unit was used in the games of the snapshot.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct UnitSnapshotStats {
@@ -188,6 +230,12 @@ pub struct UnitSnapshotStats {
     pub kills_per_unit_threshold: f64,
     /// The exceptional games, the most kills per unit first.
     pub exceptional: Vec<ExceptionalUnitGame>,
+    /// The changes of type between the unit and its forms in the games, the most frequent first.
+    #[serde(default)]
+    pub form_changes: Vec<UnitFormChange>,
+    /// The unit and its forms with their stats of the latest balance data, the unit first.
+    #[serde(default)]
+    pub forms: Vec<UnitForm>,
 }
 
 impl UnitSnapshotStats {

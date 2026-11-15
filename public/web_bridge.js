@@ -34,8 +34,15 @@
     }
   }
 
+  // The view of the address (#/replay-detail?... is replay-detail), for the access log of the
+  // server: which views are used, which queries are slow. See src-tauri/src/access_log.rs.
+  function viewName() {
+    const match = /^#\/([A-Za-z0-9_-]+)/.exec(window.location.hash || "");
+    return match ? match[1] : "home";
+  }
+
   function headers() {
-    const result = { "Content-Type": "application/json" };
+    const result = { "Content-Type": "application/json", "X-Swarmy-View": viewName() };
     const key = adminKey();
     if (key) {
       result["X-Swarmy-Admin-Key"] = key;
@@ -91,8 +98,15 @@
 
   // The appearance is of this browser, the rest of the settings are of the server.
   function saveAppearance(settings) {
-    const { theme, zoom_percent, reduce_motion, underline_links, focus_outline, max_table_rows } =
-      settings;
+    const {
+      theme,
+      zoom_percent,
+      reduce_motion,
+      underline_links,
+      focus_outline,
+      max_table_rows,
+      show_polars_debug,
+    } = settings;
     store.set(SETTINGS_STORE, {
       theme,
       zoom_percent,
@@ -100,6 +114,7 @@
       underline_links,
       focus_outline,
       max_table_rows,
+      show_polars_debug,
     });
   }
 
@@ -155,8 +170,6 @@
     connect_swarmy_rerun: desktopOnly("The Rerun viewer"),
     exec_swarmy_bevy_map_caches: desktopOnly("swarmy-bevy"),
     exec_swarmy_bevy_replay: desktopOnly("swarmy-bevy"),
-    exec_swarmy_bevy_siege_spots: desktopOnly("swarmy-bevy"),
-    exec_swarmy_bevy_map_layers: desktopOnly("swarmy-bevy"),
     query_replay_lesson: desktopOnly("The lesson of a new replay"),
   };
 

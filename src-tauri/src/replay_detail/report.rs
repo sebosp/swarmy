@@ -387,7 +387,8 @@ fn report_of_a_replay() {
         .unwrap()
         .parse()
         .unwrap();
-    let detail = super::data::try_query_replay_detail(replay_path, id).unwrap();
+    let caches = std::env::var("SWARMY_TEST_CACHES").unwrap_or_default();
+    let detail = super::data::try_query_replay_detail(replay_path, &caches, id).unwrap();
     let html = render_report(&detail);
     std::fs::write(std::env::var("SWARMY_TEST_OUT").unwrap(), &html).unwrap();
     assert!(html.contains("Three things to fix"));

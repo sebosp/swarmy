@@ -1,12 +1,13 @@
-//! Welcome to swarmy: what it is for, where its data comes from and the versions it is built with.
+//! Welcome to swarmy: what it is for and where its snapshot is; where the data comes from and the
+//! versions are in Help.
 
 use crate::components::loading::Loading;
-use crate::navigation::{use_navigation, TOUR_PAGE};
+use crate::navigation::{TOUR_PAGE, use_navigation};
 use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, FADERS, GITHUB_LOGO, SIGNPOST};
+use phosphor_leptos::{EYE, FADERS, GITHUB_LOGO, Icon, IconWeight, SIGNPOST};
 use swarmy_common::*;
 
 pub const ISSUES_URL: &str = "https://github.com/sebosp/swarmy/issues";
@@ -42,7 +43,7 @@ fn SetupStatus() -> impl IntoView {
     let (settings, set_settings) = signal(None::<AppSettings>);
     let (_, set_app_settings) = signal(AppSettings::default());
     // The swarmy of the remote backend, None until it answers.
-    let backend_version = RwSignal::new(None::<Result<String, String>>);
+    let backend_version = RwSignal::new(None::<Result<(String, String), String>>);
     crate::settings::with_fetch_current_app_config(set_app_settings, move |loaded: AppSettings| {
         if loaded.is_remote() {
             let args = RemoteBackendArgs {
@@ -52,12 +53,7 @@ fn SetupStatus() -> impl IntoView {
             spawn_local(async move {
                 let checked = invoke_json::<AppVersions>("check_remote_backend", &args)
                     .await
-                    .map(|versions| {
-                        format!(
-                            "swarmy {}, s2protocol {}",
-                            versions.swarmy, versions.s2protocol
-                        )
-                    });
+                    .map(|versions| (versions.swarmy, versions.s2protocol));
                 backend_version.set(Some(checked));
             });
         }
@@ -121,7 +117,7 @@ fn SetupStatus() -> impl IntoView {
                             if remote {
                                 view! {
                                     <span>
-                                        "On the remote backend "
+                                        "Remote: "
                                         <span class="font-mono">{host.clone()}</span>
                                     </span>
                                 }
@@ -130,34 +126,37 @@ fn SetupStatus() -> impl IntoView {
                                 view! { <span>"On this computer"</span> }.into_any()
                             },
                         )}
+                        // The two versions one under the other, the numbers aligned.
                         {remote.then(|| row(
                             "Backend version".to_string(),
                             view! {
-                                <span>
-                                    {move || match backend_version.get() {
-                                        None => "Asking the backend...".to_string(),
-                                        Some(Ok(version)) => version,
-                                        Some(Err(err)) => format!("Unreachable: {err}"),
-                                    }}
-                                </span>
+                                {move || match backend_version.get() {
+                                    None => view! { <span>"Asking the backend..."</span> }.into_any(),
+                                    Some(Ok((swarmy, s2protocol))) => view! {
+                                        <table class="text-sm">
+                                            <tbody>
+                                                <tr>
+                                                    <td class="pr-3 text-muted">"swarmy"</td>
+                                                    <td class="font-mono tabular-nums">{swarmy}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="pr-3 text-muted">"s2protocol"</td>
+                                                    <td class="font-mono tabular-nums">{s2protocol}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    }
+                                        .into_any(),
+                                    Some(Err(err)) => view! { <span>{format!("Unreachable: {err}")}</span> }.into_any(),
+                                }}
                             }
                             .into_any(),
                         ))}
-                        {row(
-                            if remote {
-                                format!("Replays directory on {host}")
-                            } else {
-                                "Replays directory".to_string()
-                            },
-                            if crate::components::web_session::is_web() && replay_path.is_empty() {
-                                view! { <span class="text-muted">"Kept by the server"</span> }
-                                    .into_any()
-                            } else if remote && replay_path.is_empty() {
-                                view! { <span class="text-muted">"Not sent by the backend, update it to swarmy 0.2.3 or later"</span> }.into_any()
-                            } else {
-                                path_view(replay_path)
-                            },
-                        )}
+                        // The replays directory of a remote backend is the backend's business.
+                        {(!remote).then(|| row(
+                            "Replays directory".to_string(),
+                            path_view(replay_path.clone()),
+                        ))}
                         {(!remote).then(|| row(
                             "Map caches directory".to_string(),
                             path_view(settings.cache_path.clone()),
@@ -166,28 +165,30 @@ fn SetupStatus() -> impl IntoView {
                         {(remote && !settings.replay_path.is_empty()).then(|| row(
                             "Replays on this computer".to_string(),
                             view! {
-                                <span>
+                                <span class="inline-flex items-center gap-2">
                                     <span class="font-mono break-all">{settings.replay_path.clone()}</span>
-                                    <span class="text-muted">" (watched for new replays)"</span>
+                                    <span class="text-muted" title="Automatically checked for replays">
+                                        <Icon icon=EYE weight=IconWeight::Light />
+                                    </span>
                                 </span>
                             }
                             .into_any(),
                         ))}
                     </tbody>
                 </table>
-                <div class="flex gap-2">
-                    <button
-                        class=if not_configured { "btn btn-accent btn-sm" } else { "btn btn-ghost btn-sm" }
-                        on:click=open_config
-                    >
-                        <Icon icon=FADERS weight=IconWeight::Light />
-                        "Open Config"
-                    </button>
-                    <button class="btn btn-primary btn-sm" on:click=open_tour title="A guided tour of the views and the configuration">
-                        <Icon icon=SIGNPOST weight=IconWeight::Light />
-                        "Take the tour"
-                    </button>
-                </div>
+                // The first time: where to start. Once set up, Config and the Tour are in the menu.
+                {not_configured.then(|| view! {
+                    <div class="flex gap-2">
+                        <button class="btn btn-accent btn-sm" on:click=open_config>
+                            <Icon icon=FADERS weight=IconWeight::Light />
+                            "Open Config"
+                        </button>
+                        <button class="btn btn-primary btn-sm" on:click=open_tour title="A guided tour of the views and the configuration">
+                            <Icon icon=SIGNPOST weight=IconWeight::Light />
+                            "Take the tour"
+                        </button>
+                    </div>
+                })}
             </div>
         }
         .into_any()
@@ -205,50 +206,13 @@ pub fn Home() -> impl IntoView {
                 <p class="mt-2 text-sm text-muted">
                     "Swarmy reads a whole directory of replays at once to help you identify trends: \
                     which units, openings and timings are played on each patch and how they change \
-                    over time. Casters can collect statistics about players, maps, race balance \
+                    over time."
+                    <br />
+                    "Casters can collect statistics about players, maps, race balance \
                     (PvT, TvZ, ZvP...) and player vs player records before a match."
-                </p>
-                <p class="mt-2 text-sm text-muted">
-                    {(!crate::components::web_session::is_web())
-                        .then_some("Set the replay directory in Config, then Optimize it into a snapshot in Scan. ")}
-                    "The Tour walks through every view, the Changelog has what is new and Help \
-                    describes how the statistics are calculated."
                 </p>
             </div>
             <SetupStatus />
-            {(!crate::components::web_session::is_web()).then(|| view! { <OpenLink /> })}
-            <div>
-                <h2 class="text-base/7 font-semibold text-base-content">"Where the data comes from"</h2>
-                <ul class="mt-1 list-disc list-inside text-sm text-muted space-y-1">
-                    <li>
-                        "The replays (.SC2Replay) and the map caches of Blizzard's StarCraft II, the \
-                        unit costs and button icons from the balance data exported with the \
-                        StarCraft II Editor."
-                    </li>
-                    <li>
-                        "They are decoded by "
-                        <ExternalLink url="https://github.com/sebosp/s2protocol-rs" label="s2protocol-rs" />
-                        ", a rustified version of Blizzard's "
-                        <ExternalLink url="https://github.com/Blizzard/s2protocol/" label="s2protocol" />
-                        ", reading the MPQ archives with "
-                        <ExternalLink url="https://github.com/sebosp/nom-mpq" label="nom-mpq" />
-                        ", a rustified version of "
-                        <ExternalLink url="https://github.com/arkx/mpyq/" label="mpyq" />
-                        "."
-                    </li>
-                    <li>
-                        "The map ramps of swarmy-bevy use the ramp algorithm of "
-                        <ExternalLink
-                            url="https://github.com/RFEphemeration/sc2-map-analyzer/"
-                            label="sc2-map-analyzer"
-                        />
-                        "."
-                    </li>
-                </ul>
-            </div>
-            <p class="text-sm text-muted">
-                "The versions of swarmy and of the libraries it is built with are in Help."
-            </p>
             <div class="text-sm text-muted">
                 <p>"Comments and suggestions are welcome, as well as bug reports."</p>
                 <button
@@ -263,53 +227,8 @@ pub fn Home() -> impl IntoView {
     }
 }
 
-/// Opens in the app a link of the browser version of swarmy, i.e. one sent by someone: the view and
-/// what it shows. The data is the one of the backend of the app, it should be the server of the
-/// link.
-#[component]
-fn OpenLink() -> impl IntoView {
-    let navigation = crate::navigation::use_navigation();
-    let link = RwSignal::new(String::new());
-    let error = RwSignal::new(None::<&'static str>);
-    let open = move || {
-        let text = link.get_untracked();
-        match text.split_once('#') {
-            Some((_, route)) if route.starts_with('/') => {
-                error.set(None);
-                crate::navigation::open_route(&navigation, route);
-            }
-            _ => error.set(Some("This is not a link of a swarmy view, they look like http://server:7878/#/replay-detail?replay=1234")),
-        }
-    };
-    view! {
-        <div>
-            <h2 class="text-base/7 font-semibold text-base-content">"Open a link"</h2>
-            <p class="text-sm text-muted">
-                "A link of the browser version of swarmy, the address of a view in the browser, opens the same view here."
-            </p>
-            <form
-                class="mt-2 flex items-center gap-2"
-                on:submit=move |ev| {
-                    ev.prevent_default();
-                    open();
-                }
-            >
-                <input
-                    type="url"
-                    class="input input-sm w-96 bg-base-200 text-base-content border border-base-content/20"
-                    placeholder="http://server:7878/#/player?name=Serral"
-                    prop:value=move || link.get()
-                    on:input=move |ev| link.set(event_target_value(&ev))
-                />
-                <button class="btn btn-sm" type="submit">"Open"</button>
-            </form>
-            <p class="mt-1 text-sm text-error" role="alert">{move || error.get()}</p>
-        </div>
-    }
-}
-
 /// Opens the link in the default browser, only the project links are allowed by the backend.
-fn open_external_url(url: &'static str) {
+pub fn open_external_url(url: &'static str) {
     spawn_local(async move {
         #[derive(serde::Serialize)]
         struct Url {
@@ -323,7 +242,7 @@ fn open_external_url(url: &'static str) {
 
 /// A link that opens in the default browser.
 #[component]
-fn ExternalLink(url: &'static str, label: &'static str) -> impl IntoView {
+pub fn ExternalLink(url: &'static str, label: &'static str) -> impl IntoView {
     view! {
         <a
             href="#"

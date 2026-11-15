@@ -2,9 +2,9 @@
 //! that only control the army and forget to macro, expand or upgrade.
 
 use super::data::{EXPANSION_TOWNHALLS, TOWNHALLS};
-use crate::replay_rerun::decisions::{base_unit_name, WORKERS};
-use s2protocol::game_events::VersionedBalanceUnits;
+use crate::replay_rerun::decisions::{WORKERS, base_unit_name};
 use s2protocol::SC2Unit;
+use s2protocol::game_events::VersionedBalanceUnits;
 use swarmy_common::*;
 
 /// The structures that research upgrades, selecting them is paying attention to upgrades.

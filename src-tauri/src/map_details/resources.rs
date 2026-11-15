@@ -1,7 +1,7 @@
 //! The resources and start locations of a map, from the objects placed in its map cache.
 
-use s2protocol::cache_handles::cache_objects::PlacedObjects;
 use s2protocol::cache_handles::MapCache;
+use s2protocol::cache_handles::cache_objects::PlacedObjects;
 use swarmy_common::*;
 
 /// The minerals of a large mineral field, since patch 4.7.1. The map caches do not have the

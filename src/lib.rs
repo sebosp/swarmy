@@ -4,7 +4,6 @@ pub mod common;
 pub mod help;
 pub mod home;
 pub mod map_details;
-pub mod map_scout;
 pub mod map_stats;
 pub mod navigation;
 pub mod patch_overview;

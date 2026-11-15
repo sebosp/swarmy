@@ -20,7 +20,8 @@ Then, in swarmy:
 
 ## Logs
 
-swarmy writes a log file per day, `swarmy.<date>.log`, and keeps the last 7:
+swarmy writes a log file per day, `swarmy.<date>.log`, and keeps the last 7; `swarmy --serve` also
+writes its [access log](#the-access-log-and-the-metrics), `access.<date>.log`, and keeps 400:
 
 | Platform | Directory |
 |----------|-----------|
@@ -214,6 +215,50 @@ With `SWARMY_SERVER_TOKEN` and no key file nothing is public, not even the brows
 both, the token works as the key for the desktop apps. With neither, a server of a private network,
 everyone is the administrator.
 
+### The access log and the metrics
+
+The server writes a JSON line per request in `access.<date>.log` of the [logs](#logs) directory
+(the last 400 days), to see which views are used and which queries are slow:
+
+```json
+{"timestamp":"2026-11-09T20:31:02.114Z","level":"INFO","message":"access","route":"query_replay_list","method":"POST","path":"/api/query_replay_list","status":200,"ms":412,"bytes":18234,"view":"replay-list","admin":false,"visitor":"3f9a1c0b7d2e","country":"NL","args":"{\"page\":1,\"player\":\"Serral\"}","user_agent":"Mozilla/5.0 ..."}
+```
+
+- `route`: the command of `POST /api/<command>`, `files/replay`, `web/session`, `static` for the
+  files of the browser version, `unknown_command` for a command the server does not have.
+- `view`: the view of the browser version that asked (`#/replay-detail` is `replay-detail`, `home`
+  for the front page), `-` for a swarmy app or another client.
+- `admin`: whether the request ran as the administrator, to leave your own use out.
+- `visitor`: a short id of the visitor, the same for the same address until the server restarts;
+  the address itself is not written. `country` is the one Cloudflare says, when the server is
+  behind it; `-` otherwise.
+- `args`: the arguments of the public commands, cut at 1,000 characters, to find the expensive
+  queries; the commands of the administrator (the notes, the settings) have none written. For the files of the server, the query of the address.
+
+A quick look with DuckDB, the views by use and the slowest commands:
+
+```sql
+SELECT view, count(*) AS requests, count(DISTINCT visitor) AS visitors
+FROM read_json_auto('~/.local/share/com.swarmy/logs/access.*.log') WHERE NOT admin
+GROUP BY view ORDER BY requests DESC;
+SELECT route, count(*), quantile_cont(ms, 0.95) AS p95_ms, max(ms) AS max_ms
+FROM read_json_auto('~/.local/share/com.swarmy/logs/access.*.log')
+GROUP BY route ORDER BY p95_ms DESC;
+```
+
+`GET /metrics` has the same as [Prometheus](https://prometheus.io) metrics: `swarmy_requests_total`
+by route, view and status, `swarmy_request_duration_seconds` by route, `swarmy_build_info` and
+`swarmy_start_time_seconds`. They are the administrator's, Prometheus sends the key as a bearer
+token:
+
+```yaml
+scrape_configs:
+  - job_name: swarmy
+    scheme: https
+    static_configs: [{ targets: ["swarmy.nl"] }]
+    authorization: { credentials_file: /etc/prometheus/swarmy-admin-key }
+```
+
 For a binary that is not from a package, `scripts/install-server-service-over-ssh.sh <host>` installs
 the service on another computer.
 
@@ -227,15 +272,19 @@ It needs a Battle.net application of your own:
 1. Sign in to [community.developer.battle.net](https://community.developer.battle.net) and create a
    client (API Access, Create Client). swarmy uses the client credentials flow: the redirect URLs
    and the service URL of the form are not used, any address will do.
-2. In swarmy, Config, Battle.net API: paste the Client ID and the Client Secret, Save, then Test.
-   Config says whether they work, and lets you Test them again or Remove them. In the browser
-   version only the administrator sets them, after typing the administrator key.
+2. In the swarmy app, Config, Battle.net API: paste the Client ID and the Client Secret, Save,
+   then Test. Config says whether they work, and lets you Test them again or Remove them.
+3. For a server (`swarmy --serve`), set them on the server itself: `SWARMY_BATTLENET_CLIENT_ID`
+   and `SWARMY_BATTLENET_CLIENT_SECRET` in its environment (i.e. `~/.config/swarmy/server.env`,
+   the `EnvironmentFile` of its unit), or a `battlenet.json` with `client_id` and `client_secret`
+   in its data directory, readable by its user only. The browser version has no Battle.net section
+   in Config and the server refuses the commands that read or set the credentials, with or
+   without the administrator key: a secret is never typed in a browser.
 
 The credentials stay in the backend: `battlenet.json` in its data directory, readable by its user
-only, never sent back to the views or the browser. For a server, `SWARMY_BATTLENET_CLIENT_ID` and
-`SWARMY_BATTLENET_CLIENT_SECRET` in its environment (i.e. `/etc/swarmy/server.env`) replace the file,
-and Config says that they come from the environment. Never commit them or share the Client Secret;
-if it leaks, generate a new one in the Battle.net page of the client.
+only, never sent back to the views or the browser; the environment replaces the file. Never commit
+them or share the Client Secret; if it leaks, generate a new one in the Battle.net page of the
+client.
 
 The profiles are kept 30 minutes. The accounts of the Americas, Europe, Korea and Taiwan have
 profiles; the ones of China have no community API.

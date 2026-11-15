@@ -6,11 +6,11 @@
 
 use clap::Parser;
 use std::path::PathBuf;
-use tracing_subscriber::field::RecordFields;
-use tracing_subscriber::fmt::format::{DefaultFields, FmtSpan, Writer};
-use tracing_subscriber::fmt::FormatFields;
-use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::field::RecordFields;
+use tracing_subscriber::fmt::FormatFields;
+use tracing_subscriber::fmt::format::{DefaultFields, FmtSpan, Writer};
+use tracing_subscriber::prelude::*;
 
 /// The identifier of tauri.conf.json, the directories of the app are named after it.
 pub const APP_IDENTIFIER: &str = "com.swarmy";
@@ -20,6 +20,10 @@ pub const LOG_ENV: &str = "SWARMY_LOG";
 
 /// The log files kept, one per day.
 const MAX_LOG_FILES: usize = 7;
+
+/// The access log files of `--serve` kept, one per day: a year, they are what the use of the
+/// server is measured with.
+const MAX_ACCESS_LOG_FILES: usize = 400;
 
 /// The fields of the log files, a type of its own so that they are not formatted once with the
 /// colors of the standard output and reused.
@@ -112,42 +116,75 @@ fn verbosity_filter(verbose: u8) -> &'static str {
     }
 }
 
+/// A log file per day in the logs directory, `<prefix>.<date>.log`, None when the directory
+/// cannot be written.
+fn daily_file(
+    prefix: &str,
+    max_files: usize,
+) -> Option<tracing_appender::rolling::RollingFileAppender> {
+    let dir = log_dir()?;
+    tracing_appender::rolling::Builder::new()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix(prefix)
+        .filename_suffix("log")
+        .max_log_files(max_files)
+        .build(&dir)
+        .inspect_err(|err| eprintln!("No {prefix} log files in {}: {err}", dir.display()))
+        .ok()
+}
+
 /// Logs to the standard output and to the log files. The time spans take, i.e. of the setup, the
-/// plugins and the commands of the frontend, are logged from -vv.
+/// plugins and the commands of the frontend, are logged from -vv. With `--serve`, the requests go
+/// to the `access.<date>.log` files as a JSON line each (see `access_log`), and only there: their
+/// target is not in the filter of the other logs unless asked (`SWARMY_LOG=swarmy_access=info`).
 pub fn init(args: &Args) {
     let filter = std::env::var(LOG_ENV)
         .ok()
         .filter(|filter| !filter.trim().is_empty())
         .unwrap_or_else(|| verbosity_filter(args.verbose).to_string());
+    let env_filter = || {
+        EnvFilter::try_new(&filter).unwrap_or_else(|err| {
+            eprintln!("Invalid {LOG_ENV} filter {filter:?}: {err}");
+            EnvFilter::new(verbosity_filter(args.verbose))
+        })
+    };
     let span_events = if args.verbose >= 2 || std::env::var(LOG_ENV).is_ok() {
         FmtSpan::CLOSE
     } else {
         FmtSpan::NONE
     };
-    let file_layer = log_dir().and_then(|dir| {
-        tracing_appender::rolling::Builder::new()
-            .rotation(tracing_appender::rolling::Rotation::DAILY)
-            .filename_prefix("swarmy")
-            .filename_suffix("log")
-            .max_log_files(MAX_LOG_FILES)
-            .build(&dir)
-            .inspect_err(|err| eprintln!("No log files in {}: {err}", dir.display()))
-            .ok()
-            .map(|appender| {
-                tracing_subscriber::fmt::layer()
-                    .with_ansi(false)
-                    .fmt_fields(FileFields::default())
-                    .with_span_events(span_events.clone())
-                    .with_writer(appender)
-            })
+    let file_layer = daily_file("swarmy", MAX_LOG_FILES).map(|appender| {
+        tracing_subscriber::fmt::layer()
+            .with_ansi(false)
+            .fmt_fields(FileFields::default())
+            .with_span_events(span_events.clone())
+            .with_writer(appender)
+            .with_filter(env_filter())
     });
+    let access_layer = args
+        .serve
+        .and_then(|_| daily_file("access", MAX_ACCESS_LOG_FILES))
+        .map(|appender| {
+            tracing_subscriber::fmt::layer()
+                .json()
+                .flatten_event(true)
+                .with_current_span(false)
+                .with_span_list(false)
+                .with_target(false)
+                .with_ansi(false)
+                .with_writer(appender)
+                .with_filter(tracing_subscriber::filter::filter_fn(|meta| {
+                    meta.target() == crate::access_log::ACCESS_TARGET
+                }))
+        });
     let result = tracing_subscriber::registry()
-        .with(EnvFilter::try_new(&filter).unwrap_or_else(|err| {
-            eprintln!("Invalid {LOG_ENV} filter {filter:?}: {err}");
-            EnvFilter::new(verbosity_filter(args.verbose))
-        }))
-        .with(tracing_subscriber::fmt::layer().with_span_events(span_events))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_span_events(span_events)
+                .with_filter(env_filter()),
+        )
         .with(file_layer)
+        .with(access_layer)
         .try_init();
     if let Err(err) = result {
         eprintln!("The logs are already configured: {err}");

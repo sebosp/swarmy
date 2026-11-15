@@ -3,12 +3,13 @@
 use super::compare::PlayerComparison;
 use super::insights::PlayerInsightsView;
 use crate::components::charts::GamesWinsChart;
+use crate::components::debug::Debuggable;
 use crate::components::links::{
     MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, ResultMarker,
 };
 use crate::components::loading::Loading;
 use crate::components::name_select::NameSelect;
-use crate::components::paged::{page_of, PagedSort, Pager, SortKey, SortTh};
+use crate::components::paged::{PagedSort, Pager, SortKey, SortTh, page_of};
 use crate::components::section::Panel;
 use crate::components::units::UnitsTable;
 use crate::navigation::use_navigation;
@@ -42,8 +43,9 @@ pub fn PlayerDetailView() -> impl IntoView {
     let loading = RwSignal::new(false);
     // The opponent the matches are filtered by, empty for all.
     let opponent = RwSignal::new(String::new());
-    // The player compared with, empty for none.
-    let compare_with = RwSignal::new(String::new());
+    // The player compared with, empty for none: in the address (`vs=`), so the comparison can be
+    // shared and the Back button undoes it.
+    let compare_with = navigation.compare_name;
     // Asks for the player again, i.e. after its accounts changed.
     let reload = RwSignal::new(0u32);
     Effect::new(move |_| {
@@ -95,43 +97,66 @@ pub fn PlayerDetailView() -> impl IntoView {
                 <Loading message="Analysing every game of the player, the first time takes a few seconds..." />
             </Show>
             <ErrorMessage error />
-            {move || detail.get().map(|detail| view! {
-                <PlayerHeader detail=detail.clone() />
-                <AccountsPanel detail=detail.clone() reload />
-                <super::battlenet::BattleNetProfiles accounts=detail.accounts.clone() />
-                {
-                    let player = detail.clone();
-                    move || {
-                        let other = compare_with.get();
-                        (!other.is_empty() && other != player.player_name).then(|| view! {
-                            <PlayerComparison player=player.clone() opponent_name=other />
-                        })
+            {move || detail.get().map(|detail| {
+                // What each Debuggable block shows, taken out of `detail` first: each block is a
+                // closure.
+                let header = detail.clone();
+                let accounts = detail.clone();
+                let by_month = detail.by_month.clone();
+                let by_version = detail.by_version.clone();
+                let units = detail.units.clone();
+                let opponents = detail.opponents.clone();
+                let matches = detail.matches.clone();
+                view! {
+                    <Debuggable query="player_detail::game_results" view_source=crate::source!()>
+                        <PlayerHeader detail=header />
+                    </Debuggable>
+                    <Debuggable query="player_detail::accounts" view_source=crate::source!()>
+                        <AccountsPanel detail=accounts reload />
+                    </Debuggable>
+                    <super::battlenet::BattleNetProfiles accounts=detail.accounts.clone() />
+                    {
+                        let player = detail.clone();
+                        move || {
+                            let other = compare_with.get();
+                            (!other.is_empty() && other != player.player_name).then(|| view! {
+                                <PlayerComparison player=player.clone() opponent_name=other />
+                            })
+                        }
                     }
+                    <Debuggable query="player_detail::game_results" view_source=crate::source!()>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <h2 class=HEADING_CLASS>"Games and wins per month"</h2>
+                                <GamesWinsChart data=by_month />
+                            </div>
+                            <div>
+                                <h2 class=HEADING_CLASS>"Games and wins per protocol version"</h2>
+                                <GamesWinsChart data=by_version />
+                            </div>
+                        </div>
+                    </Debuggable>
+                    // The units and the opponents one under the other when the window is too narrow for both.
+                    <div class="grid grid-cols-[repeat(auto-fit,minmax(32rem,1fr))] gap-4">
+                        <Debuggable query="player_detail::unit_effectiveness" view_source=crate::source!()>
+                            <div class="min-w-0 overflow-x-auto">
+                                <h2 class=HEADING_CLASS>"Units"</h2>
+                                <UnitsTable
+                                    units=units
+                                    min_produced=MIN_PRODUCED_FOR_EFFECTIVENESS
+                                    max_rows=TOP_UNITS
+                                />
+                            </div>
+                        </Debuggable>
+                        <Debuggable query="player_detail::opponents" view_source=crate::source!()>
+                            <OpponentsTable opponents=opponents opponent />
+                        </Debuggable>
+                    </div>
+                    <PlayerInsightsView insights=detail.insights.clone() />
+                    <Debuggable query="player_detail::matches" view_source=crate::source!()>
+                        <MatchesTable matches=matches opponent />
+                    </Debuggable>
                 }
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <h2 class=HEADING_CLASS>"Games and wins per month"</h2>
-                        <GamesWinsChart data=detail.by_month.clone() />
-                    </div>
-                    <div>
-                        <h2 class=HEADING_CLASS>"Games and wins per protocol version"</h2>
-                        <GamesWinsChart data=detail.by_version.clone() />
-                    </div>
-                </div>
-                // The units and the opponents one under the other when the window is too narrow for both.
-                <div class="grid grid-cols-[repeat(auto-fit,minmax(32rem,1fr))] gap-4">
-                    <div class="min-w-0 overflow-x-auto">
-                        <h2 class=HEADING_CLASS>"Units"</h2>
-                        <UnitsTable
-                            units=detail.units.clone()
-                            min_produced=MIN_PRODUCED_FOR_EFFECTIVENESS
-                            max_rows=TOP_UNITS
-                        />
-                    </div>
-                    <OpponentsTable opponents=detail.opponents.clone() opponent />
-                </div>
-                <PlayerInsightsView insights=detail.insights.clone() />
-                <MatchesTable matches=detail.matches.clone() opponent />
             })}
         </div>
     }
@@ -265,9 +290,6 @@ fn AccountsPanel(detail: PlayerDetail, reload: RwSignal<u32>) -> impl IntoView {
     let has_similar = !detail.similar_accounts.is_empty();
     view! {
         <Panel title="Accounts">
-            <p class="text-xs text-muted">
-                "The StarCraft II accounts of the player, with the names they played as: an account keeps its games when its name or clan tag changes. Add the other accounts of the same player, i.e. of another region or of a tournament, so that they count as one player; the accounts with the same name already do."
-            </p>
             <table class=TABLE_CLASS data-sort-key="player-accounts">
                 <thead>
                     <tr class="text-left text-muted">

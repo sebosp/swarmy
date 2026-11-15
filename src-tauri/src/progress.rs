@@ -1,210 +1,50 @@
-//! The progress of the main player of Config: the workers at 06:00, the income at 08:00, the
-//! seconds supply blocked and the army at 10:00 of each of their last games, and their goals.
+//! Progress: the workers at 06:00, the income at 08:00, the seconds supply blocked and the army at
+//! 10:00 of each of the last games of a player, and their goals. Each statistic is a query file
+//! of this directory (AGENTS.md, "A query is a file"); this file runs them and puts the answer
+//! together.
 
-use crate::data::*;
+pub mod games;
+pub mod metrics;
+
+use crate::data::{IpcSnapshot, QueryMeta};
 use crate::host::SwarmyHost;
-use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
-use polars::prelude::*;
 use std::collections::BTreeMap;
 use swarmy_common::*;
 
-/// The last games of the player shown.
-pub const PROGRESS_GAMES: u32 = 200;
-
-/// The control of the computer players in the details.
-const COMPUTER_CONTROL: u8 = 3;
-
-/// The seconds between two stats of a player, 160 game loops.
-const STATS_INTERVAL_SECONDS: f64 = 160. / GAME_LOOPS_PER_SECOND;
-
-/// The stats of a minute are the last ones of the seconds before it.
-const STATS_WINDOW_SECONDS: f64 = 15.;
+/// The queries of the view, for the debug links of the panels.
+pub const QUERIES: [QueryMeta; 2] = [games::META, metrics::META];
 
 const GOALS_KEY: &str = "progress_goals";
 
-/// The name without the clan tag, i.e. `&lt;chezs&gt;<sp/>Sazed` is `Sazed`.
-fn name_without_clan(column: &str) -> Expr {
-    col(column).str().split(lit("<sp/>")).list().last()
+/// The name the view follows from a player name as stored in a replay: without the clan tag,
+/// as the Main Player Name of Config is typed.
+pub fn name_of(player_name: &str) -> &str {
+    crate::player_detail::name_without_clan(player_name)
 }
 
-/// The last stats of each game and player in the seconds before the minute.
-fn stats_at(stats: &LazyFrame, minute: u32, value: Expr, alias: &str) -> LazyFrame {
-    let end = minute as f64 * 60. * GAME_LOOPS_PER_SECOND;
-    let start = end - STATS_WINDOW_SECONDS * GAME_LOOPS_PER_SECOND;
-    stats
-        .clone()
-        .filter(
-            col("ext_replay_loop")
-                .gt(lit(start as i64))
-                .and(col("ext_replay_loop").lt_eq(lit(end as i64))),
-        )
-        .sort(["ext_replay_loop"], Default::default())
-        .group_by([col("ext_fs_id"), col("player_id")])
-        .agg([value.last().cast(DataType::Float64).alias(alias)])
-}
-
+/// The last games of the player with their metrics, and the goals.
 pub fn try_query_progress(
-    replay_path: String,
-    player: String,
+    replay_path: &str,
+    player: &str,
     goals: BTreeMap<String, f64>,
 ) -> Result<ProgressReport, SwarmyError> {
     let mut report = ProgressReport {
-        player: player.clone(),
+        player: player.to_string(),
         goals,
         ..Default::default()
     };
     if player.is_empty() {
         return Ok(report);
     }
-    let ipc_path = build_ipc_path(&sanitize_replay_path(&replay_path)?)?;
-    let details = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?.with_columns([
-        // The tracker player id is the position of the player in the details.
-        (int_range(lit(0), len(), 1, DataType::UInt32) + lit(1u32))
-            .over([col("ext_fs_id")])?
-            .cast(DataType::UInt8)
-            .alias("player_id"),
-        name_without_clan("player_name").alias("name"),
-    ]);
-    let own = details
-        .clone()
-        .filter(col("name").eq(lit(player.as_str())))
-        .sort(
-            ["ext_datetime"],
-            SortMultipleOptions::default().with_order_descending(true),
-        )
-        .unique_stable(Some(cols(["ext_fs_id"])), UniqueKeepStrategy::First)
-        .limit(PROGRESS_GAMES)
-        .select([
-            col("ext_fs_id"),
-            col("player_id"),
-            col("player_team_id").alias("team_id"),
-            race_name_expr("player_race").alias("race"),
-            col("player_result").alias("result"),
-            col("title"),
-            col("ext_datetime")
-                .dt()
-                .to_string("%Y-%m-%d %H:%M")
-                .alias("date"),
-        ])
-        .collect()?;
-    let game_ids = u64_values(&own, "ext_fs_id")?;
-    let opponents = details
-        .filter(is_in_replays(&game_ids))
-        .join(
-            own.clone()
-                .lazy()
-                .select([col("ext_fs_id"), col("team_id")]),
-            [col("ext_fs_id")],
-            [col("ext_fs_id")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .filter(col("player_team_id").neq(col("team_id")))
-        .group_by([col("ext_fs_id")])
-        .agg([
-            col("player_name").alias("opponents"),
-            col("player_control")
-                .eq(lit(COMPUTER_CONTROL))
-                .any(true)
-                .alias("vs_computer"),
-        ]);
-    let stats = scan_snapshot_ipc(&ipc_path, STATS_IPC)?
-        .filter(is_in_replays(&game_ids))
-        .join(
-            own.clone()
-                .lazy()
-                .select([col("ext_fs_id"), col("player_id")]),
-            [col("ext_fs_id"), col("player_id")],
-            [col("ext_fs_id"), col("player_id")],
-            JoinArgs::new(JoinType::Inner),
-        );
-    let blocked = stats
-        .clone()
-        .filter(
-            col("food_made")
-                .gt(lit(0))
-                .and(col("food_used").gt_eq(col("food_made")))
-                .and(col("food_made").lt(lit(200))),
-        )
-        .group_by([col("ext_fs_id"), col("player_id")])
-        .agg([
-            (len().cast(DataType::Float64) * lit(STATS_INTERVAL_SECONDS)).alias("supply_blocked"),
-        ]);
-    let measured = [
-        stats_at(&stats, 6, col("workers_active_count"), "workers_6"),
-        stats_at(
-            &stats,
-            8,
-            col("minerals_collection_rate") + col("vespene_collection_rate"),
-            "income_8",
-        ),
-        stats_at(
-            &stats,
-            10,
-            col("minerals_used_current_army") + col("vespene_used_current_army"),
-            "army_10",
-        ),
-        blocked,
-    ];
-    let mut games = own.lazy().join(
-        opponents,
-        [col("ext_fs_id")],
-        [col("ext_fs_id")],
-        JoinArgs::new(JoinType::Left),
-    );
-    for values in measured {
-        games = games.join(
-            values,
-            [col("ext_fs_id"), col("player_id")],
-            [col("ext_fs_id"), col("player_id")],
-            JoinArgs::new(JoinType::Left),
-        );
-    }
-    let games = games.sort(["date"], Default::default()).collect()?;
-    let ids = u64_values(&games, "ext_fs_id")?;
-    let (dates, titles) = (str_values(&games, "date")?, str_values(&games, "title")?);
-    let (races, results) = (str_values(&games, "race")?, str_values(&games, "result")?);
-    let opponents = games.column("opponents")?.list()?.clone();
-    let vs_computer = games.column("vs_computer")?.bool()?.clone();
-    let metric_values: Vec<(&str, Float64Chunked)> = PROGRESS_METRICS
-        .iter()
-        .map(|metric| -> Result<_, SwarmyError> {
-            let values = games.column(metric.key)?.f64()?.clone();
-            Ok((metric.key, values))
-        })
-        .collect::<Result<_, _>>()?;
-    for idx in 0..games.height() {
-        let names = opponents
-            .get_as_series(idx)
-            .map(|series| -> Result<Vec<String>, SwarmyError> {
-                Ok(series.str()?.iter().flatten().map(str::to_string).collect())
-            })
-            .transpose()?
-            .unwrap_or_default();
-        let mut values = BTreeMap::new();
-        for (key, column) in &metric_values {
-            match (column.get(idx), *key) {
-                (Some(value), _) => {
-                    values.insert(key.to_string(), value);
-                }
-                // A game without a supply block has no rows of it.
-                (None, "supply_blocked") => {
-                    values.insert(key.to_string(), 0.);
-                }
-                _ => {}
-            }
+    let source = IpcSnapshot::open(replay_path)?;
+    report.games = games::shape(games::plan(&source, player)?.collect()?)?;
+    let mut values = metrics::shape(metrics::plan(&source, player)?.collect()?)?;
+    for game in &mut report.games {
+        if let Some(values) = values.remove(&game.ext_fs_id) {
+            game.values = values;
         }
-        report.games.push(ProgressGame {
-            ext_fs_id: ids[idx],
-            date: dates[idx].clone(),
-            map_title: titles[idx].clone(),
-            race: races[idx].clone(),
-            result: results[idx].clone(),
-            opponents: names,
-            vs_computer: vs_computer.get(idx).unwrap_or(false),
-            values,
-        });
     }
     Ok(report)
 }
@@ -231,11 +71,13 @@ pub async fn query_progress(
         player_name.trim().to_string()
     };
     run_query(move || {
-        ApiResponseBuilder::new().process_result(try_query_progress(
-            app_config.replay_path,
-            player_name,
-            goals,
-        ))
+        ApiResponseBuilder::new()
+            .with_sources(QUERIES.map(QuerySource::from))
+            .process_result(try_query_progress(
+                &app_config.replay_path,
+                &player_name,
+                goals,
+            ))
     })
     .await
 }
@@ -253,20 +95,99 @@ pub async fn set_progress_goals(
         .build())
 }
 
+/// The games the tests of the queries of this view share, the ones of their READMEs.
 #[cfg(test)]
-mod snapshot_tests {
-    /// `SWARMY_TEST_REPLAY_PATH=~/SC2Replays SWARMY_TEST_PLAYER=Sazed cargo test progress_of -- --ignored --nocapture`
-    #[test]
-    #[ignore]
-    fn progress_of_a_player() {
-        let replay_path = std::env::var("SWARMY_TEST_REPLAY_PATH").unwrap();
-        let player = std::env::var("SWARMY_TEST_PLAYER").unwrap();
-        let start = std::time::Instant::now();
-        let report = super::try_query_progress(replay_path, player, Default::default()).unwrap();
-        eprintln!("{:?} {} games", start.elapsed(), report.games.len());
-        for game in report.games.iter().rev().take(5) {
-            eprintln!("{game:?}");
-        }
-        assert!(!report.games.is_empty());
+pub mod test_games {
+    use crate::data::fixtures::{Game, Player, Snapshot, Stat};
+
+    /// Alice's three games on Pylon LE: against Bob (won, with stats), against the computer
+    /// (won, no stats), and with Bob against Carol and Dave (lost, no stats).
+    pub fn alice_progress() -> Snapshot {
+        Snapshot::new()
+            .game(Game {
+                id: 1,
+                played_at: "2026-01-15 20:30:00",
+                players: vec![
+                    Player {
+                        stats: vec![
+                            Stat {
+                                game_loop: 5000,
+                                food_made: 30,
+                                food_used: 30,
+                                workers: 25,
+                                ..Default::default()
+                            },
+                            Stat {
+                                game_loop: 7900,
+                                food_made: 44,
+                                food_used: 46,
+                                workers: 40,
+                                ..Default::default()
+                            },
+                            Stat {
+                                game_loop: 8000,
+                                food_made: 60,
+                                food_used: 48,
+                                workers: 42,
+                                ..Default::default()
+                            },
+                            Stat {
+                                game_loop: 10500,
+                                food_made: 90,
+                                food_used: 70,
+                                minerals_rate: 1200,
+                                vespene_rate: 300,
+                                ..Default::default()
+                            },
+                            Stat {
+                                game_loop: 13200,
+                                food_made: 120,
+                                food_used: 100,
+                                army_minerals: 1500,
+                                army_vespene: 400,
+                                ..Default::default()
+                            },
+                        ],
+                        ..Player::won("Alice", "Terran")
+                    },
+                    Player::lost("Bob", "Zerg"),
+                ],
+                ..Default::default()
+            })
+            .game(Game {
+                id: 2,
+                played_at: "2026-01-20 20:30:00",
+                players: vec![
+                    Player::won("Alice", "Terran"),
+                    Player {
+                        computer: true,
+                        ..Player::lost("A.I. 1 (Very Easy)", "Protoss")
+                    },
+                ],
+                ..Default::default()
+            })
+            .game(Game {
+                id: 3,
+                played_at: "2026-02-01 20:30:00",
+                players: vec![
+                    Player {
+                        team: 1,
+                        ..Player::lost("Alice", "Zerg")
+                    },
+                    Player {
+                        team: 1,
+                        ..Player::lost("Bob", "Zerg")
+                    },
+                    Player {
+                        team: 2,
+                        ..Player::won("Carol", "Protoss")
+                    },
+                    Player {
+                        team: 2,
+                        ..Player::won("Dave", "Zerg")
+                    },
+                ],
+                ..Default::default()
+            })
     }
 }

@@ -97,7 +97,7 @@ pub fn AdminKeyInput() -> impl IntoView {
             <span class="text-sm" role="status">{move || status.get()}</span>
         </div>
         <div class="col-span-1 text-primary">
-            <span title="The key of the administrator of this server: Scan, Optimize, the personal notes and the Battle.net API need it. It lasts until the tab is closed.">
+            <span title="The key of the administrator of this server: Scan, Optimize and the personal notes need it. It lasts until the tab is closed.">
                 <phosphor_leptos::Icon icon=phosphor_leptos::QUESTION weight=phosphor_leptos::IconWeight::Fill prop:class="stroke-current" />
             </span>
         </div>

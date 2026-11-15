@@ -1,10 +1,83 @@
 //! How a unit was used in the games of the snapshot: the units made, died and their kills, by
-//! month, and the games in which the unit was exceptionally effective.
+//! month, and the games in which the unit was exceptionally effective. Each statistic is a query
+//! file of this directory (AGENTS.md, "A query is a file"); this file runs them.
 
-use crate::data::*;
+pub mod by_month;
+pub mod exceptional;
+pub mod forms;
+pub mod games;
+pub mod kills_per_unit;
+pub mod totals;
+
+use crate::data::{IpcSnapshot, QueryMeta};
 use crate::replay_rerun::decisions::{base_unit_name, latest_balance_units, unit_cost};
-use polars::prelude::*;
 use swarmy_common::*;
+
+/// The queries of the panel, for the debug links. The morphs (`forms`) are not one: they come
+/// from the static table of each patch, `forms/unit_forms.json`.
+pub const QUERIES: [QueryMeta; 5] = [
+    games::META,
+    totals::META,
+    by_month::META,
+    kills_per_unit::META,
+    exceptional::META,
+];
+
+/// The stats of a form in the latest balance data, for the comparison of the forms; a form the
+/// balance data does not know has its name only.
+pub fn unit_form(name: &str) -> UnitForm {
+    let Ok(balance) = latest_balance_units() else {
+        return UnitForm {
+            name: name.to_string(),
+            ..Default::default()
+        };
+    };
+    let Some(unit) = balance.get(name) else {
+        return UnitForm {
+            name: name.to_string(),
+            ..Default::default()
+        };
+    };
+    let number = |value: f32| {
+        let text = format!("{value:.3}");
+        text.trim_end_matches('0').trim_end_matches('.').to_string()
+    };
+    UnitForm {
+        name: name.to_string(),
+        life: unit.life.max.to_string(),
+        armor: unit.armor.start.to_string(),
+        speed: unit
+            .movement
+            .as_ref()
+            .map(|movement| number(movement.speed))
+            .unwrap_or_default(),
+        weapons: unit
+            .weapons
+            .inner
+            .iter()
+            .map(
+                |weapon| match weapon.misc.as_ref().and_then(|misc| misc.range) {
+                    Some(range) => format!("{} ({})", weapon.id, number(range)),
+                    None => weapon.id.clone(),
+                },
+            )
+            .collect::<Vec<_>>()
+            .join(", "),
+        abilities: unit
+            .abilities
+            .inner
+            .iter()
+            .filter(|ability| {
+                ability
+                    .commands
+                    .iter()
+                    .any(|command| !command.meta.name.is_empty())
+            })
+            .map(|ability| ability.id.clone())
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
+}
 
 /// The unit names that are the same unit, i.e. `RoachBurrowed` is a Roach.
 pub fn unit_variants(unit_name: &str) -> Vec<String> {
@@ -27,204 +100,172 @@ pub fn unit_variants(unit_name: &str) -> Vec<String> {
     names
 }
 
-/// A single value of the first row of a column, 0 when the frame is empty.
-fn first_u64(df: &DataFrame, name: &str) -> Result<u64, SwarmyError> {
-    Ok(df
-        .column(name)?
-        .cast(&DataType::UInt64)?
-        .u64()?
-        .get(0)
-        .unwrap_or_default())
-}
-
-fn first_f64(df: &DataFrame, name: &str) -> Result<f64, SwarmyError> {
-    Ok(df
-        .column(name)?
-        .cast(&DataType::Float64)?
-        .f64()?
-        .get(0)
-        .unwrap_or_default())
-}
-
 pub fn try_query_unit_snapshot_stats(
-    replay_path: String,
-    unit_name: String,
+    replay_path: &str,
+    unit_name: &str,
 ) -> Result<UnitSnapshotStats, SwarmyError> {
-    let replay_path = sanitize_replay_path(&replay_path)?;
-    let ipc_path = build_ipc_path(&replay_path)?;
-    let balance = latest_balance_units()?;
-    let cost = unit_cost(balance, &unit_name);
-
-    // The units made by each player in each game, the kills and the units lost.
-    let unit_rows = scan_snapshot_ipc(&ipc_path, GAME_UNITS_IPC)?
-        .filter(col("unit").eq(lit(base_unit_name(&unit_name))));
-    let players = unit_rows
-        .clone()
-        .filter(col("born").gt(lit(0u32)))
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            col("born").cast(DataType::UInt64),
-            col("kills").cast(DataType::UInt64),
-            col("value_killed").cast(DataType::UInt64),
-        ])
-        .with_column(
-            (col("kills").cast(DataType::Float64) / col("born").cast(DataType::Float64))
-                .alias("kills_per_unit"),
-        )
-        .collect()?
-        .lazy();
-
-    let totals = players
-        .clone()
-        .select([
-            col("born").sum(),
-            col("kills").sum(),
-            col("value_killed").sum(),
-            col("ext_fs_id").n_unique().alias("games_with_unit"),
-        ])
-        .collect()?;
-    let died = unit_rows
-        .select([col("died").cast(DataType::UInt64).sum()])
-        .collect()?;
-
-    // One row per game with its month, title, date, etc.
-    let details = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?;
-    let has_protocol_version = details
-        .clone()
-        .collect_schema()?
-        .contains("ext_protocol_version");
-    let protocol_version = if has_protocol_version {
-        col("ext_protocol_version").first()
-    } else {
-        lit(0u32).alias("ext_protocol_version")
-    };
-    let games = details
-        .group_by([col("ext_fs_id")])
-        .agg([
-            col("ext_datetime")
-                .first()
-                .dt()
-                .to_string("%Y-%m")
-                .alias("month"),
-            col("ext_datetime")
-                .first()
-                .dt()
-                .to_string("%Y-%m-%d")
-                .alias("date"),
-            col("title").first(),
-            col("ext_fs_file_name").first(),
-            protocol_version,
-        ])
-        .collect()?
-        .lazy();
-    let total_games = games.clone().select([len().alias("games")]).collect()?;
-
-    let born_by_game = players
-        .clone()
-        .group_by([col("ext_fs_id")])
-        .agg([col("born").sum()]);
-    let by_month_df = games
-        .clone()
-        .join(
-            born_by_game,
-            [col("ext_fs_id")],
-            [col("ext_fs_id")],
-            JoinArgs::new(JoinType::Left),
-        )
-        .group_by([col("month")])
-        .agg([
-            len().cast(DataType::UInt64).alias("games"),
-            col("born")
-                .is_not_null()
-                .cast(DataType::UInt64)
-                .sum()
-                .alias("games_with_unit"),
-            col("born").fill_null(lit(0u64)).sum().alias("born"),
-        ])
-        .sort(["month"], Default::default())
-        .collect()?;
-    let months = str_values(&by_month_df, "month")?;
-    let month_games = u64_values(&by_month_df, "games")?;
-    let month_games_with_unit = u64_values(&by_month_df, "games_with_unit")?;
-    let month_born = u64_values(&by_month_df, "born")?;
-    let by_month = (0..by_month_df.height())
-        .map(|idx| UnitMonthUsage {
-            month: months[idx].clone(),
-            games: month_games[idx] as usize,
-            games_with_unit: month_games_with_unit[idx] as usize,
-            born: month_born[idx] as usize,
-        })
-        .collect();
-
-    // The kills per unit of the players that made a few of the unit, the games two standard
-    // deviations above the mean are exceptional.
-    let compared = players.filter(col("born").gt_eq(lit(EXCEPTIONAL_MIN_BORN as u64)));
-    let kills_per_unit_stats = compared
-        .clone()
-        .select([
-            col("kills_per_unit").mean().alias("mean"),
-            col("kills_per_unit").std(1).fill_null(lit(0.)).alias("std"),
-        ])
-        .collect()?;
-    let kills_per_unit_mean = first_f64(&kills_per_unit_stats, "mean")?;
-    let kills_per_unit_threshold =
-        kills_per_unit_mean + 2. * first_f64(&kills_per_unit_stats, "std")?;
-    let exceptional_df = compared
-        .filter(
-            col("kills_per_unit")
-                .gt_eq(lit(kills_per_unit_threshold))
-                .and(col("kills").gt(lit(0u64))),
-        )
-        .join(
-            games,
-            [col("ext_fs_id")],
-            [col("ext_fs_id")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .sort(
-            ["kills_per_unit", "kills"],
-            SortMultipleOptions::default().with_order_descending(true),
-        )
-        .limit(EXCEPTIONAL_GAMES_LIMIT as IdxSize)
-        .collect()?;
-    let ext_fs_ids = u64_values(&exceptional_df, "ext_fs_id")?;
-    let locations = str_values(&exceptional_df, "ext_fs_file_name")?;
-    let titles = str_values(&exceptional_df, "title")?;
-    let dates = str_values(&exceptional_df, "date")?;
-    let versions = u32_values(&exceptional_df, "ext_protocol_version")?;
-    let player_names = str_values(&exceptional_df, "player_name")?;
-    let borns = u64_values(&exceptional_df, "born")?;
-    let kills = u64_values(&exceptional_df, "kills")?;
-    let values_killed = u64_values(&exceptional_df, "value_killed")?;
-    let exceptional = (0..exceptional_df.height())
-        .map(|idx| ExceptionalUnitGame {
-            ext_fs_id: ext_fs_ids[idx],
-            replay_location: locations[idx].clone(),
-            map_title: titles[idx].clone(),
-            date: dates[idx].clone(),
-            protocol_version: versions[idx],
-            player_name: player_names[idx].clone(),
-            born: borns[idx] as usize,
-            kills: kills[idx] as usize,
-            value_killed: values_killed[idx] as u32,
-        })
-        .collect();
-
+    let source = IpcSnapshot::open(replay_path)?;
+    let cost = unit_cost(latest_balance_units()?, unit_name);
+    let unit = base_unit_name(unit_name);
+    let totals = totals::shape(totals::plan(&source, unit)?.collect()?)?;
+    let by_month = by_month::shape(by_month::plan(&source, unit)?.collect()?)?;
+    let compared = kills_per_unit::plan(&source, unit, EXCEPTIONAL_MIN_BORN)?.collect()?;
+    let threshold = kills_per_unit::threshold(&compared)?;
+    let exceptional = exceptional::shape(
+        exceptional::plan(&source, unit, EXCEPTIONAL_MIN_BORN, threshold.threshold)?.collect()?,
+    )?;
+    // The forms of the unit in the newest patch (the static table of the morphs), the unit itself
+    // first then by the changes.
+    let form_changes = forms::forms_of(unit_name, forms::latest_forms()?);
+    let mut form_names: Vec<String> = vec![unit_name.to_string()];
+    for change in &form_changes {
+        for name in [&change.from, &change.to] {
+            if !form_names.contains(name) {
+                form_names.push(name.clone());
+            }
+        }
+    }
+    let forms = form_names.iter().map(|name| unit_form(name)).collect();
     Ok(UnitSnapshotStats {
-        unit_name,
-        games: first_u64(&total_games, "games")? as usize,
-        games_with_unit: first_u64(&totals, "games_with_unit")? as usize,
-        born: first_u64(&totals, "born")? as usize,
-        died: first_u64(&died, "died")? as usize,
-        kills: first_u64(&totals, "kills")? as usize,
-        value_killed: first_u64(&totals, "value_killed")? as u32,
+        unit_name: unit_name.to_string(),
+        games: totals.games,
+        games_with_unit: totals.games_with_unit,
+        born: totals.born,
+        died: totals.died,
+        kills: totals.kills,
+        value_killed: totals.value_killed,
         unit_cost: cost.minerals + cost.vespene,
         by_month,
-        kills_per_unit_mean,
-        kills_per_unit_threshold,
+        kills_per_unit_mean: threshold.mean,
+        kills_per_unit_threshold: threshold.threshold,
         exceptional,
+        form_changes,
+        forms,
     })
+}
+
+/// The games the tests of the queries of this panel share.
+#[cfg(test)]
+pub mod test_games {
+    use crate::data::fixtures::{Born, Game, Player, Snapshot, Unit};
+
+    /// Two games for the forms of the units: in game 1 Bob's Roach (tag 50) burrows at 150 s and
+    /// unburrows at 200 s while Alice's Siege Tank (tag 60) sieges at 160 s; in game 2 Carl's
+    /// Roach (tag 50) burrows at 150 s.
+    pub fn forms() -> Snapshot {
+        Snapshot::new()
+            .game(Game {
+                id: 1,
+                players: vec![
+                    Player {
+                        born: vec![
+                            Born::new(100, "SiegeTank", 60),
+                            Born::new(160, "SiegeTankSieged", 60),
+                        ],
+                        ..Player::won("Alice", "Terran")
+                    },
+                    Player {
+                        born: vec![
+                            Born::new(100, "Roach", 50),
+                            Born::new(150, "RoachBurrowed", 50),
+                            Born::new(200, "Roach", 50),
+                        ],
+                        ..Player::lost("Bob", "Zerg")
+                    },
+                ],
+                ..Default::default()
+            })
+            .game(Game {
+                id: 2,
+                players: vec![
+                    Player::won("Alice", "Terran"),
+                    Player {
+                        born: vec![
+                            Born::new(100, "Roach", 50),
+                            Born::new(150, "RoachBurrowed", 50),
+                        ],
+                        ..Player::lost("Carl", "Zerg")
+                    },
+                ],
+                ..Default::default()
+            })
+    }
+
+    /// Eight 1v1 games on Pylon LE, each Terran player against Zed (Zerg). Six Terran players
+    /// made 10 Marines each in January: Alice, Bea, Cleo, Dora and Eve killed 5 with them (0.5
+    /// per Marine; Alice lost 3 of hers), Fiona killed 50 (5.0 per Marine, the exceptional game).
+    /// In February Gina made 2 Marines and killed 20 with them (too few to compare) and game 8
+    /// is Zerg against Protoss, without Marines.
+    ///
+    /// | Game | Day | Terran | Marines: born, kills, value killed |
+    /// |---|---|---|---|
+    /// | 1 | 2026-01-10 | Alice | 10, 5, 250 (3 died) |
+    /// | 2 | 2026-01-11 | Bea | 10, 5, 250 |
+    /// | 3 | 2026-01-12 | Cleo | 10, 5, 250 |
+    /// | 4 | 2026-01-13 | Dora | 10, 5, 250 |
+    /// | 5 | 2026-01-14 | Eve | 10, 5, 250 |
+    /// | 6 | 2026-01-20 | Fiona | 10, 50, 2500 |
+    /// | 7 | 2026-02-05 | Gina | 2, 20, 1000 |
+    /// | 8 | 2026-02-06 | Zed (Zerg) beats Pat (Protoss) | none |
+    pub fn marine_makers() -> Snapshot {
+        let marines = |name: &'static str, day: &'static str, id: u64, unit: Unit| Game {
+            id,
+            played_at: day,
+            players: vec![
+                Player {
+                    units: vec![unit],
+                    ..Player::won(name, "Terran")
+                },
+                Player::lost("Zed", "Zerg"),
+            ],
+            ..Default::default()
+        };
+        let marine = |born: u32, kills: u32, value_killed: u64| {
+            Unit::new("Marine", born, kills, value_killed)
+        };
+        Snapshot::new()
+            .game(marines(
+                "Alice",
+                "2026-01-10 20:30:00",
+                1,
+                Unit {
+                    died: 3,
+                    ..marine(10, 5, 250)
+                },
+            ))
+            .game(marines("Bea", "2026-01-11 20:30:00", 2, marine(10, 5, 250)))
+            .game(marines(
+                "Cleo",
+                "2026-01-12 20:30:00",
+                3,
+                marine(10, 5, 250),
+            ))
+            .game(marines(
+                "Dora",
+                "2026-01-13 20:30:00",
+                4,
+                marine(10, 5, 250),
+            ))
+            .game(marines("Eve", "2026-01-14 20:30:00", 5, marine(10, 5, 250)))
+            .game(marines(
+                "Fiona",
+                "2026-01-20 20:30:00",
+                6,
+                marine(10, 50, 2_500),
+            ))
+            .game(marines(
+                "Gina",
+                "2026-02-05 20:30:00",
+                7,
+                marine(2, 20, 1_000),
+            ))
+            .game(Game {
+                id: 8,
+                played_at: "2026-02-06 20:30:00",
+                players: vec![Player::won("Zed", "Zerg"), Player::lost("Pat", "Protoss")],
+                ..Default::default()
+            })
+    }
 }
 
 #[cfg(test)]
@@ -236,38 +277,5 @@ mod tests {
         assert_eq!(unit_variants("Roach"), vec!["Roach", "RoachBurrowed"]);
         assert!(unit_variants("SiegeTank").contains(&"SiegeTankSieged".to_string()));
         assert!(unit_variants("VikingFighter").contains(&"VikingAssault".to_string()));
-    }
-}
-
-#[cfg(test)]
-mod snapshot_tests {
-    /// Runs against a real snapshot: `SWARMY_TEST_REPLAY_PATH=~/SC2Replays/PRO cargo test -- --ignored`
-    #[test]
-    #[ignore]
-    fn it_queries_a_snapshot() {
-        let replay_path = std::env::var("SWARMY_TEST_REPLAY_PATH").unwrap();
-        let start = std::time::Instant::now();
-        let stats = super::try_query_unit_snapshot_stats(replay_path, "Roach".to_string()).unwrap();
-        eprintln!("{:?}", start.elapsed());
-        eprintln!(
-            "games {} with {} born {} died {} kills {} value {} cost {} mean {:.2} thr {:.2}",
-            stats.games,
-            stats.games_with_unit,
-            stats.born,
-            stats.died,
-            stats.kills,
-            stats.value_killed,
-            stats.unit_cost,
-            stats.kills_per_unit_mean,
-            stats.kills_per_unit_threshold
-        );
-        for month in stats.by_month.iter().take(5) {
-            eprintln!("{month:?}");
-        }
-        for game in stats.exceptional.iter().take(5) {
-            eprintln!("{game:?}");
-        }
-        assert!(stats.born > 0);
-        assert!(stats.games_with_unit <= stats.games);
     }
 }

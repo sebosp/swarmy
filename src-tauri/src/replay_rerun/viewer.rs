@@ -6,16 +6,16 @@
 
 use super::decisions::{balance_units, closest_balance_units};
 use super::terrain::Terrain;
-use super::{ReplayRerunLogger, NEUTRAL_PLAYER};
+use super::{NEUTRAL_PLAYER, ReplayRerunLogger};
 use s2protocol::basic_replay_data::SC2ReplayBasicData;
 use s2protocol::{SC2EventIterator, SC2EventType};
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use swarmy_common::{clean_player_name_clan_escapes, SwarmyError};
+use swarmy_common::{SwarmyError, clean_player_name_clan_escapes};
 use tauri::{AppHandle, Manager};
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tokio::sync::Mutex;
 
 /// The sidecar name, tauri resolves it to `assets/rerun-cli-<target-triple>` at bundle time.

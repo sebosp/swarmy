@@ -8,7 +8,7 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 use tracing::{info, instrument};
 
-use crate::map_stats::data::try_query_map_stats;
+use crate::map_stats::try_query_map_stats;
 use crate::{try_get_snapshot_metadata, try_optimize_replay_path};
 
 pub use swarmy_common::AsyncTask;
@@ -164,7 +164,7 @@ impl MajordomoCoordinator {
         // The polars queries block, they run on a blocking thread.
         current_tokio_handle.spawn_blocking(move || {
             let res = ApiResponseBuilder::new();
-            res_tx.send(res.process_result(try_query_map_stats(app_config.replay_path, query)))
+            res_tx.send(res.process_result(try_query_map_stats(&app_config.replay_path, &query)))
         });
     }
 

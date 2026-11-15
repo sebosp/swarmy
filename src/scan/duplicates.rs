@@ -4,7 +4,7 @@
 use crate::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, COPY};
+use phosphor_leptos::{COPY, Icon, IconWeight};
 use swarmy_common::*;
 
 /// The duplicates listed, the others are counted.

@@ -2,8 +2,8 @@ use chrono::DateTime;
 use chrono::{NaiveDateTime, Utc};
 use leptos::prelude::*;
 use phosphor_leptos::{
-    Icon, IconWeight, IconWeightData, BOXING_GLOVE, CALENDAR_DOT, CALENDAR_STAR, CIRCUITRY,
-    HARD_DRIVE, TAG,
+    BOXING_GLOVE, CALENDAR_DOT, CALENDAR_STAR, CIRCUITRY, HARD_DRIVE, Icon, IconWeight,
+    IconWeightData, TAG,
 };
 use s2protocol::snapshot::S2PROTOCOL_VERSION;
 use si_scale::helpers::bibytes2;
@@ -151,8 +151,12 @@ pub fn ArrowIpcStats(snapshot_stats: ReadSignal<SnapshotStats>) -> impl IntoView
         }
     };
     let state_hint = match state_kind {
-        SnapshotStateKind::InProgress => " The views show this message until it finishes, the progress is below when it runs here.",
-        SnapshotStateKind::Interrupted => " Rebuild deletes the snapshot and generates it again from all the replays, Optimize alone would keep the days already written.",
+        SnapshotStateKind::InProgress => {
+            " The views show this message until it finishes, the progress is below when it runs here."
+        }
+        SnapshotStateKind::Interrupted => {
+            " Rebuild deletes the snapshot and generates it again from all the replays, Optimize alone would keep the days already written."
+        }
         SnapshotStateKind::Missing | SnapshotStateKind::Ready => "",
     };
     view! {
