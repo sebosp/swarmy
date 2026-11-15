@@ -135,6 +135,9 @@ pub fn install_ui_settings() {
                     settings.focus_outline,
                 );
                 crate::components::paged::set_table_rows(settings.max_table_rows);
+                if let Some(debug) = use_context::<crate::components::debug::DebugContext>() {
+                    debug.enabled.set(settings.show_polars_debug);
+                }
             }
             Err(err) => leptos::logging::warn!("Unable to read the UI settings: {err:?}"),
         }

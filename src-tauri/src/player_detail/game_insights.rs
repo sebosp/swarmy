@@ -3,9 +3,8 @@
 //! game and player next to the day; the view adds up the rows of the games of the player.
 
 use polars::prelude::*;
-use rayon::prelude::*;
 use s2protocol::arrow_store::partitioned::{list_partitions, partition_dir};
-use s2protocol::snapshot::{SnapshotMetadata, S2PROTOCOL_VERSION};
+use s2protocol::snapshot::{S2PROTOCOL_VERSION, SnapshotMetadata};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -81,7 +80,7 @@ where
 /// The rows of the insights as a frame of typed columns.
 fn insights_frame(rows: &[(u64, String, PlayerGameInsight)]) -> Result<DataFrame, SwarmyError> {
     macro_rules! scalar {
-        ($name:literal, $ty:ty, $value:expr) => {
+        ($name:literal, $ty:ty, $value:expr_2021) => {
             Column::new(
                 $name.into(),
                 rows.iter()
@@ -254,7 +253,9 @@ pub fn build_missing(
             progress(after, total);
         }
     };
-    days.par_iter()
+    // One day after the other, the games of a day are analysed in parallel: the events of the
+    // games of several days at once took 50 GB for an AI Arena snapshot.
+    days.iter()
         .filter_map(|day| Some((day, day_source(day)?)))
         .try_for_each(|(day, source)| {
             build_day(day, &source, &done).map_err(|err| format!("{}: {err:?}", day.display()))
@@ -508,6 +509,22 @@ fn decode_insights(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The time of the analysis of the games of one day of a snapshot, `SWARMY_TEST_INSIGHTS_DAY`
+    /// (a `year=/month=/day=` directory, its insights file is rewritten). Run under
+    /// `/usr/bin/time -v` for the peak memory.
+    #[test]
+    #[ignore]
+    fn bench_build_day() {
+        let day = PathBuf::from(
+            std::env::var("SWARMY_TEST_INSIGHTS_DAY").expect("SWARMY_TEST_INSIGHTS_DAY"),
+        );
+        let source = day_source(&day).expect("a day of this s2protocol version");
+        let games = day_games(&day).unwrap();
+        let start = std::time::Instant::now();
+        build_day(&day, &source, &|_| {}).unwrap();
+        eprintln!("{games} games analysed in {:.1?}", start.elapsed());
+    }
 
     #[test]
     fn it_writes_and_reads_the_insights() {

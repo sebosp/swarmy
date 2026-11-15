@@ -9,6 +9,21 @@ pub struct ResponseMeta {
     pub success: bool,
     pub duration_ms: u64,
     pub is_complete: bool,
+    /// The queries that computed the answer, for the "Show Polars Debug Information" links of
+    /// the views; empty for the commands that are not queries of the snapshot.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<QuerySource>,
+}
+
+/// Where a query of the snapshot lives in the repository, from the `META` of its file
+/// (`query_meta!()` in the backend): the module path, the file and the line of `META`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuerySource {
+    /// The module path without the crate, i.e. `map_details::recent_games`.
+    pub id: String,
+    /// The file in the repository, i.e. `src-tauri/src/map_details/recent_games.rs`.
+    pub file: String,
+    pub line: u32,
 }
 
 impl ResponseMeta {
@@ -19,6 +34,7 @@ impl ResponseMeta {
             success: false,
             duration_ms: 0,
             is_complete: false,
+            sources: vec![],
         }
     }
 
@@ -39,6 +55,12 @@ pub struct ResponseMetaBuilder {
     pub success: bool,
     pub duration_ms: Option<u64>,
     init_time: Instant,
+}
+
+impl Default for ResponseMetaBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ResponseMetaBuilder {
@@ -70,6 +92,7 @@ impl ResponseMetaBuilder {
             success: self.success,
             duration_ms: self.init_time.elapsed().as_millis() as u64,
             is_complete: true,
+            sources: vec![],
         }
     }
 }
@@ -79,6 +102,13 @@ pub struct ApiResponseBuilder {
     status: bool,
     init_time: Instant,
     message: Option<String>,
+    sources: Vec<QuerySource>,
+}
+
+impl Default for ApiResponseBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ApiResponseBuilder {
@@ -87,7 +117,14 @@ impl ApiResponseBuilder {
             status: false,
             init_time: Instant::now(),
             message: None,
+            sources: vec![],
         }
+    }
+
+    /// The queries that compute the answer, see [`QuerySource`].
+    pub fn with_sources(mut self, sources: impl IntoIterator<Item = QuerySource>) -> Self {
+        self.sources = sources.into_iter().collect();
+        self
     }
 
     pub fn with_message(mut self, msg: String) -> Self {
@@ -134,6 +171,7 @@ impl ApiResponseBuilder {
                 success: self.status,
                 duration_ms: self.init_time.elapsed().as_millis() as u64,
                 is_complete: true,
+                sources: self.sources,
             },
             message: self.message.unwrap_or(String::from("")),
         }

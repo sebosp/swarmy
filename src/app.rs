@@ -8,7 +8,6 @@ use swarmy_ui::components::new_replays::NewReplaysBanner;
 use swarmy_ui::help::view::Help;
 use swarmy_ui::home::view::Home;
 use swarmy_ui::map_details::view::MapDetailsView;
-use swarmy_ui::map_scout::view::MapScoutView;
 use swarmy_ui::map_stats::view::StatsByMap;
 use swarmy_ui::navigation::*;
 use swarmy_ui::patch_overview::evolution::PatchEvolutionView;
@@ -31,6 +30,7 @@ pub fn Main() -> impl IntoView {
     swarmy_ui::navigation::sync_with_address(navigation);
     swarmy_ui::components::unit_icon::provide_unit_icons();
     swarmy_ui::components::web_session::provide_web_session();
+    swarmy_ui::components::debug::provide_debug_context();
     swarmy_ui::components::appearance::install_ui_settings();
     let active_page = navigation.active_page;
 
@@ -92,11 +92,6 @@ pub fn Main() -> impl IntoView {
                 <Show when=move || active_page.get() == PLAYER_PAGE>
                     <div id="swarmy-tauri-player-content" class="flex flex-col grow min-w-0 p-2 rounded">
                         <PlayerDetailView />
-                    </div>
-                </Show>
-                <Show when=move || active_page.get() == MAP_SCOUT_PAGE>
-                    <div id="swarmy-tauri-map-scout-content" class="flex flex-col grow min-w-0 p-2 rounded">
-                        <MapScoutView />
                     </div>
                 </Show>
                 <Show when=move || active_page.get() == PATCH_OVERVIEW_PAGE>

@@ -1,6 +1,7 @@
 //! How to use swarmy and how its statistics are calculated.
 
 use crate::components::section::Panel;
+use crate::home::view::ExternalLink;
 use crate::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -29,7 +30,7 @@ const GETTING_STARTED: [Entry; 5] = [
          locations, the minerals and geysers) and other files such as tournament logos. To \
          analyse the maps, Optimize downloads these cache files from Blizzard's depot servers \
          (i.e. eu-s2-depot.classic.blizzard.com) into the Map Caches Path, once per map, the way \
-         StarCraft II does before a game. Map Details, Map Scout and swarmy-bevy read them from \
+         StarCraft II does before a game. Map Details, the Replay map and swarmy-bevy read them from \
          there, without them a map has no terrain, minimap or resources.",
     ),
     (
@@ -74,7 +75,7 @@ const TROUBLESHOOTING: [Entry; 2] = [
     ),
 ];
 
-const VIEWS: [Entry; 18] = [
+const VIEWS: [Entry; 17] = [
     (
         "Player accounts",
         "A player is its StarCraft II accounts: the games of an account count for it when its name \
@@ -88,7 +89,7 @@ const VIEWS: [Entry; 18] = [
          of the snapshot: the share of the games of its race it is used in, the uses per game \
          over time (per day, month or year, a dashed line where each patch starts) and by patch, by matchup, the players with the most uses per game, the games with \
          the most uses, and the average and fastest game time of its first use. Click an ability \
-         in Replay Detail, Race Detail or the Patch Overview to open it.",
+         in Replay Detail, Race Overview or the Patch Overview to open it.",
     ),
     (
         "Progress",
@@ -136,6 +137,10 @@ const VIEWS: [Entry; 18] = [
          production leaves out the time the supply was full. The Focus legend filters the chart: \
          a click shows only that kind, a click on another adds it. Also: expansions, resources, macro, focus, economy, army at \
          10:00, unit choices, effective units, kills, build order, engagements and chat. The \
+         header that stays in view has the map of the game with the bases of each player in \
+         their color; hovering a coordinate (a fight in Engagements, a structure of the build \
+         order, the proxy, the first kill) shows it on the map. Deaths shows where the units died \
+         as a height map, Over time the fights colored by when they happened. The \
          patch version opens the Patch Overview at that patch. The expansions and upgrades show \
          how much faster or slower they were than the average of the games of the same patch in \
          the snapshot: the upgrades by when they finish, the expansions by when they start (the \
@@ -165,12 +170,6 @@ const VIEWS: [Entry; 18] = [
          each one played in the games between them and the replays of those games.",
     ),
     (
-        "Map Scout",
-        "Where the players send their units (commands) or lose them (deaths) in a map, oriented \
-         so that the player always starts on the bottom left. Use the unit filter, i.e. SCV or \
-         Overlord, and the first minutes to see the scouting patterns.",
-    ),
-    (
         "Patch Overview",
         "The unit properties that changed in a patch compared to the previous one.",
     ),
@@ -186,8 +185,9 @@ const VIEWS: [Entry; 18] = [
         "A unit in every patch. ▲ red: the unit costs more, or anything was added (i.e. a \
          requirement or a unit it is weak against). ▼ green: it costs less. For properties that \
          are better the higher, i.e. life, range or a unit it is strong against, ▲ green and ▼ \
-         red. ● changed. Strong vs and Weak vs have a row per unit. 〃 marks a value that did \
-         not change, patches without any change of the unit are merged into one column. In the \
+         red. ● changed, in the color of the kind of the property. Strong vs and Weak vs have a \
+         row per unit. A value is shown in the patch that set it, the next columns stay empty \
+         while it holds; patches without any change of the unit are merged into one column. In the \
          snapshot: the games in which the unit was made, the units made, died and the enemy \
          units they killed, the percentage of the games of each month in which it was made, and \
          the exceptional games, the players that made at least 3 and killed two standard \
@@ -227,7 +227,7 @@ const VIEWS: [Entry; 18] = [
     ),
 ];
 
-const LOGIC: [Entry; 22] = [
+const LOGIC: [Entry; 21] = [
     (
         "Three things to fix",
         "The costs of a game in minerals and vespene, estimated so that they compare: a supply \
@@ -257,14 +257,6 @@ const LOGIC: [Entry; 22] = [
          opening are the openings (the first three tech structures) of your race that won the \
          most against it in the 1v1 games of the snapshot, from at least 5 games, the win rates \
          pulled to 50% by 5 wins and 5 losses so that few games do not rank first.",
-    ),
-    (
-        "Map lessons",
-        "In Map Details, in squares of 4x4 cells, the 40 spots of each layer: where the units \
-         that cost resources died, the production structures of the first 04:00 more than 50 \
-         cells from the start location (proxies), the creep tumors, and the structures of the \
-         first 03:00 near the start location (the walls). swarmy-bevy draws them as bars, the \
-         keys F1 to F4 show or hide each layer.",
     ),
     (
         "Unit choices",
@@ -387,6 +379,25 @@ pub fn Help() -> impl IntoView {
             <Panel title="Troubleshooting">{entries(&TROUBLESHOOTING)}</Panel>
             <Panel title="Versions">
                 <VersionDependencies />
+            </Panel>
+            <Panel title="Where the data comes from">
+                <p class="text-sm text-muted">
+                    "The replays (.SC2Replay) and the map caches of StarCraft II, and the balance data \
+                    exported with the StarCraft II Editor (unit costs, button icons). They are decoded by "
+                    <ExternalLink url="https://github.com/sebosp/s2protocol-rs" label="s2protocol-rs" />
+                    " (from Blizzard's "
+                    <ExternalLink url="https://github.com/Blizzard/s2protocol/" label="s2protocol" />
+                    ") and "
+                    <ExternalLink url="https://github.com/sebosp/nom-mpq" label="nom-mpq" />
+                    " (from "
+                    <ExternalLink url="https://github.com/arkx/mpyq/" label="mpyq" />
+                    "); the map ramps of swarmy-bevy follow "
+                    <ExternalLink
+                        url="https://github.com/RFEphemeration/sc2-map-analyzer/"
+                        label="sc2-map-analyzer"
+                    />
+                    "."
+                </p>
             </Panel>
         </div>
     }

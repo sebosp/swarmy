@@ -1,4 +1,4 @@
-use crate::UnitEffectiveness;
+use crate::{MapPicture, UnitEffectiveness};
 use serde::{Deserialize, Serialize};
 
 /// What the player was paying attention to, from the units selected and commanded.
@@ -119,6 +119,9 @@ pub struct TimedEvent {
     /// The player the event belongs to.
     pub player: String,
     pub text: String,
+    /// Where it happened, in map units, when it has a place (a proxy, a base lost).
+    #[serde(default)]
+    pub at: Option<(f32, f32)>,
 }
 
 /// A unit, structure or upgrade started by a player.
@@ -135,6 +138,9 @@ pub struct BuildOrderEntry {
     /// in the games of the same patch. None for other entries or with too few games.
     #[serde(default)]
     pub patch_average: Option<PatchAverage>,
+    /// Where the unit or structure was born, in map units; None for the upgrades.
+    #[serde(default)]
+    pub at: Option<(f32, f32)>,
 }
 
 /// The average time of an upgrade or an expansion in the games of the same patch of the snapshot.
@@ -286,6 +292,9 @@ pub struct ReplayPlayerSummary {
     pub bases_at_10: usize,
     /// The first enemy unit or structure killed.
     pub first_kill_seconds: Option<u32>,
+    /// The first kill with the unit killed, the killer and where: `Drone with Reaper`.
+    #[serde(default)]
+    pub first_kill: Option<TimedEvent>,
     /// The first command targeting the enemy start location, the text is the unit sent.
     pub first_scout: Option<TimedEvent>,
     /// A production structure built far from the start location early in the game.
@@ -405,12 +414,70 @@ pub struct EngagementLoss {
     pub mining_seconds: u32,
 }
 
+/// Where an engagement happened: the center of the deaths of the engagement, in map units, and
+/// how far around it they spread (`replay_detail::epicenters`).
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Epicenter {
+    pub x: f32,
+    pub y: f32,
+    /// The root mean square distance of the deaths to the center, in map units.
+    pub radius: f32,
+    /// The deaths of the engagement in the snapshot.
+    pub deaths: u32,
+}
+
 /// Units dying close in time, from the first to the last death.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Engagement {
     pub start_seconds: u32,
     pub end_seconds: u32,
     pub losses: Vec<EngagementLoss>,
+    /// None when the snapshot has no deaths of the engagement.
+    #[serde(default)]
+    pub epicenter: Option<Epicenter>,
+}
+
+/// A death on the map (`replay_detail::deaths`), the points of the density
+/// (`replay_detail::death_density`).
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MapDeath {
+    pub x: f32,
+    pub y: f32,
+    pub seconds: u32,
+}
+
+/// The side of a cell of the density map of the deaths, in map units: 2 keeps a 150 by 150 map at
+/// 75 by 75 cells, few enough rectangles for the page and finer than the spread of a fight.
+pub const DENSITY_CELL: f32 = 2.;
+
+/// The classes of the density map, within the 3 to 7 of the cartographic practice.
+pub const DENSITY_CLASSES: u32 = 6;
+
+/// A cell of the density map of the deaths of a replay (`replay_detail::death_density`): only
+/// the cells above the floor, the others are open ground.
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct DensityCell {
+    /// The column from the left of the playable area, in cells of [`DENSITY_CELL`].
+    pub column: u32,
+    /// The row from the bottom.
+    pub row: u32,
+    /// The deaths around, in deaths per cell.
+    pub density: f32,
+    /// 1 to [`DENSITY_CLASSES`], the densest last; the classes cover the same area each.
+    pub class: u32,
+}
+
+/// A townhall a player made in the game, where it stands (`replay_detail::bases`).
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+pub struct PlayerBase {
+    /// The player as stored in the replay, [`ReplayPlayer::name`].
+    pub player: String,
+    /// `Hatchery`, `CommandCenter` or `Nexus`.
+    pub unit_type: String,
+    pub x: f32,
+    pub y: f32,
+    /// The game second it finished, 0 for the first townhall of the player.
+    pub seconds: u32,
 }
 
 /// The chance of the first team to win at a moment of the game, from the economy and the armies
@@ -450,6 +517,9 @@ pub struct TurningPoint {
     /// What each team lost in the biggest engagement of the moment, i.e.
     /// `Sazed lost 2,400 (12xRoach), Cheater 1 lost 600 (4xMarine)`.
     pub engagement: Option<String>,
+    /// The losses of that engagement, for the view: the players, the resources and the units.
+    #[serde(default)]
+    pub losses: Vec<EngagementLoss>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
@@ -476,6 +546,16 @@ pub struct ReplayDetail {
     /// The creep of a 1v1 of a Zerg against a Terran or a Protoss, None otherwise.
     #[serde(default)]
     pub creep: Option<CreepSummary>,
+    /// The picture of the map of the game, None without its map cache.
+    #[serde(default)]
+    pub map: Option<MapPicture>,
+    /// The townhalls of the players, the first one of each at second 0; by time.
+    #[serde(default)]
+    pub bases: Vec<PlayerBase>,
+    /// The density of the deaths over the playable area of the map, the cells above the floor;
+    /// empty without the map cache.
+    #[serde(default)]
+    pub death_density: Vec<DensityCell>,
 }
 
 /// The creep tumors placed by the Zerg and cleaned by the opponent by the end of a minute, and the

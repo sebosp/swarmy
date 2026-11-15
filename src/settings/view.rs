@@ -1,16 +1,16 @@
 //! Leptos view for app configuration.
 
 use leptos::{ev::MouseEvent, prelude::*};
-use phosphor_leptos::{Icon, IconWeight, FOLDER_OPEN, QUESTION};
+use phosphor_leptos::{FOLDER_OPEN, Icon, IconWeight, QUESTION};
 use swarmy_common::*;
 
 use crate::components::loading::Loading;
 use crate::{
-    settings::actions::trigger_set_current_app_config, DisplayBackendStatus, SELECT_CLASS,
+    DisplayBackendStatus, SELECT_CLASS, settings::actions::trigger_set_current_app_config,
 };
 
 /// Config: in the browser version only what is of this browser and the administrator key, the
-/// paths and the options of the server are set in the server.
+/// paths, the options and the Battle.net credentials of the server are set in the server.
 #[component]
 pub fn Config() -> impl IntoView {
     if crate::components::web_session::is_web() {
@@ -28,7 +28,7 @@ fn WebConfig() -> impl IntoView {
             <div class="grid grid-cols-4 items-start gap-4">
                 <crate::components::web_session::AdminKeyInput />
                 <ConfigAppearance />
-                <ConfigBattleNet />
+                <ConfigDebug />
             </div>
         </div>
     }
@@ -64,6 +64,37 @@ fn DesktopConfig() -> impl IntoView {
     let loaded = RwSignal::new(false);
     // Whether to show what the last Save did.
     let show_saved = RwSignal::new(false);
+    // The settings of the form, as Save stores them.
+    let current = move || AppSettings {
+        cache_path: cache_path.get(),
+        replay_path: replay_path.get(),
+        duplicates_path: duplicates_path.get(),
+        main_player_name: main_player_name.get(),
+        disable_parallelism: disable_parallelism.get(),
+        traverse_max_depth: traverse_max_depth.get(),
+        scan_max_files: scan_max_files.get(),
+        process_max_files: process_max_files.get(),
+        min_version: min_version.get(),
+        max_version: max_version.get(),
+        watch_new_replays: watch_new_replays.get(),
+        notify_new_replays: notify_new_replays.get(),
+        remote_backend_url: remote_backend_url.get(),
+        remote_backend_token: remote_backend_token.get(),
+        zoom_percent: appearance.zoom_percent.get(),
+        theme: appearance.theme.get(),
+        reduce_motion: reduce_motion.get(),
+        underline_links: underline_links.get(),
+        focus_outline: focus_outline.get(),
+        max_table_rows: max_table_rows.get(),
+        show_polars_debug: crate::components::debug::use_debug_context().enabled.get(),
+        ..Default::default()
+    };
+    // The settings as last read or saved, to tell the changes not saved yet: Check Remote
+    // Backend tries the values typed without storing them, only Save does (2026-11-12, a token
+    // checked but never saved).
+    let saved = RwSignal::new(None::<String>);
+    let as_key = |settings: &AppSettings| serde_json::to_string(settings).unwrap_or_default();
+    let unsaved = Memo::new(move |_| saved.get().is_some_and(|saved| saved != as_key(&current())));
     crate::settings::with_fetch_stored_app_config(
         set_app_settings,
         move |settings: AppSettings| {
@@ -95,6 +126,7 @@ fn DesktopConfig() -> impl IntoView {
                 val.meta.success = true;
                 val.meta.is_complete = true;
             });
+            saved.set(Some(as_key(&current())));
             loaded.set(true);
         },
     );
@@ -315,6 +347,7 @@ fn DesktopConfig() -> impl IntoView {
                 <ConfigAppearance />
                 <ConfigAccessibility reduce_motion underline_links focus_outline />
                 <ConfigTableRows max_table_rows />
+                <ConfigDebug />
                 <ConfigBattleNet />
                 <Show when=move || remote_backend_url.get().trim().is_empty()>
                 <ConfigNumberInput
@@ -326,7 +359,7 @@ fn DesktopConfig() -> impl IntoView {
                 <ConfigNumberInput
                     name="process_max_files"
                     label="Max number of files to optimize"
-                    description="Decreases the size of the optimized snapshot."
+                    description="The replays Optimize adds to the snapshot at most, 500,000 by default. The others are added by the next Optimize. A lower value makes a smaller snapshot."
                     value=process_max_files
                 />
                 <ConfigNumberInput
@@ -348,68 +381,56 @@ fn DesktopConfig() -> impl IntoView {
                     value=max_version
                 />
                 </Show>
-                <div class="col-span-1"></div>
-                <div class="col-span-2">
-                    <button
-                        class="btn btn-primary w-full"
-                        on:click=move |ev: MouseEvent| {
-                            show_saved.set(true);
-                            // The confirmation goes away by itself, an error stays.
-                            leptos::prelude::set_timeout(
-                                move || {
-                                    if backend_response.get_untracked().meta.success {
-                                        show_saved.set(false);
-                                    }
-                                },
-                                std::time::Duration::from_secs(4),
-                            );
-                            ev.prevent_default();
-                            trigger_set_current_app_config(
-                                AppSettings {
-                                    cache_path: cache_path.get(),
-                                    replay_path: replay_path.get(),
-                                    duplicates_path: duplicates_path.get(),
-                                    main_player_name: main_player_name.get(),
-                                    disable_parallelism: disable_parallelism.get(),
-                                    traverse_max_depth: traverse_max_depth.get(),
-                                    scan_max_files: scan_max_files.get(),
-                                    process_max_files: process_max_files.get(),
-                                    min_version: min_version.get(),
-                                    max_version: max_version.get(),
-                                    watch_new_replays: watch_new_replays.get(),
-                                    notify_new_replays: notify_new_replays.get(),
-                                    remote_backend_url: remote_backend_url.get(),
-                                    remote_backend_token: remote_backend_token.get(),
-                                    zoom_percent: appearance.zoom_percent.get(),
-                                    theme: appearance.theme.get(),
-                                    reduce_motion: reduce_motion.get(),
-                                    underline_links: underline_links.get(),
-                                    focus_outline: focus_outline.get(),
-                                    max_table_rows: max_table_rows.get(),
-                                    ..Default::default()
-                                },
-                                set_backend_response,
-                            )
-                        }
-                    >
-                        "Save"
-                    </button>
-                    // What Save did, beside it: the status at the top of the view is out of sight.
-                    <p class="mt-2 text-sm" role="status" aria-live="polite">
-                        {move || {
-                            let response = backend_response.get();
-                            (show_saved.get() && !response.message.is_empty())
-                                .then(|| {
-                                    if response.meta.success {
-                                        view! { <span class="text-success">"✓ Saved"</span> }.into_any()
-                                    } else {
-                                        view! { <span class="text-error">{response.message}</span> }.into_any()
-                                    }
-                                })
-                        }}
-                    </p>
-                </div>
-                <div class="col-span-1"></div>
+            </div>
+            // Pinned to the bottom of the view: at a large zoom the end of the form is out of
+            // sight, and a Save out of sight is a change lost (2026-11-12).
+            <div class="sticky bottom-0 z-10 mt-4 flex flex-wrap items-center gap-3 border-t border-base-content/10 bg-base-100 py-3">
+                <button
+                    class="btn btn-primary min-w-40"
+                    on:click=move |ev: MouseEvent| {
+                        show_saved.set(true);
+                        // The confirmation goes away by itself, an error stays.
+                        leptos::prelude::set_timeout(
+                            move || {
+                                if backend_response.get_untracked().meta.success {
+                                    show_saved.set(false);
+                                }
+                            },
+                            std::time::Duration::from_secs(4),
+                        );
+                        ev.prevent_default();
+                        let settings = current();
+                        saved.set(Some(as_key(&settings)));
+                        trigger_set_current_app_config(settings, set_backend_response)
+                    }
+                >
+                    "Save"
+                </button>
+                {move || {
+                    unsaved
+                        .get()
+                        .then(|| {
+                            view! {
+                                <span class="text-sm text-warning" role="status">
+                                    "Unsaved changes: Save stores them"
+                                </span>
+                            }
+                        })
+                }}
+                // What Save did, beside it: the status at the top of the view is out of sight.
+                <p class="text-sm" role="status" aria-live="polite">
+                    {move || {
+                        let response = backend_response.get();
+                        (show_saved.get() && !response.message.is_empty())
+                            .then(|| {
+                                if response.meta.success {
+                                    view! { <span class="text-success">"✓ Saved"</span> }.into_any()
+                                } else {
+                                    view! { <span class="text-error">{response.message}</span> }.into_any()
+                                }
+                            })
+                    }}
+                </p>
             </div>
             </Show>
         </div>
@@ -706,18 +727,14 @@ fn ConfigAccessibility(
     };
     let toggle = move |label: &'static str, flag: RwSignal<bool>| {
         view! {
-            <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content">
-                <input
-                    type="checkbox"
-                    class="toggle toggle-sm"
-                    prop:checked=move || flag.get()
-                    on:change=move |ev| {
-                        flag.set(event_target_checked(&ev));
-                        apply();
-                    }
-                />
-                {label}
-            </label>
+            <ConfigCheckbox
+                label
+                checked=flag
+                on_toggle=Callback::new(move |checked: bool| {
+                    flag.set(checked);
+                    apply();
+                })
+            />
         }
     };
     view! {
@@ -736,6 +753,61 @@ fn ConfigAccessibility(
                 {toggle("Always show the focus outline", focus_outline)}
             </div>
         </ConfigRow>
+    }
+}
+
+/// Show Polars Debug Information: applied and saved as it is toggled, see
+/// `components::debug`.
+#[component]
+fn ConfigDebug() -> impl IntoView {
+    let debug = crate::components::debug::use_debug_context();
+    view! {
+        <ConfigRow
+            label="Debug"
+            help="Show Polars Debug Information: hovering a table or a panel shows a bug button that copies the address, in the swarmy repository on GitHub, of the query that computed it, with its documentation and SQL next to it. For reading how a number is made or reporting one that looks wrong."
+        >
+            <ConfigCheckbox
+                label="Show Polars Debug Information"
+                checked=debug.enabled
+                on_toggle=Callback::new(crate::components::debug::set_debug_enabled)
+            />
+        </ConfigRow>
+    }
+}
+
+/// A checkbox with its label, the one style of the on/off options of Config: the box fills with
+/// the primary color and shows a check mark when on.
+#[component]
+fn ConfigCheckbox(
+    label: &'static str,
+    #[prop(into)] checked: Signal<bool>,
+    on_toggle: Callback<bool>,
+) -> impl IntoView {
+    view! {
+        <label class="flex items-center gap-3 text-sm/6 font-medium text-base-content cursor-pointer">
+            <div class="group grid size-4 grid-cols-1">
+                <input
+                    type="checkbox"
+                    prop:checked=move || checked.get()
+                    on:change=move |ev| on_toggle.run(event_target_checked(&ev))
+                    class="col-start-1 row-start-1 appearance-none rounded-sm border border-base-content/10 bg-base-content/5 checked:border-primary checked:bg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary forced-colors:appearance-auto"
+                />
+                <svg
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    class="pointer-events-none col-start-1 row-start-1 size-3.5 self-center justify-self-center stroke-base-content"
+                >
+                    <path
+                        d="M3 8L6 11L11 3.5"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="opacity-0 group-has-checked:opacity-100"
+                    />
+                </svg>
+            </div>
+            {label}
+        </label>
     }
 }
 
@@ -768,13 +840,11 @@ fn ConfigTableRows(max_table_rows: RwSignal<u32>) -> impl IntoView {
 }
 
 /// The Client ID and Secret of a Battle.net application, for the profiles of the accounts in the
-/// Player view. The backend keeps them (with a remote backend, the server) and never sends the
-/// secret back; Save checks them with Battle.net first.
+/// Player view. The backend keeps them and never sends the secret back; Save checks them with
+/// Battle.net first. In the app only: a server has them in its environment or its data directory,
+/// never from a browser (`web::DESKTOP_COMMANDS`).
 #[component]
 fn ConfigBattleNet() -> impl IntoView {
-    // The credentials are of the backend, set by its administrator: in the browser, after the
-    // administrator key above.
-    let admin = crate::components::web_session::use_web_session().admin;
     let client_id = RwSignal::new(String::new());
     let client_secret = RwSignal::new(String::new());
     let status = RwSignal::new(None::<BattleNetStatus>);
@@ -792,12 +862,7 @@ fn ConfigBattleNet() -> impl IntoView {
             ));
         })
     };
-    // Again once signed in: the status is of the administrator.
-    Effect::new(move |_| {
-        if admin.get() {
-            refresh();
-        }
-    });
+    refresh();
     let save = move |client_id: String, client_secret: String| {
         #[derive(serde::Serialize)]
         struct Args {
@@ -829,7 +894,6 @@ fn ConfigBattleNet() -> impl IntoView {
             <div class="flex flex-col gap-2 max-w-md">
                 <p class="text-sm" role="status">
                     {move || match status.get() {
-                        _ if !admin.get() => view! { <span>"Sign in with the administrator key to set them"</span> }.into_any(),
                         None => view! { <span>"Checking with Battle.net..."</span> }.into_any(),
                         Some(status) if status.configured && status.working => view! {
                             <span class="text-success">"✓ Enabled: "</span>
@@ -882,7 +946,6 @@ fn ConfigBattleNet() -> impl IntoView {
                     }
                 >
                     <input
-                        disabled=move || !admin.get()
                         type="text"
                         autocomplete="off"
                         class="input input-sm bg-base-200 text-base-content border border-base-content/20"
@@ -892,7 +955,6 @@ fn ConfigBattleNet() -> impl IntoView {
                         on:input=move |ev| client_id.set(event_target_value(&ev))
                     />
                     <input
-                        disabled=move || !admin.get()
                         type="password"
                         autocomplete="off"
                         class="input input-sm bg-base-200 text-base-content border border-base-content/20"
@@ -902,11 +964,11 @@ fn ConfigBattleNet() -> impl IntoView {
                         on:input=move |ev| client_secret.set(event_target_value(&ev))
                     />
                     <div class="flex gap-2">
-                        <button type="submit" class="btn btn-primary btn-sm" disabled=move || !admin.get()>"Save"</button>
+                        <button type="submit" class="btn btn-primary btn-sm">"Save"</button>
                         <button
                             type="button"
                             class="btn btn-outline btn-sm"
-                            disabled=move || !admin.get() || !status.get().is_some_and(|status| status.configured)
+                            disabled=move || !status.get().is_some_and(|status| status.configured)
                             title="Ask Battle.net again whether it accepts the Client ID and Secret saved"
                             on:click=move |_| {
                                 status.set(None);
@@ -918,7 +980,6 @@ fn ConfigBattleNet() -> impl IntoView {
                         <button
                             type="button"
                             class="btn btn-ghost btn-sm"
-                            disabled=move || !admin.get()
                             title="Forget the Client ID and Secret saved by the backend"
                             on:click=move |_| save(String::new(), String::new())
                         >

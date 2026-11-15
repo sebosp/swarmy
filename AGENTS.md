@@ -44,14 +44,24 @@ Every change checks, without a skill to load:
 - In the browser the zoom is the browser's own (no Zoom setting, no Ctrl+= handling), Config
   always asks for the key (the server never tells whether it has one), the buttons that start
   Rerun or swarmy-bevy have the `native-only` class and `native_title`.
-- The servers use the key "swarmy" for now (decided 2026-11-08), see `~/git/linuxtweaks`; the
-  app sends it as the token of its Remote Backend.
+- The servers of the author use one random administrator key, kept with sops in
+  `~/git/linuxtweaks` (`secrets/swarmy.enc.yaml`, decided 2026-11-09, "swarmy" before); the app
+  sends it as the token of its Remote Backend. wormgat's 7878 and 7879 are on the internet as
+  `swarmy.nl` and `arena.swarmy.nl` through a Cloudflare Tunnel.
+- The access log and the metrics of the server (`src-tauri/src/access_log.rs`) measure the views
+  and the queries, never the visitors: no addresses (a visitor id salted at each start), the
+  arguments of the public commands only, `admin` to leave the author's own use out. The browser
+  version says its view in the header `X-Swarmy-View` (`public/web_bridge.js`); `/metrics` needs
+  the administrator key. Decided with the author on 2026-11-09.
 
 - Battle.net (`src-tauri/src/battlenet.rs`): the StarCraft II community API with the client
-  credentials flow (no redirect). The Client ID and Secret are set in Config by the administrator,
-  kept in `battlenet.json` of the data directory of the backend (mode 600) and never sent back to
-  the views; `SWARMY_BATTLENET_CLIENT_ID`/`_SECRET` replace them. Never commit or log them. The
-  profiles are kept 30 minutes. Decided with the author on 2026-11-08.
+  credentials flow (no redirect). The Client ID and Secret are set in Config of the app, kept in
+  `battlenet.json` of the data directory of the backend (mode 600) and never sent back to the
+  views; `SWARMY_BATTLENET_CLIENT_ID`/`_SECRET` replace them. A server takes them from its
+  environment or data directory only: the browser version has no Battle.net section in Config and
+  the server refuses `get_battlenet_status`/`set_battlenet_credentials` even with the
+  administrator key (`web::DESKTOP_COMMANDS`, 2026-11-11). Never commit or log them. The profiles
+  are kept 30 minutes. Decided with the author on 2026-11-08.
 
 ## Snapshot data
 
@@ -122,8 +132,8 @@ with the author here, explicitly, so that the next agent follows them.
 - Buttons that would only ask the backend for nothing are disabled (Next on the latest replay).
 - Long views keep what the viewer needs in view: the map of Map Details is sticky; Replay Detail
   has a gutter between the players to scroll the page without scrolling a section.
-- Views whose value is not proven yet go to the Experimental group of the menu (Map Scout). The
-  pages read once (Tour, Help, Changelog) are at the bottom of the menu, Config is with Scan.
+- Views whose value is not proven yet go to an Experimental group of the menu, under a dashed line
+  (none since Map Scout was removed on 2026-11-12). The pages read once (Tour, Help, Changelog) are at the bottom of the menu, Config is with Scan.
 - Ctrl+= / Ctrl+- / Ctrl+0 zoom; the themes use the daisyUI semantic colors and the `--chart-*`
   variables, never hard-coded colors (except the map resources, checked against each other).
 
@@ -179,12 +189,164 @@ with the author here, explicitly, so that the next agent follows them.
 
 ## Code
 
+`ARCHITECTURE.md` says where things are; the rules below say how they are written.
+
+### Modules
+- Edition 2024 in the three crates. A module is `name.rs` with its children in `name/`, never
+  `mod.rs`: the path of a module is the address of its file, on disk and on GitHub, and the file
+  keeps it when tests and documentation grow beside it. Enforced by clippy `mod_module_files`
+  (workspace lints) and by `data::contract::no_module_is_a_mod_rs`. Decided with the author on
+  2026-11-10, after the research in `reports/Query module layout for swarmy.md`.
+
+### A query is a file
+Decided with the author on 2026-11-10, the reasons in `reports/Query module layout for swarmy.md`.
+A statistic shown by a panel, a table or a chart is one query, and a query is one file with a
+directory of its name beside it:
+
+```
+src-tauri/src/<view>/<query>.rs            the query: META, plan, shape, `mod tests;`
+src-tauri/src/<view>/<query>/README.md     Purpose, Inputs, Output, Query, Edge cases, Performance, Example
+src-tauri/src/<view>/<query>/tests.rs      the tests
+```
+
+- The file starts with `#![doc = include_str!("<query>/README.md")]` (the README is its rustdoc),
+  then `pub const META: QueryMeta = query_meta!();` (the module, file and line the compiler saw,
+  for the "Show Polars Debug Information" links and the contract test).
+- `pub fn plan(source: &dyn SnapshotSource, ...) -> Result<LazyFrame, SwarmyError>` builds the
+  lazy query from `source.table(DETAILS_IPC)` and the other tables, never from a path and never
+  collecting; `pub fn shape(frame: DataFrame) -> Result<Dto, SwarmyError>` turns the collected
+  frame into the type of `swarmy-common`. The view's command (`src-tauri/src/<view>.rs`) opens
+  `IpcSnapshot`, collects the plans (several as one with `collect_all`) and shapes.
+- The README is for a person who knows SQL and the game, not the code: what the panel answers
+  (Purpose), the tables and columns read (Inputs), a table of the output columns with dtype and
+  meaning (Output), the SQL in a ```sql fence (Query), what is left out and why (Edge cases:
+  observers, computer players, ties, arcade races, nulls), which files are scanned and what is
+  pushed down (Performance), and the games of the fixture with the expected answer (Example).
+- The SQL of the fence is executed by the tests with `polars::sql::SQLContext` on the same
+  fixture as `plan`, and `polars_testing::assert_dataframe_equal!` compares the two (row order
+  off, dtypes on): the SQL cannot drift from the code. A query SQL cannot express (list and
+  struct columns, `group_by_dynamic`, `top_k`, `cut`) writes `SQL: not expressible` in the Query
+  section and the test asserts a hand-written expected frame.
+- The tests run on `data::fixtures`: a few games described as a person would (`Game`, `Player`,
+  `Snapshot::new().game(..).source()`), with the exact columns and dtypes of a real snapshot, so
+  that the expected numbers are recomputed by reading the games; the arithmetic goes in a comment
+  (`// Alice: 2 games, 1 win -> 50 %`). Named by behaviour
+  (`two_games_one_win_gives_fifty_percent`), no `test_` prefix. A test on a real snapshot is
+  `#[ignore]`, named `snapshot_...`, reads `SWARMY_TEST_REPLAYS`.
+- Literals follow the column: `lit(1u64)` against `ext_fs_id`, never a bare `lit(1)` (Int32).
+  The SQL side types too: `COUNT(*)` is u32 like `len()`, `SUM(CASE WHEN .. THEN 1 ELSE 0 END)`
+  is Int32, so the plan casts its `.sum()` of a boolean to Int32. Sort on a unique key before
+  taking rows; `group_by` order is not stable.
+- `data::contract::every_query_file_has_its_readme_and_tests` fails `cargo test` when a query file
+  misses any of this, or a README has no query file.
+- Every query file has a bench in `src-tauri/benches/queries.rs` (its view's group, the heaviest
+  parameter: the most played map or player). Before a release `scripts/bench.sh` on corvid
+  compares the medians with `src-tauri/benches/baseline-corvid.json`: a query 20 % slower than
+  the baseline blocks the release until it is fixed or the new time is accepted
+  (`scripts/bench.sh --accept`, the reason in the commit). The runs are appended to
+  `~/ci-runs/bench-history.jsonl` on corvid. Decided with the author on 2026-11-10.
+- The view's command names its queries in the answer, `ApiResponseBuilder::new()
+  .with_sources(QUERIES.map(QuerySource::from))`, and the frontend wraps each table, field or
+  panel that shows a query in `<Debuggable query="map_details::matchups"
+  view_source=crate::source!()>` (`components/debug.rs`): with Show Polars Debug Information on
+  (Config, saved per computer or browser) a line above the content names the query and its file
+  in `<code>` with a bug icon and a Copy link button for the GitHub address of the query file, at
+  the commit of the backend (`AppVersions::git_sha`, from `build.rs`; the `develop` branch when
+  the build had uncommitted changes). A line, never a button floating over the content: it
+  covered the sort arrows of the headers (the author, 2026-11-10). Take what a `Debuggable` block
+  shows out of the view's data before the `view!`, its children are a closure. Decided with the
+  author on 2026-11-10.
+- The views are migrated one by one; Map Details was the first (2026-11-10:
+  `map_details/{games_summary,matchups,top_players,recent_games,maps}.rs`, the model to copy),
+  then Player (`player_detail/{player_rows,players,game_results,matches,opponents,
+  unit_effectiveness,accounts,similar_accounts}.rs`; `head_to_head` and `insights` read the
+  analysis of the games and are not query files yet) and Replay List
+  (`replay_list/{games,protocol_versions,years}.rs`; the notes, tags and messages come from the
+  personal database in the command), Progress (`progress/{games,metrics}.rs`, the one view that
+  reads an event file, `stats.arrow`, for the supply blocked) and Race Detail
+  (`race_detail/{player_games,matchups,by_patch,maps,top_players,units}.rs` on
+  `data::snapshot_players_of`; the abilities come from the ability usage), Map List
+  (`map_stats/maps.rs`, run through the majordomo), the charts over time
+  (`usage_over_time/{race_games,ability_uses,unit_uses,unit_race,patch_starts}.rs`, read from
+  the usage tables of the aggregations through `SnapshotSource::usage(grain, table)`; the
+  fixtures build the usage tables of the three grains from the games, as
+  `s2protocol::arrow_store::aggregates` does, and the SQL names them `month_player_usage`) and
+  the snapshot panel of the Unit Overview (`patch_overview/unit_stats/{games,totals,by_month,
+  kills_per_unit,exceptional}.rs`; `exceptional` takes the threshold of `kills_per_unit` as a
+  scalar parameter, a literal in the README SQL), the Ability view (`ability_detail/
+  player_games.rs`: one frame of every game of the race with its uses, `aggregate` in
+  `ability_detail.rs` adds it up in Rust, tested apart) and the Home summary
+  (`snapshot_stats/summary.rs`; the Home table has no debug line, a line cannot sit in a row);
+  the economy benchmarks of the Player insights are `player_detail/benchmarks.rs` (the
+  `game_minutes` fixture table, `Player.minutes`), cached per snapshot in `insights.rs`;
+  `valued_units` (`replay_detail/valued_units.rs`) is a frame parameter as `race_units`; the
+  fixtures have `unit_born`, `unit_died` and `cmd_target_point` with the columns the queries
+  read, from `Player.start`, `.commands` and `.deaths` (Map Scout and the map lessons of Map
+  Details were removed on 2026-11-12); the ability usage
+  of the snapshot (Patch Overview, the ability ranks of a replay) is
+  `ability_usage/{game_uses,totals,by_player}.rs`, the three plans run together with
+  `collect_all` once per snapshot (`tracked_abilities` is a frame parameter); the annotations
+  of a replay from the snapshot are `replay_detail/patch_timings/{games,upgrade_averages,
+  expansion_averages}.rs`, `replay_detail/winner_benchmarks/medians.rs` and
+  `replay_detail/opening_answers/answers.rs` (`tech_structures` is a frame parameter; the
+  fixtures have `upgrades`, `unit_born.control_player_id` and `Player.born`/`.upgrades`), kept
+  in memory per snapshot generation as before; the map of a replay (`replay_detail/map.rs`, not
+  a query: it loads the map cache as `map_details::map_picture`) runs `replay_detail/bases.rs`
+  (the townhalls of the players, `Born::at` places a fixture unit) and
+  `replay_detail/epicenters.rs` (the center and root mean square spread of the deaths of each
+  engagement; the engagement windows of the analysis are the frame parameter
+  `engagement_windows`, `valued_units` the other) and `replay_detail/deaths.rs` (where and when
+  the valued units died) with `replay_detail/death_density.rs` on top of it (the kernel density
+  estimate of the Deaths mode of the map, bandwidth, binning, kernel, floor and rank classes all
+  in the Polars plan; `kernel_offsets` is a frame parameter, the playable area of the map a
+  scalar one; the view only tints the cells and runs marching squares for the contour lines).
+  Every aggregation of the views is a Polars plan, the frontend only draws (decided 2026-11-11).
+  The forms of a unit (`patch_overview/unit_stats/forms.rs`) are the unit type changes
+  (`unit_born` rows of the same tag with another type), a static table per patch
+  (`forms/unit_forms.json`, compiled in) generated off-line by `write_unit_forms` over a large
+  snapshot one day at a time and validated against the patch's balance data (decided 2026-11-12:
+  the morphs change only with a patch; the whole-snapshot sort took 13 GB), the Unit Overview
+  takes the pairs of the newest patch connected to its unit (`forms_of`); the upgrade dependency tree is the `requires` of the upgrade levels of the balance
+  data (`patch_overview::data::upgrade_trees`). The picture of a map is one component,
+  `src/components/map_picture.rs` (`swarmy_common::MapPicture`, `MapFrame` for the marks,
+  `base_opacity` to fade it), Map Details and the Replay view draw their marks over it and
+  highlight the cells hovered (`MapCell`, `MapSpots` for several, `round` for a radius). The
+  Replay map has three modes (`src/replay_detail/map_modes.rs`): Bases, Deaths (the cells
+  of `replay_detail::death_density`, six classes of ColorBrewer YlOrBr with marching-squares
+  contour lines, the minimap at 0.35) and Over time
+  (the fights as discs of their spread, viridis by start time in 5 or 7 classes, 0.3 fill,
+  painted in time order); decided with the author on 2026-11-11 after a research of the
+  cartographic conventions (`docs/research/replay-map-density-and-time.md`: no rainbow ramps,
+  time is ordered, 3 to 7 classes, a floor at 5 % of the peak, fade the base map, one legend). Not query files: `replay_detail/creep.rs`,
+  `player_detail/{snapshot_insights,game_insights,head_to_head}.rs` (they read the day files or
+  the replays themselves), the balance data views (Patch Overview units, Patch Evolution). A parameter that is a
+  frame computed by swarmy (the patch of each protocol version, the army units of a race) is a
+  table of the fixtures for the SQL (`patch_versions`, `race_units`), registered with
+  `assert_sql_matches_source`. A query with optional filters (the Replay List) documents
+  one concrete set of filters in its SQL and the same set in its test; the other filters are
+  prose. Frames with list columns compare in order (`assert_sql_matches_plan_in_order`), they
+  cannot be sorted; `ARRAY_AGG(x ORDER BY x)` and `ARRAY_TO_STRING` work in polars-sql.
+  Until a view is migrated its `try_query_*` functions stay as they are. A new statistic is
+  written as a query file from the start.
+- The SQL dialect of polars-sql, as the Map Details READMEs use it: CTEs, `ROW_NUMBER() OVER
+  (PARTITION BY .. ORDER BY ..)`, `COUNT(*)`, `COUNT(DISTINCT x)`, `MIN`/`MAX`/`AVG`/`SUM(CASE ..)`,
+  `STRFTIME(ts, '%Y-%m-%d')`, `CONCAT`, `LEFT JOIN .. ON`, `LIMIT`, `SPLIT_PART`, `STRPOS`,
+  `COALESCE`, `CAST(x AS VARCHAR)`, `SUM(..) OVER (PARTITION BY ..)`. A self-join of a CTE on a
+  window column returned no rows (2026-11-10): aggregate per group with `MIN`/`MAX`/`SUM(CASE
+  WHEN side = 1 ..)` instead. A window `ORDER BY` cannot mix directions ("OVER does not (yet)
+  support mixed asc/desc"): write `ORDER BY 0 - CAST(games AS BIGINT), name` for games
+  descending then name ascending. A view's queries share a base plan (`player_rows` for Player):
+  the base is a query file too, and each README repeats its CTEs so that its SQL runs alone.
+
+### Commands
 - A backend command of the snapshot is a function of its module that takes the host first, listed
   once in `src-tauri/src/commands.rs`: it then runs in the app and in `swarmy --serve`.
 - Expensive aggregates of the snapshot are computed once per snapshot generation and cached (see
   `ability_usage_cached`, `creep_stats_cached`).
-- Tests: unit tests next to the code; queries of a real snapshot are `#[ignore]` tests run with
-  `SWARMY_TEST_REPLAY_PATH=<replay path> cargo test --release -- --ignored --nocapture`.
+- Tests: unit tests next to the code (`mod tests` in the file, or `<name>/tests.rs` for a query);
+  queries of a real snapshot are `#[ignore]` tests named `snapshot_...`, run with
+  `SWARMY_TEST_REPLAYS=<replay path> cargo test --release -- --ignored --nocapture`.
+  `docs/query-readme-template.md` is the README of a new query.
 - Each user-visible change gets a line in `src/changelog/view.rs` (by date) and, for a new view or
   statistic, in `src/help/view.rs`.
 - `cargo fmt --all` and no warnings in `cargo check` of both the wasm frontend and the backend.

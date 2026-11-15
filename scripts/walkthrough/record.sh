@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Records the swarmy walkthrough on the headless display :7 of headless.sh (2000x1600, the app at
 # 2x) from a new profile: Config, Scan, Optimize, Map List, Map Details, Replay List, Replay Detail,
-# Player, Map Scout, Patch and Unit Overview, Rerun and swarmy-bevy. Saves the screenshots on the
+# Player, Patch and Unit Overview, Rerun and swarmy-bevy. Saves the screenshots on the
 # way, see README.md.
 set -uo pipefail
 
@@ -160,10 +160,6 @@ sleep 9
 snap player
 scroll 5 6
 scroll 4 6
-
-chapter "Map Scout"
-click 22 294 7
-snap map_scout
 
 chapter "Patch Overview"
 click 22 339 4

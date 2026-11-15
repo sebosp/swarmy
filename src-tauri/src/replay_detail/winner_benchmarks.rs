@@ -1,26 +1,20 @@
 //! What the winners of the same matchup had at 04:00, 06:00, 08:00 and 10:00 in the games of the
 //! patch: the median workers, supply, income and army value of the human players who won a 1v1
 //! with the same race against the same race, so that a replay shows where it was behind the
-//! games that were won.
+//! games that were won. The medians are the query file `medians.rs` (AGENTS.md, "A query is a
+//! file"), computed once per snapshot generation.
 
-use super::data::BENCHMARK_MINUTES;
-use crate::data::*;
-use polars::prelude::*;
+pub mod medians;
+
+use crate::data::{IpcSnapshot, QueryMeta, snapshot_generation};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use swarmy_common::*;
 
-/// The control of the human players in the details.
-const HUMAN_CONTROL: u8 = 2;
+pub use medians::{MIN_WINNER_SAMPLES, WinnerBenchmarks};
 
-/// The medians of fewer games are not shown.
-pub const MIN_WINNER_SAMPLES: u32 = 5;
-
-/// The stats of a benchmark minute are the last ones of the seconds before it, they are written
-/// every 7 seconds.
-
-/// The medians by race, enemy race and minute, with the games they come from.
-pub type WinnerBenchmarks = HashMap<(String, String), (Vec<Benchmark>, u32)>;
+/// The queries of the benchmarks, for the debug links.
+pub const QUERIES: [QueryMeta; 1] = [medians::META];
 
 type CacheKey = (String, u32, Option<std::time::SystemTime>);
 
@@ -51,111 +45,8 @@ pub fn winner_benchmarks(
     ipc_path: &str,
     protocol_version: u32,
 ) -> Result<WinnerBenchmarks, SwarmyError> {
-    // The tracker player id is the position of the player in the details.
-    let players = scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
-        .filter(col("ext_protocol_version").eq(lit(protocol_version)))
-        .with_columns([
-            (int_range(lit(0), len(), 1, DataType::UInt32) + lit(1u32))
-                .over([col("ext_fs_id")])?
-                .cast(DataType::UInt8)
-                .alias("player_id"),
-            race_name_expr("player_race").alias("race"),
-        ])
-        .with_column(len().over([col("ext_fs_id")])?.alias("players"))
-        .with_column(
-            col("player_control")
-                .eq(lit(HUMAN_CONTROL))
-                .all(true)
-                .over([col("ext_fs_id")])?
-                .alias("humans"),
-        )
-        .filter(col("players").eq(lit(2u32)).and(col("humans")))
-        .select([
-            col("ext_fs_id"),
-            col("player_id"),
-            col("race"),
-            col("player_result"),
-        ])
-        .collect()?;
-    let enemies = players.clone().lazy().select([
-        col("ext_fs_id"),
-        col("player_id").alias("enemy_id"),
-        col("race").alias("enemy_race"),
-    ]);
-    let winners = players
-        .clone()
-        .lazy()
-        .filter(col("player_result").eq(lit("Win")))
-        .join(
-            enemies,
-            [col("ext_fs_id")],
-            [col("ext_fs_id")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .filter(col("player_id").neq(col("enemy_id")))
-        .select([
-            col("ext_fs_id"),
-            col("player_id"),
-            col("race"),
-            col("enemy_race"),
-        ]);
-    let medians = scan_snapshot_ipc(ipc_path, GAME_MINUTES_IPC)?
-        .filter(col("minute").is_in(
-            lit(Series::new("minutes".into(), BENCHMARK_MINUTES.as_slice())).implode(false),
-            false,
-        ))
-        .join(
-            winners,
-            [col("ext_fs_id"), col("player_id")],
-            [col("ext_fs_id"), col("player_id")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .group_by([col("race"), col("enemy_race"), col("minute")])
-        .agg([
-            col("workers").median().cast(DataType::Int32),
-            col("supply").median().cast(DataType::Int32),
-            col("minerals_rate").median().cast(DataType::Int32),
-            col("vespene_rate").median().cast(DataType::Int32),
-            col("army_value").median().cast(DataType::Int32),
-            len().cast(DataType::UInt32).alias("samples"),
-        ])
-        .filter(col("samples").gt_eq(lit(MIN_WINNER_SAMPLES)))
-        .sort(["minute"], Default::default())
-        .collect()?;
-    let mut benchmarks = WinnerBenchmarks::new();
-    let column = |name: &str| -> Result<Vec<i32>, SwarmyError> {
-        Ok(medians
-            .column(name)?
-            .i32()?
-            .iter()
-            .map(Option::unwrap_or_default)
-            .collect())
-    };
-    let (workers, supply) = (column("workers")?, column("supply")?);
-    let (minerals, vespene, army) = (
-        column("minerals_rate")?,
-        column("vespene_rate")?,
-        column("army_value")?,
-    );
-    let samples = u32_values(&medians, "samples")?;
-    for (idx, ((race, enemy_race), minute)) in str_values(&medians, "race")?
-        .into_iter()
-        .zip(str_values(&medians, "enemy_race")?)
-        .zip(u32_values(&medians, "minute")?)
-        .enumerate()
-    {
-        let entry = benchmarks.entry((race, enemy_race)).or_default();
-        entry.0.push(Benchmark {
-            minute,
-            workers: workers[idx],
-            supply: supply[idx],
-            minerals_rate: minerals[idx],
-            vespene_rate: vespene[idx],
-            army_value: army[idx],
-        });
-        entry.1 = entry.1.max(samples[idx]);
-    }
-    Ok(benchmarks)
+    let source = IpcSnapshot::at(ipc_path);
+    medians::shape(medians::plan(&source, protocol_version)?.collect()?)
 }
 
 /// Sets the benchmarks of the winners of the matchup of the players of a 1v1.

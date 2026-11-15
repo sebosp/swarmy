@@ -9,8 +9,8 @@ use sha2::{Digest, Sha512};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use swarmy_common::{
-    default_max_table_rows, default_reduce_motion, default_theme, default_zoom_percent,
-    AppSettings, SnapshotStats,
+    AppSettings, SnapshotStats, default_max_table_rows, default_reduce_motion, default_theme,
+    default_zoom_percent,
 };
 
 /// The header of the browser with the administrator key.
@@ -22,9 +22,6 @@ const SHA512_HEX_LEN: usize = 128;
 /// The commands of the backend (`commands::BACKEND_COMMANDS`) that need the administrator: they write in the server, or
 /// tell what is private to it (the personal notes, the files it has).
 pub const ADMIN_COMMANDS: &[&str] = &[
-    // The credentials of the Battle.net application of the server.
-    "get_battlenet_status",
-    "set_battlenet_credentials",
     "basic_scan_replay_path",
     "optimize_replay_path",
     "get_new_replays_status",
@@ -44,8 +41,6 @@ pub const PUBLIC_COMMANDS: &[&str] = &[
     "query_battlenet_profile",
     "get_snapshot_metadata",
     "query_map_stats",
-    "query_siege_spots",
-    "query_map_layers",
     "query_replay_list",
     "list_replay_filters",
     "query_replay_detail",
@@ -54,7 +49,6 @@ pub const PUBLIC_COMMANDS: &[&str] = &[
     "query_player_detail",
     "list_players",
     "query_head_to_head",
-    "query_map_scout",
     "query_map_details",
     "list_maps",
     "query_unit_snapshot_stats",
@@ -64,6 +58,12 @@ pub const PUBLIC_COMMANDS: &[&str] = &[
     "query_usage_over_time",
     "query_progress",
 ];
+
+/// The commands of the backend the server does not run, not even for its administrator: the
+/// Client ID and Secret of the Battle.net application of a server are set on the server itself
+/// (`SWARMY_BATTLENET_CLIENT_ID`/`_SECRET` in its environment, or `battlenet.json` of its data
+/// directory), never typed in a browser; the app sets them in its Config.
+pub const DESKTOP_COMMANDS: &[&str] = &["get_battlenet_status", "set_battlenet_credentials"];
 
 /// The commands of the app that use no snapshot nor window, the server runs them for the browser.
 pub const STATIC_COMMANDS: &[&str] = &[
@@ -234,12 +234,20 @@ mod tests {
     #[test]
     fn it_classifies_every_command_of_the_backend() {
         for command in BACKEND_COMMANDS {
-            assert!(
-                ADMIN_COMMANDS.contains(command) != PUBLIC_COMMANDS.contains(command),
-                "{command} must be in exactly one of ADMIN_COMMANDS and PUBLIC_COMMANDS"
+            let lists = [ADMIN_COMMANDS, PUBLIC_COMMANDS, DESKTOP_COMMANDS]
+                .iter()
+                .filter(|list| list.contains(command))
+                .count();
+            assert_eq!(
+                lists, 1,
+                "{command} must be in exactly one of ADMIN_COMMANDS, PUBLIC_COMMANDS and DESKTOP_COMMANDS"
             );
         }
-        for command in ADMIN_COMMANDS.iter().chain(PUBLIC_COMMANDS) {
+        for command in ADMIN_COMMANDS
+            .iter()
+            .chain(PUBLIC_COMMANDS)
+            .chain(DESKTOP_COMMANDS)
+        {
             assert!(
                 BACKEND_COMMANDS.contains(command),
                 "{command} does not exist"

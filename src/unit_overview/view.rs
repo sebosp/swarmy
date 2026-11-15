@@ -1,11 +1,13 @@
 //! A unit with its costs, life, weapons, etc in every patch, the changes from the previous patch
 //! are marked: red up when the unit costs more, green down when it costs less.
 
-use crate::components::brand_icon::{native_title, BrandIcon};
-use crate::components::links::{MapLink, PatchLink, PlayerLink, RaceLink, ReplayLink, UnitLink};
+use crate::components::abilities::group_digits;
+use crate::components::brand_icon::{BrandIcon, native_title};
+use crate::components::debug::Debuggable;
+use crate::components::links::{MapLink, PatchLink, PlayerLink, ReplayLink, UnitLink};
 use crate::components::loading::Loading;
 use crate::components::patch::ChangeMarker;
-use crate::components::unit_icon::UnitIcon;
+use crate::components::unit_icon::{AbilityList, PropertyLabel, UnitIcon};
 use crate::components::usage_over_time::UsageOverTimeChart;
 use crate::navigation::use_navigation;
 use crate::replay_list::actions::{trigger_swarmy_bevy_on_replay, trigger_swarmy_rerun_on_replay};
@@ -98,30 +100,20 @@ pub fn UnitOverviewView() -> impl IntoView {
     };
     view! {
         <div class="p-2 space-y-2">
-            <h1 class="text-xl font-semibold text-base-content">"Unit overview"</h1>
-            <p class="text-xs text-faint">
-                <span class="text-error">"▲"</span>
-                " the unit costs more or got worse than in the previous patch, "
-                <span class="text-success">"▼"</span>
-                " it costs less, "
-                <span class="text-success">"▲"</span>
-                " / "
-                <span class="text-error">"▼"</span>
-                " more or less of a property that is better the higher, i.e. life, "
-                <span class="text-warning">"●"</span>
-                " changed. Hover a value to see the previous one."
-            </p>
+            <h1 class="text-xl font-semibold text-base-content">"Unit Overview"</h1>
             <crate::components::race_buttons::RaceButtons value=race races=&RACES on_pick=pick_race />
-            <div class="grid grid-cols-10 gap-2 items-end">
-                <div class="col-span-3">
-                    <label class="block text-sm/6 font-medium text-base-content">"Unit"</label>
-                    <select
-                        class="select select-sm w-full bg-base-200 text-base-content border border-base-content/20"
-                        on:change=move |ev| navigation.unit_name.set(event_target_value(&ev))
-                    >
-                        {options}
-                    </select>
-                </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm/6 font-medium text-base-content" for="unit-overview-unit">"Unit"</label>
+                <select
+                    id="unit-overview-unit"
+                    class="select select-sm w-64 bg-base-200 text-base-content border border-base-content/20"
+                    on:change=move |ev| navigation.unit_name.set(event_target_value(&ev))
+                >
+                    {options}
+                </select>
+                <span class="ml-auto">
+                    {move || unit.get().map(|unit| view! { <UnitIcon unit_name=unit.name size="w-12 h-12" /> })}
+                </span>
             </div>
             <ErrorMessage error />
             {move || unit.get().map(|unit| view! { <UnitTable unit /> })}
@@ -188,13 +180,10 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
                 .map(|(first, _)| {
                     let value = &row.values[*first];
                     let previous = first.checked_sub(1).map(|previous| &row.values[previous]);
-                    // Unchanged values are shown once, the next columns only mark them as
-                    // unchanged.
+                    // Unchanged values are shown once, the next columns stay empty.
                     if previous.is_some() && value.change == PatchChange::Same {
                         return view! {
-                            <td class="pr-3 py-1 text-faint" title=format!("Unchanged: {}", value.value)>
-                                "〃"
-                            </td>
+                            <td class="pr-3 py-1" title=format!("Unchanged: {}", value.value)></td>
                         }
                         .into_any();
                     }
@@ -204,15 +193,20 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
                         .unwrap_or_default();
                     // Requirements and producers are units too.
                     let is_unit_list = matches!(row.label.as_str(), "Requires" | "Produced by");
-                    let content = if is_unit_list && value.value != "-" {
+                    let is_abilities = row.label == "Abilities";
+                    let content = if is_abilities && value.value != "-" {
+                        view! { <AbilityList abilities=value.value.clone() /> }.into_any()
+                    } else if is_unit_list && value.value != "-" {
                         value
                             .value
                             .split(", ")
                             .filter(|name| !name.is_empty())
-                            .map(|name| view! {
-                                <span class="mr-1">
-                                    <UnitLink unit_name=name.to_string() />
-                                </span>
+                            .map(|name| {
+                                view! {
+                                    <span class="mr-1">
+                                        <UnitLink unit_name=name.to_string() />
+                                    </span>
+                                }
                             })
                             .collect_view()
                             .into_any()
@@ -220,7 +214,7 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
                         value.value.clone().into_any()
                     };
                     view! {
-                        <td class="pr-3 py-1 whitespace-nowrap" title=title>
+                        <td class="pr-3 py-1" class:whitespace-nowrap=!is_abilities title=title>
                             <ChangeMarker kind change=value.change />
                             {content}
                         </td>
@@ -232,7 +226,7 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
             view! {
                 <tr class=if show_label { "border-t border-base-content/20" } else { "" }>
                     <td class="pr-3 py-1 text-base-content whitespace-nowrap">
-                        {show_label.then_some(label)}
+                        {show_label.then(|| view! { <PropertyLabel label /> })}
                     </td>
                     <td class="pr-3 py-1 whitespace-nowrap">
                         {row.unit.clone().map(|counter| view! { <UnitLink unit_name=counter /> })}
@@ -243,16 +237,6 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
         })
         .collect_view();
     view! {
-        <h2 class="text-base/7 font-semibold text-base-content">
-            <UnitIcon unit_name=unit.name.clone() size="w-12 h-12" />
-            {format!("{} (", unit.name)}
-            <RaceLink race=unit.race.clone() />
-            ")"
-        </h2>
-        <p class="text-xs text-faint">
-            "〃 the value did not change from the previous column, hover to see it. Patches without \
-            any change of the unit are merged into one column."
-        </p>
         <div class="overflow-x-auto">
             <table class="min-w-full text-xs text-muted">
                 <thead>
@@ -265,7 +249,148 @@ fn UnitTable(unit: PatchUnit) -> impl IntoView {
                 <tbody class="divide-y divide-base-content/5">{rows}</tbody>
             </table>
         </div>
+        <UpgradeTrees trees=unit.upgrade_trees.clone() />
     }
+}
+
+/// A row of the tree of the upgrades: the branch lines, the level and what it needs.
+struct UpgradeRow {
+    branches: String,
+    node: UpgradeNode,
+}
+
+/// The levels of the upgrades as rows of a tree, the lines before each level as in the Opening
+/// of the Replay view.
+fn upgrade_rows(nodes: &[UpgradeNode], prefix: &str, roots: bool, rows: &mut Vec<UpgradeRow>) {
+    let count = nodes.len();
+    for (idx, node) in nodes.iter().enumerate() {
+        let last = idx + 1 == count;
+        let (branch, below) = match (roots, last) {
+            (true, _) => ("", ""),
+            (false, true) => ("└─ ", "   "),
+            (false, false) => ("├─ ", "│  "),
+        };
+        rows.push(UpgradeRow {
+            branches: format!("{prefix}{branch}"),
+            node: UpgradeNode {
+                children: vec![],
+                ..node.clone()
+            },
+        });
+        upgrade_rows(&node.children, &format!("{prefix}{below}"), false, rows);
+    }
+}
+
+/// The upgrades of the unit in the latest patch as a dependency tree: each level under the level
+/// it requires, with its cost and the structure it needs.
+#[component]
+fn UpgradeTrees(trees: Vec<UpgradeNode>) -> impl IntoView {
+    if trees.is_empty() {
+        return ().into_any();
+    }
+    let mut rows = vec![];
+    upgrade_rows(&trees, "", true, &mut rows);
+    view! {
+        <h2 class="text-base/7 font-semibold text-base-content">"Upgrades"</h2>
+        <table class="text-xs text-muted">
+            <tbody>
+                {rows
+                    .into_iter()
+                    .map(|row| {
+                        let needs = row.node.requires_units.clone();
+                        view! {
+                            <tr>
+                                <td class="pr-3 py-0.5 text-base-content whitespace-nowrap">
+                                    <span class="font-mono whitespace-pre text-faint">{row.branches}</span>
+                                    <UnitIcon unit_name=row.node.id.clone() size="w-5 h-5" />
+                                    {row.node.id.clone()}
+                                </td>
+                                <td class="py-0.5 whitespace-nowrap">
+                                    {(!needs.is_empty())
+                                        .then(|| {
+                                            view! {
+                                                "requires "
+                                                {needs
+                                                    .into_iter()
+                                                    .map(|unit| view! { <span class="mr-1"><UnitLink unit_name=unit /></span> })
+                                                    .collect_view()}
+                                            }
+                                        })}
+                                </td>
+                            </tr>
+                        }
+                    })
+                    .collect_view()}
+            </tbody>
+        </table>
+    }
+    .into_any()
+}
+
+/// The morphs of the unit in the games (`unit_stats::forms`): what it changes into and back, how
+/// often, one change per line, and the stats of each form in the latest balance data side by
+/// side.
+#[component]
+fn UnitForms(forms: Vec<UnitForm>, form_changes: Vec<UnitFormChange>) -> impl IntoView {
+    if form_changes.is_empty() {
+        return ().into_any();
+    }
+    view! {
+        <Debuggable query="patch_overview::unit_stats::forms" view_source=crate::source!()>
+        <h2 class="text-base/7 font-semibold text-base-content">"Morphs"</h2>
+        <table class="text-xs text-muted">
+            <tbody>
+                {form_changes
+                    .into_iter()
+                    .map(|change| {
+                        view! {
+                            <tr>
+                                <td class="pr-3 py-0.5 whitespace-nowrap">
+                                    <UnitLink unit_name=change.from />
+                                    " → "
+                                    <UnitLink unit_name=change.to />
+                                </td>
+                                <td class="py-0.5 num text-faint whitespace-nowrap">
+                                    {format!("{} times", group_digits(change.changes as u64))}
+                                </td>
+                            </tr>
+                        }
+                    })
+                    .collect_view()}
+            </tbody>
+        </table>
+        <table class="min-w-full text-xs text-muted">
+            <thead>
+                <tr class="text-left text-muted">
+                    <th class="pr-3">"Morph"</th>
+                    <th class="pr-3 num">"Life"</th>
+                    <th class="pr-3 num">"Armor"</th>
+                    <th class="pr-3 num">"Speed"</th>
+                    <th class="pr-3" title="The weapons with their range">"Weapons"</th>
+                    <th>"Abilities"</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-base-content/5">
+                {forms
+                    .into_iter()
+                    .map(|form| {
+                        view! {
+                            <tr>
+                                <td class="pr-3 py-1 text-base-content whitespace-nowrap"><UnitLink unit_name=form.name /></td>
+                                <td class="pr-3 py-1 num">{form.life}</td>
+                                <td class="pr-3 py-1 num">{form.armor}</td>
+                                <td class="pr-3 py-1 num">{form.speed}</td>
+                                <td class="pr-3 py-1 whitespace-nowrap">{form.weapons}</td>
+                                <td class="py-1"><AbilityList abilities=form.abilities inline=true /></td>
+                            </tr>
+                        }
+                    })
+                    .collect_view()}
+            </tbody>
+        </table>
+        </Debuggable>
+    }
+    .into_any()
 }
 
 /// A label and a value, i.e. "Units made" "20,788".
@@ -295,14 +420,18 @@ fn UnitSnapshotPanel(unit_name: String) -> impl IntoView {
         }
     });
     view! {
-        <h2 class="text-base/7 font-semibold text-base-content">"In the snapshot"</h2>
         <ErrorMessage error />
         {move || match stats.get() {
             None if error.get().is_none() => {
                 view! { <Loading message="Reading the snapshot" /> }.into_any()
             }
             None => ().into_any(),
-            Some(stats) => view! { <UnitSnapshotStatsView stats /> }.into_any(),
+            Some(stats) => view! {
+                <UnitForms forms=stats.forms.clone() form_changes=stats.form_changes.clone() />
+                <h2 class="text-base/7 font-semibold text-base-content">"Stats"</h2>
+                <UnitSnapshotStatsView stats />
+            }
+                .into_any(),
         }}
     }
 }
@@ -310,43 +439,43 @@ fn UnitSnapshotPanel(unit_name: String) -> impl IntoView {
 #[component]
 fn UnitSnapshotStatsView(stats: UnitSnapshotStats) -> impl IntoView {
     let games_percent = 100. * stats.games_with_unit as f64 / stats.games.max(1) as f64;
+    // The strings of the panel before the view: each Debuggable takes its children by value.
+    let games = format!(
+        "{} of {} ({games_percent:.0}%)",
+        stats.games_with_unit, stats.games
+    );
+    let born = stats.born.to_string();
+    let died = stats.died.to_string();
+    let kills = stats.kills.to_string();
+    let kills_per_unit = format!("{:.2}", stats.kills_per_unit());
+    let value_per_cost = format!("{:.2}", stats.value_per_cost());
+    let threshold = format!(
+        "The players that made at least {EXCEPTIONAL_MIN_BORN} and killed at least {:.2} enemy \
+         units per unit, two standard deviations above the average of {:.2}.",
+        stats.kills_per_unit_threshold, stats.kills_per_unit_mean,
+    );
     view! {
+        <Debuggable query="patch_overview::unit_stats::totals" view_source=crate::source!()>
         <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
-            {stat(
-                "Games",
-                format!("{} of {} ({games_percent:.0}%)", stats.games_with_unit, stats.games),
-                "The games in which at least one player made the unit",
-            )}
-            {stat("Units made", stats.born.to_string(), "Burrowing, sieging, etc is the same unit")}
-            {stat("Died", stats.died.to_string(), "The units that died")}
-            {stat(
-                "Killed",
-                stats.kills.to_string(),
-                "The enemy units that cost resources killed by the unit",
-            )}
-            {stat(
-                "Kills per unit",
-                format!("{:.2}", stats.kills_per_unit()),
-                "The enemy units killed for each unit made",
-            )}
+            {stat("Games", games, "The games in which at least one player made the unit")}
+            {stat("Units made", born, "Burrowing, sieging, etc is the same unit")}
+            {stat("Died", died, "The units that died")}
+            {stat("Killed", kills, "The enemy units that cost resources killed by the unit")}
+            {stat("Kills per unit", kills_per_unit, "The enemy units killed for each unit made")}
             {stat(
                 "Value killed per cost",
-                format!("{:.2}", stats.value_per_cost()),
+                value_per_cost,
                 "The minerals and vespene of the enemy units killed for each mineral and vespene spent on the unit, at the latest patch cost",
             )}
         </div>
+        </Debuggable>
         <h3 class="text-sm font-semibold text-base-content">"Use over time"</h3>
-        <UsageOverTimeChart subject=UsageSubject::Unit(stats.unit_name.clone()) />
+        <UsageOverTimeChart subject=UsageSubject::Unit(stats.unit_name) />
         <h3 class="text-sm font-semibold text-base-content">"Exceptional games"</h3>
-        <p class="text-xs text-faint">
-            {format!(
-                "The players that made at least {EXCEPTIONAL_MIN_BORN} and killed at least {:.2} \
-                 enemy units per unit, two standard deviations above the average of {:.2}.",
-                stats.kills_per_unit_threshold,
-                stats.kills_per_unit_mean,
-            )}
-        </p>
+        <Debuggable query="patch_overview::unit_stats::exceptional" view_source=crate::source!()>
+        <p class="text-xs text-faint">{threshold}</p>
         <ExceptionalGames games=stats.exceptional />
+        </Debuggable>
     }
 }
 
@@ -367,10 +496,10 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
                     <td class="pr-3 py-1"><MapLink map_title=game.map_title.clone() /></td>
                     <td class="pr-3 py-1"><PlayerLink player_name=game.player_name.clone() /></td>
                     <td class="pr-3 py-1"><PatchLink version=game.protocol_version /></td>
-                    <td class="pr-3 py-1">{game.born}</td>
-                    <td class="pr-3 py-1">{game.kills}</td>
+                    <td class="pr-3 py-1 num">{game.born}</td>
+                    <td class="pr-3 py-1 num">{game.kills}</td>
                     <td class="pr-3 py-1 num text-success">{format!("{:.2}", game.kills_per_unit())}</td>
-                    <td class="pr-3 py-1">{game.value_killed}</td>
+                    <td class="pr-3 py-1 num">{game.value_killed}</td>
                     <td class="py-1 whitespace-nowrap">
                         <button
                             class="btn btn-primary btn-xs b-0 native-only"
@@ -401,10 +530,10 @@ fn ExceptionalGames(games: Vec<ExceptionalUnitGame>) -> impl IntoView {
                         <th class="pr-3">"Map"</th>
                         <th class="pr-3">"Player"</th>
                         <th class="pr-3">"Patch"</th>
-                        <th class="pr-3">"Made"</th>
-                        <th class="pr-3">"Killed"</th>
-                        <th class="pr-3">"Kills per unit"</th>
-                        <th class="pr-3" title="Minerals and vespene of the enemy units killed">"Value killed"</th>
+                        <th class="pr-3 num">"Made"</th>
+                        <th class="pr-3 num">"Killed"</th>
+                        <th class="pr-3 num">"Kills per unit"</th>
+                        <th class="pr-3 num" title="Minerals and vespene of the enemy units killed">"Value killed"</th>
                         <th></th>
                     </tr>
                 </thead>

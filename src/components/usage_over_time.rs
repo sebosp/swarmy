@@ -2,6 +2,8 @@
 //! starts: how the players adapt to the changes.
 
 use crate::components::charts::{ChartData, LineChart};
+use crate::components::debug::Debuggable;
+use crate::components::unit_icon::UnitIcon;
 use crate::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -9,8 +11,6 @@ use swarmy_common::*;
 
 /// With more patches than this the lines have no text, hovering a period tells its patch.
 const LABELED_PATCHES: usize = 10;
-
-const CONTROL_CLASS: &str = "select select-bordered select-xs";
 
 /// What the chart shows of a period: its name, value and suffix.
 struct Measure {
@@ -179,43 +179,73 @@ pub fn UsageOverTimeChart(subject: UsageSubject) -> impl IntoView {
         });
     });
     let chart_subject = subject.clone();
+    // The query of the points: the games of the race are the base of all three subjects, the
+    // ability and unit charts divide their uses by them.
+    let query = match &subject {
+        UsageSubject::Race(_) => "usage_over_time::race_games",
+        UsageSubject::Ability(_) => "usage_over_time::ability_uses",
+        UsageSubject::Unit(_) => "usage_over_time::unit_uses",
+    };
     view! {
+        <Debuggable query=query view_source=crate::source!()>
         <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-2 text-xs text-muted">
-                <label class="flex items-center gap-1">
+            // Buttons, not dropdowns: a dropdown at the bottom of a page opens below the window.
+            <div class="flex flex-wrap items-center gap-3 text-xs text-muted">
+                <span class="flex items-center gap-1">
                     "Show"
-                    <select
-                        class=CONTROL_CLASS
-                        aria-label="What the chart shows"
-                        on:change=move |ev| {
-                            measure.set(event_target_value(&ev).parse().unwrap_or_default());
-                        }
-                    >
+                    <span class="join" role="group" aria-label="What the chart shows">
                         {measure_names
                             .into_iter()
                             .enumerate()
-                            .map(|(idx, name)| view! { <option value=idx.to_string()>{name}</option> })
+                            .map(|(idx, name)| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class=move || {
+                                            if measure.get() == idx {
+                                                "btn btn-xs btn-primary join-item"
+                                            } else {
+                                                "btn btn-xs btn-ghost join-item"
+                                            }
+                                        }
+                                        on:click=move |_| measure.set(idx)
+                                    >
+                                        {name}
+                                    </button>
+                                }
+                            })
                             .collect_view()}
-                    </select>
-                </label>
-                <label class="flex items-center gap-1">
+                    </span>
+                </span>
+                <span class="flex items-center gap-1">
                     "Per"
-                    <select
-                        class=CONTROL_CLASS
-                        aria-label="The period of each point"
-                        on:change=move |ev| {
-                            grain.set(match event_target_value(&ev).as_str() {
-                                "day" => TimeGrain::Day,
-                                "year" => TimeGrain::Year,
-                                _ => TimeGrain::Month,
-                            });
-                        }
-                    >
-                        <option value="month">"Month"</option>
-                        <option value="day">"Day"</option>
-                        <option value="year">"Year"</option>
-                    </select>
-                </label>
+                    <span class="join" role="group" aria-label="The period of each point">
+                        {[
+                            (TimeGrain::Month, "Month"),
+                            (TimeGrain::Day, "Day"),
+                            (TimeGrain::Year, "Year"),
+                        ]
+                            .into_iter()
+                            .map(|(this, name)| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class=move || {
+                                            if grain.get() == this {
+                                                "btn btn-xs btn-primary join-item"
+                                            } else {
+                                                "btn btn-xs btn-ghost join-item"
+                                            }
+                                        }
+                                        on:click=move |_| grain.set(this)
+                                    >
+                                        {name}
+                                    </button>
+                                }
+                            })
+                            .collect_view()}
+                    </span>
+                </span>
             </div>
             <p class="text-xs text-faint">"The dashed lines are the first games of each patch."</p>
             {move || match usage.get() {
@@ -232,6 +262,7 @@ pub fn UsageOverTimeChart(subject: UsageSubject) -> impl IntoView {
                 }
             }}
         </div>
+        </Debuggable>
     }
 }
 
@@ -248,19 +279,31 @@ pub fn AbilitiesOverTime(rows: Vec<AbilityPatchUsage>) -> impl IntoView {
     let chosen = RwSignal::new(choices.first().map(|(ability, _)| ability.clone()));
     view! {
         <div class="flex flex-col gap-1 pt-2">
-            <label class="flex items-center gap-1 text-xs text-muted">
+            <div class="flex flex-wrap items-center gap-1 text-xs text-muted">
                 "Over time"
-                <select
-                    class=CONTROL_CLASS
-                    aria-label="The ability of the chart"
-                    on:change=move |ev| chosen.set(Some(event_target_value(&ev)))
-                >
-                    {choices
-                        .into_iter()
-                        .map(|(ability, label)| view! { <option value=ability>{label}</option> })
-                        .collect_view()}
-                </select>
-            </label>
+                {choices
+                    .into_iter()
+                    .map(|(ability, label)| {
+                        let this = ability.clone();
+                        view! {
+                            <button
+                                type="button"
+                                class=move || {
+                                    if chosen.get().as_deref() == Some(this.as_str()) {
+                                        "btn btn-xs btn-primary"
+                                    } else {
+                                        "btn btn-xs btn-ghost"
+                                    }
+                                }
+                                on:click=move |_| chosen.set(Some(ability.clone()))
+                            >
+                                <UnitIcon unit_name=this.clone() />
+                                {label}
+                            </button>
+                        }
+                    })
+                    .collect_view()}
+            </div>
             {move || {
                 chosen.get().map(|ability| view! {
                     <UsageOverTimeChart subject=UsageSubject::Ability(ability) />

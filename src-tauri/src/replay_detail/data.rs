@@ -1,16 +1,16 @@
 //! Analysis of a single replay file.
 
-use super::focus::{classify_action, FocusAccumulator};
+use super::focus::{FocusAccumulator, classify_action};
 use super::win_chance::{
-    win_chance, SideStats, WIN_CHANCE_INTERVAL_SECONDS, WIN_CHANCE_START_SECONDS,
+    SideStats, WIN_CHANCE_INTERVAL_SECONDS, WIN_CHANCE_START_SECONDS, win_chance,
 };
 use crate::data::*;
 use crate::replay_rerun::decisions::{
-    army_supply, balance_units, base_unit_name, closest_balance_units, format_unit_counts,
-    has_cost, is_morph_death, score_unit_choice, unit_cost, UnitCost, WORKERS,
+    UnitCost, WORKERS, army_supply, balance_units, base_unit_name, closest_balance_units,
+    format_unit_counts, has_cost, is_morph_death, score_unit_choice, unit_cost,
 };
 use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
-use crate::replay_rerun::{ReplayPlayers, NEUTRAL_PLAYER};
+use crate::replay_rerun::{NEUTRAL_PLAYER, ReplayPlayers};
 use polars::prelude::*;
 use s2protocol::basic_replay_data::SC2ReplayBasicData;
 use s2protocol::game_events::{GameEControlGroupUpdate, ReplayGameEvent, VersionedBalanceUnits};
@@ -230,6 +230,7 @@ struct PlayerAccumulator {
     army_at_10: Vec<UnitCount>,
     bases_at_10: usize,
     first_kill_seconds: Option<u32>,
+    first_kill: Option<TimedEvent>,
     first_scout: Option<TimedEvent>,
     proxy: Option<TimedEvent>,
     was_behind: bool,
@@ -285,9 +286,11 @@ pub fn analyze_replay_cached(replay_location: &str) -> Result<Arc<ReplayDetail>,
     Ok(detail)
 }
 
-/// Looks up the replay file of the snapshot id and analyses it.
+/// Looks up the replay file of the snapshot id and analyses it; the map cache of `cache_path`
+/// gives its map picture.
 pub fn try_query_replay_detail(
     replay_path: String,
+    cache_path: &str,
     ext_fs_id: u64,
 ) -> Result<ReplayDetail, SwarmyError> {
     let replay_path = sanitize_replay_path(&replay_path)?;
@@ -297,6 +300,7 @@ pub fn try_query_replay_detail(
         .select([
             col("ext_fs_file_name"),
             col("ext_fs_sha256"),
+            col("cache_handles"),
             col("ext_datetime")
                 .dt()
                 .to_string("%Y-%m-%d %H:%M")
@@ -312,10 +316,27 @@ pub fn try_query_replay_detail(
         .to_string();
     let replay_date = str_values(&details, "replay_date")?.remove(0);
     let sha256 = str_values(&details, "ext_fs_sha256")?.remove(0);
+    let cache_handles = str_values(&details, "cache_handles")?.remove(0);
     let mut detail = (*analyze_replay_cached(&replay_location)?).clone();
     detail.ext_fs_id = ext_fs_id;
     detail.sha256 = sha256;
     detail.replay_date = replay_date;
+    // The map, the bases, the deaths and the epicenters come from the snapshot and the map cache;
+    // without them the replay is still shown. The queries read the partition of the day of the
+    // replay only.
+    let day = chrono::NaiveDateTime::parse_from_str(&detail.replay_date, "%Y-%m-%d %H:%M")
+        .map(|datetime| datetime.date());
+    match (IpcSnapshot::open(&replay_path), day) {
+        (Ok(source), Ok(day)) => {
+            let source = source.on_day(day);
+            if let Err(err) = super::map::annotate(&mut detail, &source, cache_path, &cache_handles)
+            {
+                tracing::warn!("No map for replay {ext_fs_id}: {err:?}");
+            }
+        }
+        (Err(err), _) => tracing::warn!("No snapshot for the map of replay {ext_fs_id}: {err:?}"),
+        (_, Err(err)) => tracing::warn!("No date for the map of replay {ext_fs_id}: {err:?}"),
+    }
     // Without the averages the replay is still shown.
     match super::patch_timings::patch_timings_cached(&ipc_path, detail.protocol_version) {
         Ok(timings) => super::patch_timings::annotate(&mut detail, &timings),
@@ -615,16 +636,16 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 if acc.proxy.is_none()
                     && seconds <= PROXY_MAX_SECONDS
                     && PROXY_STRUCTURES.contains(&name.as_str())
+                    && let Some(start) = acc.start
                 {
-                    if let Some(start) = acc.start {
-                        let away = distance(start, (unit.pos.x(), unit.pos.y()));
-                        if away > PROXY_DISTANCE {
-                            acc.proxy = Some(TimedEvent {
-                                seconds,
-                                player: link_name(&player),
-                                text: format!("{name} {away:.0} away from the start location"),
-                            });
-                        }
+                    let away = distance(start, (unit.pos.x(), unit.pos.y()));
+                    if away > PROXY_DISTANCE {
+                        acc.proxy = Some(TimedEvent {
+                            seconds,
+                            player: link_name(&player),
+                            text: format!("{name} {away:.0} away from the start location"),
+                            at: Some((unit.pos.x(), unit.pos.y())),
+                        });
                     }
                 }
                 let enemy_units = state
@@ -640,6 +661,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     is_worker: WORKERS.contains(&name.as_str()),
                     is_upgrade: false,
                     patch_average: None,
+                    at: Some((unit.pos.x(), unit.pos.y())),
                 };
                 if EXPANSION_TOWNHALLS.contains(&name.as_str()) {
                     acc.expansions.push(entry.clone());
@@ -689,23 +711,29 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     mining_seconds,
                 });
                 let killer_player = killer.as_ref().map(|killer| players.unit_player(killer));
-                if let (Some(killer), Some(killer_player)) = (killer, &killer_player) {
-                    if players.is_enemy(&owner, killer_player) {
-                        let killer_name = base_unit_name(&killer.name).to_string();
-                        *accumulators
-                            .entry(owner.clone())
-                            .or_default()
-                            .killed_by
-                            .entry(killer_name.clone())
-                            .or_default() += 1;
-                        let acc = accumulators.entry(killer_player.clone()).or_default();
-                        *acc.killed.entry(name.clone()).or_default() += 1;
-                        acc.resources.killed.add(resources(&cost));
-                        let unit_kills = acc.kills_by_unit.entry(killer_name).or_default();
-                        unit_kills.0 += 1;
-                        unit_kills.1 += cost.minerals + cost.vespene;
-                        acc.first_kill_seconds.get_or_insert(seconds);
-                    }
+                if let (Some(killer), Some(killer_player)) = (killer, &killer_player)
+                    && players.is_enemy(&owner, killer_player)
+                {
+                    let killer_name = base_unit_name(&killer.name).to_string();
+                    *accumulators
+                        .entry(owner.clone())
+                        .or_default()
+                        .killed_by
+                        .entry(killer_name.clone())
+                        .or_default() += 1;
+                    let acc = accumulators.entry(killer_player.clone()).or_default();
+                    *acc.killed.entry(name.clone()).or_default() += 1;
+                    acc.resources.killed.add(resources(&cost));
+                    let unit_kills = acc.kills_by_unit.entry(killer_name).or_default();
+                    unit_kills.0 += 1;
+                    unit_kills.1 += cost.minerals + cost.vespene;
+                    acc.first_kill_seconds.get_or_insert(seconds);
+                    acc.first_kill.get_or_insert_with(|| TimedEvent {
+                        seconds,
+                        player: link_name(killer_player),
+                        text: format!("{name} with {}", killer.name),
+                        at: Some((killed.pos.x(), killed.pos.y())),
+                    });
                 }
                 if TOWNHALLS.contains(&name.as_str()) {
                     let text = match (killer, &killer_player) {
@@ -722,6 +750,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                             seconds,
                             player: link_name(&owner),
                             text,
+                            at: Some((killed.pos.x(), killed.pos.y())),
                         });
                 }
             }
@@ -743,6 +772,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     is_worker: false,
                     is_upgrade: true,
                     patch_average: None,
+                    at: None,
                 });
             }
             _ => {}
@@ -869,6 +899,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 army_at_10: acc.army_at_10,
                 bases_at_10: acc.bases_at_10,
                 first_kill_seconds: acc.first_kill_seconds,
+                first_kill: acc.first_kill,
                 first_scout: acc.first_scout,
                 proxy: acc.proxy,
                 was_behind: acc.was_behind,
@@ -1066,6 +1097,7 @@ fn register_scout(
                 seconds,
                 player: players.raw_name(player).unwrap_or(player).to_string(),
                 text: unit.name.clone(),
+                at: None,
             });
             return;
         }
@@ -1153,6 +1185,7 @@ fn engagements(deaths: Vec<Death>, link_name: &dyn Fn(&str) -> String) -> Vec<En
             Some(Engagement {
                 start_seconds,
                 end_seconds,
+                epicenter: None,
                 losses: losses
                     .into_values()
                     .map(|(mut loss, units, mining_seconds)| {
@@ -1199,6 +1232,7 @@ fn read_chat_messages(
             seconds: loop_seconds(game_loop),
             player: sender,
             text: chat.m_string,
+            at: None,
         });
     }
     Ok(messages)

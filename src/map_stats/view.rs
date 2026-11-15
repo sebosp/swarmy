@@ -3,7 +3,8 @@
 use super::actions::*;
 use super::*;
 use crate::components::abilities::group_digits;
-use crate::components::brand_icon::{native_title, BrandIcon};
+use crate::components::brand_icon::{BrandIcon, native_title};
+use crate::components::debug::Debuggable;
 use crate::components::links::MapLink;
 use crate::components::loading::Loading;
 use crate::*;
@@ -99,6 +100,7 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
     view! {
         // As wide as its columns, the sortable headers stay close to each other; the most played
         // maps first, as the backend sends them.
+        <Debuggable query="map_stats::maps" view_source=crate::source!()>
         <div class="overflow-x-auto">
             <div class="inline-block py-2 align-middle">
                 <table
@@ -183,5 +185,6 @@ pub fn MapStatsDataTable(map_stats_store: Store<MapStatsDataTable>) -> impl Into
                 </table>
             </div>
         </div>
+        </Debuggable>
     }
 }

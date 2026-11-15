@@ -1,8 +1,9 @@
 //! The statistics from the analysis of every game of a player.
 
 use crate::components::charts::{ChartData, LineChart};
+use crate::components::debug::Debuggable;
 use crate::components::links::UnitLink;
-use crate::components::paged::{page_of, PagedSort, Pager, SortKey, SortTh};
+use crate::components::paged::{PagedSort, Pager, SortKey, SortTh, page_of};
 use crate::components::section::Section;
 use crate::*;
 use leptos::prelude::*;
@@ -38,9 +39,6 @@ fn compared(value: f32, snapshot: f32) -> impl IntoView {
 #[component]
 pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
     view! {
-        <p class="text-xs text-faint">
-            {format!("From the analysis of {} games, each replay is read once and kept in memory.", insights.analyzed_games)}
-        </p>
         <div class="grid grid-cols-3 gap-4">
             <Section title="Win rates" height="h-64">
                 <WinRates title="Matchup" data=insights.by_matchup.clone() />
@@ -120,6 +118,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
             </Section>
         </div>
 
+        <Debuggable query="player_detail::benchmarks" view_source=crate::source!()>
         <Section title="Economy against the snapshot, same matchup (player / snapshot average)" height="h-48">
             <table class=TABLE_CLASS>
                 <thead class="sticky top-0 bg-base-200">
@@ -152,6 +151,7 @@ pub fn PlayerInsightsView(insights: PlayerInsights) -> impl IntoView {
                 </tbody>
             </table>
         </Section>
+        </Debuggable>
 
         <div class="grid grid-cols-2 gap-4">
             <Section title="Openings by matchup" height="h-56">

@@ -1,53 +1,47 @@
-//! A race in the games of the snapshot: its matchups, the maps that favour it, the units it makes
-//! and the abilities it uses.
+//! Race Detail: a race in the games of the snapshot, its matchups, the maps that favour it, the
+//! units it makes and the abilities it uses. Each statistic is a query file of this directory
+//! (AGENTS.md, "A query is a file"); this file runs them and puts the answer together. The
+//! abilities come from the ability usage computed over the snapshot (`ability_usage`).
+
+pub mod by_patch;
+pub mod maps;
+pub mod matchups;
+pub mod player_games;
+pub mod top_players;
+pub mod units;
 
 use crate::ability_usage::ability_usage_cached;
 use crate::data::*;
 use crate::host::SwarmyHost;
-use crate::patch_overview::data::race_name;
-use crate::patch_overview::unit_stats::unit_variants;
-use crate::replay_rerun::decisions::{army_supply, base_unit_name, has_cost, latest_balance_units};
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
 use polars::prelude::*;
-use std::collections::BTreeMap;
 use swarmy_common::*;
 
-/// The players with the most games of the race shown.
-const TOP_PLAYERS: usize = 10;
+/// The queries of the view, for the debug links of the panels.
+pub const QUERIES: [QueryMeta; 6] = [
+    player_games::META,
+    matchups::META,
+    by_patch::META,
+    maps::META,
+    top_players::META,
+    units::META,
+];
 
-/// The army units of the race that cost resources, and the names of their variants, i.e. a
-/// SiegeTankSieged is a SiegeTank.
-fn race_units(race: &str) -> Result<Vec<(String, String)>, SwarmyError> {
-    let balance = latest_balance_units()?;
-    Ok(balance
-        .iter()
-        .filter(|(name, unit)| {
-            race_name(unit) == race
-                && has_cost(balance, name)
-                && army_supply(balance, name).is_some()
-        })
-        .flat_map(|(name, _)| {
-            unit_variants(name)
-                .into_iter()
-                .map(|variant| (variant, name.clone()))
-                .collect::<Vec<_>>()
-        })
-        .collect())
-}
-
-fn games_wins() -> [Expr; 2] {
+/// The games and wins of a group of player rows: `games` (u32) and `wins` (Int32, the type of
+/// the SQL `SUM(CASE WHEN ... THEN 1 ELSE 0 END)` of the READMEs).
+pub(crate) fn games_wins() -> [Expr; 2] {
     [
-        len().cast(DataType::UInt64).alias("games"),
+        len().alias("games"),
         col("player_result")
             .eq(lit("Win"))
-            .cast(DataType::UInt64)
             .sum()
+            .cast(DataType::Int32)
             .alias("wins"),
     ]
 }
 
-fn games_wins_rows(df: &DataFrame, label: &str) -> Result<Vec<GamesWins>, SwarmyError> {
+pub(crate) fn games_wins_rows(df: &DataFrame, label: &str) -> Result<Vec<GamesWins>, SwarmyError> {
     let labels: Vec<String> = match df.column(label)?.dtype() {
         DataType::String => str_values(df, label)?,
         _ => df
@@ -60,8 +54,8 @@ fn games_wins_rows(df: &DataFrame, label: &str) -> Result<Vec<GamesWins>, Swarmy
     };
     Ok(labels
         .into_iter()
-        .zip(u64_values(df, "games")?)
-        .zip(u64_values(df, "wins")?)
+        .zip(u32_values(df, "games")?)
+        .zip(i32_values(df, "wins")?)
         .map(|((label, games), wins)| GamesWins {
             label,
             games: games as usize,
@@ -70,160 +64,80 @@ fn games_wins_rows(df: &DataFrame, label: &str) -> Result<Vec<GamesWins>, Swarmy
         .collect())
 }
 
-pub fn try_query_race_detail(replay_path: String, race: String) -> Result<RaceDetail, SwarmyError> {
-    let replay_path = sanitize_replay_path(&replay_path)?;
-    let ipc_path = build_ipc_path(&replay_path)?;
-    if !RACE_NAMES.contains(&race.as_str()) {
-        return Err(SwarmyError::Other(format!("Unknown race {race}")));
-    }
-    let letter = &race[..1];
-    let game = [col("ext_fs_id")];
-    let players = snapshot_players(&ipc_path)?;
-    let race_players = players.clone().filter(col("race").eq(lit(race.clone())));
-    // The 1v1 games, with the race of the other player.
-    let one_vs_one = players
-        .filter(len().over(game.clone())?.eq(lit(2)))
+/// The rows of the race in the 1v1 games of the snapshot (two players of a StarCraft II race),
+/// with `opponent`, the letter of the other player's race: the `mine` CTE of the READMEs.
+pub(crate) fn one_vs_one(
+    source: &dyn SnapshotSource,
+    race: &str,
+) -> Result<LazyFrame, SwarmyError> {
+    let players = snapshot_players_of(source)?;
+    // The two rows of a game numbered, so that the other row is found even when two players have
+    // the same name (two A.I. of the same level).
+    let pairs = players
+        .filter(len().over([col("ext_fs_id")])?.eq(lit(2u32)))
         .with_column(
-            col("race")
-                .reverse()
-                .over(game)?
-                .str()
-                .slice(lit(0), lit(1))
-                .alias("opponent"),
-        )
-        .filter(col("race").eq(lit(race.clone())));
-    let not_mirror = col("opponent").neq(lit(letter));
-    let matchup = concat_str([lit(letter), lit("v"), col("opponent")], "", false).alias("matchup");
-
-    let player_games = race_players.clone().select([len().alias("player_games")]);
-    let matchups = one_vs_one
-        .clone()
-        .group_by([matchup.clone()])
-        .agg(games_wins())
-        .sort(["matchup"], Default::default());
-    let by_patch = one_vs_one
-        .clone()
-        .filter(not_mirror.clone())
-        .group_by([col("patch")])
-        .agg(games_wins())
-        .sort(["patch"], Default::default());
-    let maps = one_vs_one
-        .filter(not_mirror)
-        .group_by([col("title"), matchup])
-        .agg(games_wins());
-    let top_players = race_players
-        .clone()
-        .group_by([col("player_name")])
-        .agg(games_wins())
-        .sort(
-            ["games", "player_name"],
-            SortMultipleOptions::default().with_order_descending_multi([true, false]),
-        )
-        .limit(TOP_PLAYERS as IdxSize);
-
-    // The units of the players of the race, from the aggregations of the games.
-    let variants = race_units(&race)?;
-    let bases: Vec<&str> = variants.iter().map(|(_, base)| base.as_str()).collect();
-    let player_key = [col("ext_fs_id"), col("player_name")];
-    let made = col("born").gt(lit(0u32));
-    let units = scan_snapshot_ipc(&ipc_path, GAME_UNITS_IPC)?
-        .filter(is_one_of("unit", &bases))
+            int_range(lit(0), len(), 1, DataType::UInt32)
+                .over([col("ext_fs_id")])?
+                .alias("side"),
+        );
+    let others = pairs.clone().select([
+        col("ext_fs_id"),
+        col("side").alias("other_side"),
+        col("race").str().slice(lit(0), lit(1)).alias("opponent"),
+    ]);
+    Ok(pairs
+        .filter(col("race").eq(lit(race)))
         .join(
-            race_players.select([col("ext_fs_id"), col("player_name"), col("player_result")]),
-            player_key.clone(),
-            player_key,
+            others,
+            [col("ext_fs_id")],
+            [col("ext_fs_id")],
             JoinArgs::new(JoinType::Inner),
         )
-        .group_by([col("unit")])
-        .agg([
-            made.clone().cast(DataType::UInt64).sum().alias("games"),
-            made.and(col("player_result").eq(lit("Win")))
-                .cast(DataType::UInt64)
-                .sum()
-                .alias("wins"),
-            col("born").cast(DataType::UInt64).sum(),
-            col("kills").cast(DataType::UInt64).sum(),
-        ])
-        .filter(col("games").gt(lit(0u64)))
-        .sort(
-            ["games", "unit"],
-            SortMultipleOptions::default().with_order_descending_multi([true, false]),
-        );
+        .filter(col("other_side").neq(col("side")))
+        .select([
+            col("ext_fs_id"),
+            col("player_name"),
+            col("player_result"),
+            col("title"),
+            col("patch"),
+            col("opponent"),
+        ]))
+}
 
-    // One plan, the players and the details are read once for all the results.
-    let [player_games, matchups, by_patch, maps, top_players, units]: [DataFrame; 6] =
-        collect_all(vec![
-            player_games,
-            matchups,
-            by_patch,
-            maps,
-            top_players,
-            units,
-        ])?
-        .try_into()
-        .map_err(|_| SwarmyError::Other("The race queries returned no results".to_string()))?;
+/// The matchup of a row of [`one_vs_one`], the race first: `ZvT`.
+pub(crate) fn matchup_expr(race: &str) -> Expr {
+    concat_str([lit(&race[..1]), lit("v"), col("opponent")], "", false).alias("matchup")
+}
 
-    let mut by_map: BTreeMap<String, Vec<GamesWins>> = BTreeMap::new();
-    for (title, matchup) in str_values(&maps, "title")?
-        .into_iter()
-        .zip(games_wins_rows(&maps, "matchup")?)
-    {
-        by_map.entry(title).or_default().push(matchup);
+/// The rows of [`one_vs_one`] against another race.
+pub(crate) fn not_mirror(race: &str) -> Expr {
+    col("opponent").neq(lit(&race[..1]))
+}
+
+pub fn try_query_race_detail(replay_path: &str, race: &str) -> Result<RaceDetail, SwarmyError> {
+    if !RACE_NAMES.contains(&race) {
+        return Err(SwarmyError::Other(format!("Unknown race {race}")));
     }
-    let mut maps: Vec<RaceMapStats> = by_map
-        .into_iter()
-        .map(|(map_title, mut matchups)| {
-            matchups.sort_by(|a, b| a.label.cmp(&b.label));
-            RaceMapStats {
-                map_title,
-                matchups,
-            }
-        })
-        .filter(|map| map.games() >= RACE_MAP_MIN_GAMES)
-        .collect();
-    maps.sort_by(|a, b| {
-        b.win_percent()
-            .total_cmp(&a.win_percent())
-            .then(b.games().cmp(&a.games()))
-    });
-
-    let units = str_values(&units, "unit")?
-        .into_iter()
-        .zip(u64_values(&units, "games")?)
-        .zip(u64_values(&units, "wins")?)
-        .zip(
-            u64_values(&units, "born")?
-                .into_iter()
-                .zip(u64_values(&units, "kills")?),
-        )
-        .map(|(((unit, games), wins), (born, kills))| RaceUnitStats {
-            unit: base_unit_name(&unit).to_string(),
-            games: games as usize,
-            born: born as usize,
-            kills: kills as usize,
-            wins: wins as usize,
-        })
-        .collect();
-
-    let usage = ability_usage_cached(&ipc_path)?;
-    let abilities = race_abilities(&race)
+    let source = IpcSnapshot::open(replay_path)?;
+    let player_games = player_games::shape(player_games::plan(&source, race)?.collect()?)?;
+    let matchups = matchups::shape(matchups::plan(&source, race)?.collect()?)?;
+    let by_patch = by_patch::shape(by_patch::plan(&source, race)?.collect()?)?;
+    let maps = maps::shape(maps::plan(&source, race)?.collect()?)?;
+    let top_players = top_players::shape(top_players::plan(&source, race)?.collect()?)?;
+    let units = units::shape(units::plan(&source, race, units::race_units(race)?)?.collect()?)?;
+    let usage = ability_usage_cached(source.ipc_path())?;
+    let abilities = race_abilities(race)
         .filter_map(|tracked| usage.all_patches.get(tracked.ability).cloned())
         .collect();
-
     Ok(RaceDetail {
-        player_games: player_games
-            .column("player_games")?
-            .cast(&DataType::UInt64)?
-            .u64()?
-            .get(0)
-            .unwrap_or_default() as usize,
-        matchups: games_wins_rows(&matchups, "matchup")?,
-        by_patch: games_wins_rows(&by_patch, "patch")?,
+        race: race.to_string(),
+        player_games,
+        matchups,
+        by_patch,
         maps,
         units,
         abilities,
-        top_players: games_wins_rows(&top_players, "player_name")?,
-        race,
+        top_players,
     })
 }
 
@@ -234,47 +148,8 @@ pub async fn query_race_detail(
     let app_config = load_stored_app_settings(host)?;
     run_query(move || {
         ApiResponseBuilder::new()
-            .process_result(try_query_race_detail(app_config.replay_path, race))
+            .with_sources(QUERIES.map(QuerySource::from))
+            .process_result(try_query_race_detail(&app_config.replay_path, &race))
     })
     .await
-}
-
-#[cfg(test)]
-mod snapshot_tests {
-    /// Runs against a real snapshot: `SWARMY_TEST_REPLAY_PATH=~/SC2Replays/PRO cargo test -- --ignored`
-    #[test]
-    #[ignore]
-    fn it_queries_a_race_of_a_snapshot() {
-        let replay_path = std::env::var("SWARMY_TEST_REPLAY_PATH").unwrap();
-        let start = std::time::Instant::now();
-        let detail = super::try_query_race_detail(replay_path, "Zerg".to_string()).unwrap();
-        eprintln!("{:?}", start.elapsed());
-        eprintln!(
-            "player games {} matchups {:?}",
-            detail.player_games, detail.matchups
-        );
-        eprintln!("patches {:?}", detail.by_patch);
-        for map in detail.maps.iter().take(3) {
-            eprintln!(
-                "{} {:.1}% {:?}",
-                map.map_title,
-                map.win_percent(),
-                map.matchups
-            );
-        }
-        for unit in detail.units.iter().take(8) {
-            eprintln!(
-                "{:<14} games {:>4} born/game {:>5.1} kills/unit {:>4.2} win {:>4.1}%",
-                unit.unit,
-                unit.games,
-                unit.born_per_game(),
-                unit.kills_per_unit(),
-                unit.win_percent()
-            );
-        }
-        eprintln!("top {:?}", detail.top_players.first());
-        assert!(detail.player_games > 0);
-        assert!(detail.units.iter().any(|unit| unit.unit == "Zergling"));
-        assert!(!detail.abilities.is_empty());
-    }
 }

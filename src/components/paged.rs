@@ -91,11 +91,7 @@ pub fn page_of<T: Clone>(
         let order = key(a, column)
             .partial_cmp(&key(b, column))
             .unwrap_or(std::cmp::Ordering::Equal);
-        if descending {
-            order.reverse()
-        } else {
-            order
-        }
+        if descending { order.reverse() } else { order }
     });
     let size = page_size();
     let pages = rows.len().div_ceil(size).max(1);
@@ -154,7 +150,7 @@ pub fn Pager(#[prop(into)] rows: Signal<usize>, sort: PagedSort) -> impl IntoVie
                 <div class="flex items-center gap-2 py-1 text-xs text-muted">
                     <button
                         class="btn btn-ghost btn-xs"
-                        disabled=page == 0
+                        disabled={page == 0}
                         on:click=move |_| sort.page.update(|page| *page = page.saturating_sub(1))
                     >
                         "Previous"
@@ -169,7 +165,8 @@ pub fn Pager(#[prop(into)] rows: Signal<usize>, sort: PagedSort) -> impl IntoVie
                     </span>
                     <button
                         class="btn btn-ghost btn-xs"
-                        disabled=page + 1 >= pages
+                        // In braces: a bare `>=` closes the tag for the view! macro.
+                        disabled={page + 1 >= pages}
                         on:click=move |_| sort.page.update(|page| *page += 1)
                     >
                         "Next"

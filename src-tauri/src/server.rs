@@ -16,17 +16,17 @@
 //! `--admin-key-file` anyone can read the snapshot, and the token or the administrator key are
 //! needed for the [`ADMIN_COMMANDS`] and the files of the server.
 
-use crate::commands::{dispatch, BACKEND_COMMANDS};
-use crate::host::{SwarmyHost, SETTINGS_STORE};
+use crate::commands::{BACKEND_COMMANDS, dispatch};
+use crate::host::{SETTINGS_STORE, SwarmyHost};
 use crate::majordomo::{AsyncTask, MajordomoCoordinator};
 use crate::settings::{app_versions, load_stored_app_settings};
 use crate::web::{
-    admin_settings, key_matches, public_settings, strip_server_paths, WebAssets, ADMIN_COMMANDS,
-    ADMIN_KEY_HEADER, PUBLIC_COMMANDS, STATIC_COMMANDS,
+    ADMIN_COMMANDS, ADMIN_KEY_HEADER, DESKTOP_COMMANDS, PUBLIC_COMMANDS, STATIC_COMMANDS,
+    WebAssets, admin_settings, key_matches, public_settings, strip_server_paths,
 };
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
-use axum::http::{header, HeaderMap, StatusCode, Uri};
+use axum::http::{HeaderMap, StatusCode, Uri, header};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -274,9 +274,17 @@ async fn serve_on(
         .route("/api/web/session", get(web_session))
         .route("/api/web/settings", get(web_settings))
         .route("/api/{command}", post(run_command))
+        .route("/metrics", get(metrics))
         .fallback(get(web_file))
+        // Every request in the access log and the metrics, with the address that connected for
+        // the visitor ids of a server without Cloudflare in front.
+        .layer(axum::middleware::from_fn(crate::access_log::log_request))
         .with_state(state);
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
 
@@ -285,6 +293,23 @@ async fn version(State(state): State<ServerState>, headers: HeaderMap) -> Respon
         return refused;
     }
     Json(app_versions()).into_response()
+}
+
+/// The Prometheus metrics of the server, for its administrator: Prometheus sends the key as
+/// `Authorization: Bearer <key>`. They say which views and commands are used and how long they
+/// take, not who asked.
+async fn metrics(State(state): State<ServerState>, headers: HeaderMap) -> Response {
+    if let Some(refused) = state.refuse_unauthorized(&headers) {
+        return refused;
+    }
+    if let Some(refused) = state.refuse_not_admin(&headers) {
+        return refused;
+    }
+    let mut response = crate::access_log::render_metrics();
+    response
+        .extensions_mut()
+        .insert(crate::access_log::AdminRequest(true));
+    response
 }
 
 /// A map cache of the Map Caches Path of the server, for the swarmy-bevy of a client: only a
@@ -486,7 +511,10 @@ async fn run_command(
         return refused;
     }
     let is_static = STATIC_COMMANDS.contains(&command.as_str());
-    if !is_static && !BACKEND_COMMANDS.contains(&command.as_str()) {
+    if !is_static
+        && (!BACKEND_COMMANDS.contains(&command.as_str())
+            || DESKTOP_COMMANDS.contains(&command.as_str()))
+    {
         return error_response(
             StatusCode::NOT_FOUND,
             format!("{command} does not run in the remote backend"),
@@ -501,7 +529,7 @@ async fn run_command(
                 return error_response(
                     StatusCode::BAD_REQUEST,
                     format!("The arguments of {command}: {err}"),
-                )
+                );
             }
         }
     };
@@ -519,7 +547,7 @@ async fn run_command(
     } else {
         dispatch(state.host.as_ref(), &command, args).await
     };
-    match result {
+    let mut response = match result {
         Ok(mut response) => {
             if !is_admin {
                 if let Ok(settings) = load_stored_app_settings(state.host.as_ref()) {
@@ -536,7 +564,12 @@ async fn run_command(
             )
                 .into_response()
         }
-    }
+    };
+    // The access log tells the requests of the administrator from the visitors'.
+    response
+        .extensions_mut()
+        .insert(crate::access_log::AdminRequest(is_admin));
+    response
 }
 
 async fn stream_events(State(state): State<ServerState>, headers: HeaderMap) -> Response {
@@ -722,6 +755,20 @@ mod tests {
         assert_eq!(public.status(), 200);
         // A command the browser cannot run is not found.
         assert_eq!(post("open_folder", None).await.unwrap().status(), 404);
+        // The Battle.net credentials of a server are set on the server, not even its
+        // administrator sets or checks them from the browser.
+        for command in DESKTOP_COMMANDS {
+            assert_eq!(
+                post(command, None).await.unwrap().status(),
+                404,
+                "{command}"
+            );
+            assert_eq!(
+                post(command, Some("first")).await.unwrap().status(),
+                404,
+                "{command}"
+            );
+        }
 
         // The key opens them, a new one replaces it in the next request.
         let session = |key: &'static str| {
@@ -767,6 +814,63 @@ mod tests {
             .unwrap();
         assert!(settings.replay_path.is_empty());
         assert!(settings.remote_backend_token.is_empty());
+
+        // The metrics are the administrator's, Prometheus sends the key as a bearer token.
+        let refused = client.get(format!("{url}/metrics")).send().await.unwrap();
+        assert_eq!(refused.status(), 403);
+        let metrics = client
+            .get(format!("{url}/metrics"))
+            .bearer_auth("second")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(metrics.status(), 200);
+        let metrics = metrics.text().await.unwrap();
+        assert!(
+            metrics.contains("swarmy_requests_total{route=\"web/session\""),
+            "{metrics}"
+        );
+        assert!(
+            metrics.contains("swarmy_request_duration_seconds_bucket{route=\"list_replay_tags\""),
+            "{metrics}"
+        );
+        // The browser version says its view, a scanner's made-up routes are one route.
+        let viewed = client
+            .post(format!("{url}/api/list_patch_units"))
+            .header(crate::access_log::VIEW_HEADER, "patch-overview")
+            .json(&serde_json::json!({}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(viewed.status(), 200);
+        let unknown = client
+            .post(format!("{url}/api/drop_tables"))
+            .json(&serde_json::json!({}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(unknown.status(), 404);
+        let metrics = client
+            .get(format!("{url}/metrics"))
+            .bearer_auth("second")
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        assert!(
+            metrics.contains(
+                "swarmy_requests_total{route=\"list_patch_units\",status=\"200\",view=\"patch-overview\"} 1"
+            ),
+            "{metrics}"
+        );
+        assert!(
+            metrics.contains(
+                "swarmy_requests_total{route=\"unknown_command\",status=\"404\",view=\"-\"}"
+            ),
+            "{metrics}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

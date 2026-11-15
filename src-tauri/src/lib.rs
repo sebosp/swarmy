@@ -9,10 +9,9 @@ pub mod snapshot_stats;
 pub use snapshot_stats::*;
 pub mod common;
 pub use common::*;
-pub mod map_stats;
-pub use map_stats::*;
 pub mod ability_detail;
 pub mod ability_usage;
+pub mod access_log;
 #[cfg(test)]
 mod bench_queries;
 pub mod commands;
@@ -22,7 +21,7 @@ pub mod host;
 pub mod logging;
 pub mod majordomo;
 pub mod map_details;
-pub mod map_scout;
+pub mod map_stats;
 pub mod patch_overview;
 pub mod personal_db;
 pub mod player_detail;
@@ -124,8 +123,6 @@ pub fn run() {
                 remote::check_remote_backend,
                 swarmy_bevy::exec_swarmy_bevy_map_caches,
                 swarmy_bevy::exec_swarmy_bevy_replay,
-                swarmy_bevy::exec_swarmy_bevy_siege_spots,
-                swarmy_bevy::exec_swarmy_bevy_map_layers,
                 copy_path_to_clipboard,
                 open_folder,
                 connect_swarmy_rerun,

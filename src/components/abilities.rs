@@ -1,7 +1,9 @@
 //! The abilities with energy or a cooldown, i.e. Abduct or Yamato Cannon, and how often they are
 //! used in the games of the snapshot.
 
+use crate::components::debug::Debuggable;
 use crate::components::links::{PlayerLink, RaceLink, UnitLink};
+use crate::components::unit_icon::UnitIcon;
 use crate::*;
 use leptos::prelude::*;
 use swarmy_common::*;
@@ -18,19 +20,25 @@ pub async fn fetch_ability_usage() -> Result<AbilityUsageTable, String> {
 #[component]
 pub fn AbilityName(ability: String) -> impl IntoView {
     let navigation = crate::navigation::use_navigation();
+    // The icon of the ability of the balance data: the command (`Build.CreepTumorQueen`) when it
+    // has one, else the ability (`Yoink` of `Yoink.Execute`).
+    let icon = ability.clone();
     match tracked_ability(&ability) {
         Some(tracked) => view! {
-            <a
-                href="#"
-                class="nav-link text-base-content"
-                title=format!("{} of the {}, {}: open the Ability view", tracked.cost.label(), tracked.unit, tracked.ability)
-                on:click=move |ev: leptos::ev::MouseEvent| {
-                    ev.prevent_default();
-                    navigation.open_ability(tracked.ability);
-                }
-            >
-                {tracked.label}
-            </a>
+            <span class="whitespace-nowrap">
+                <UnitIcon unit_name=icon />
+                <a
+                    href="#"
+                    class="nav-link text-base-content"
+                    title=format!("{} of the {}, {}: open the Ability view", tracked.cost.label(), tracked.unit, tracked.ability)
+                    on:click=move |ev: leptos::ev::MouseEvent| {
+                        ev.prevent_default();
+                        navigation.open_ability(tracked.ability);
+                    }
+                >
+                    {tracked.label}
+                </a>
+            </span>
         }
         .into_any(),
         None => view! { <span>{ability}</span> }.into_any(),
@@ -52,6 +60,7 @@ pub fn AbilityUsageRows(
         .into_any();
     }
     view! {
+        <Debuggable query="ability_usage::totals" view_source=crate::source!()>
         <table class=TABLE_CLASS>
             <thead>
                 <tr class="text-left text-muted">
@@ -100,21 +109,22 @@ pub fn AbilityUsageRows(
                     .collect_view()}
             </tbody>
         </table>
+        </Debuggable>
     }
     .into_any()
 }
 
 /// The badge of a rank among the players or the games of a patch: the best, top 5, top 10 or
-/// top 100, in the `--rank-*` colors (styles.css) and in words, `what` is "player" or "game". A
+/// top 100, in the `--rank-*` colors (styles.css) and in words; the title says among what. A
 /// tier is only shown when it is a small part of the others, at least twice as many (the best of
 /// 10 or more): of 95 games every one is in the top 100.
 #[component]
-pub fn RankBadge(rank: Rank, what: &'static str, title: String) -> impl IntoView {
+pub fn RankBadge(rank: Rank, title: String) -> impl IntoView {
     let (class, label, tier) = match rank.rank {
-        1 => ("rank-1", format!("best {what}"), 5),
-        2..=5 => ("rank-5", format!("top 5 {what}"), 5),
-        6..=10 => ("rank-10", format!("top 10 {what}"), 10),
-        11..=100 => ("rank-100", format!("top 100 {what}"), 100),
+        1 => ("rank-1", "best".to_string(), 5),
+        2..=5 => ("rank-5", "top 5".to_string(), 5),
+        6..=10 => ("rank-10", "top 10".to_string(), 10),
+        11..=100 => ("rank-100", "top 100".to_string(), 100),
         _ => return None,
     };
     if rank.of < 2 * tier {
@@ -205,7 +215,7 @@ pub fn AbilityUses(mut abilities: Vec<AbilityUse>, #[prop(into)] race: String) -
                                 <td>
                                     {ability.player_rank.map(|rank| {
                                         let title = player_rank_title(rank, &race);
-                                        view! { <RankBadge rank what="player" title /> }
+                                        view! { <RankBadge rank title /> }
                                     })}
                                 </td>
                             </tr>

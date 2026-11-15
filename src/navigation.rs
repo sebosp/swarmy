@@ -7,13 +7,12 @@ pub const HOME_PAGE: &str = "Home";
 pub const TOUR_PAGE: &str = "Tour";
 pub const REPLAY_DETAIL_PAGE: &str = "Replay Detail";
 pub const PLAYER_PAGE: &str = "Player";
-pub const MAP_SCOUT_PAGE: &str = "Map Scout";
 pub const MAP_LIST_PAGE: &str = "Map List";
 pub const MAP_DETAILS_PAGE: &str = "Map Details";
 pub const PATCH_OVERVIEW_PAGE: &str = "Patch Overview";
 pub const UNIT_OVERVIEW_PAGE: &str = "Unit Overview";
 pub const PATCH_EVOLUTION_PAGE: &str = "Patch Evolution";
-pub const RACE_DETAIL_PAGE: &str = "Race Detail";
+pub const RACE_DETAIL_PAGE: &str = "Race Overview";
 pub const ABILITY_PAGE: &str = "Ability";
 pub const PROGRESS_PAGE: &str = "Progress";
 pub const SCAN_PAGE: &str = "Scan";
@@ -28,7 +27,11 @@ pub struct Navigation {
     pub replay_id: RwSignal<Option<u64>>,
     /// The player shown in the Player view, as stored in the replay.
     pub player_name: RwSignal<String>,
-    /// The map shown in the Map Details view, also the initial map of the Map Scout view.
+    /// The player the Player view compares with, empty for none.
+    pub compare_name: RwSignal<String>,
+    /// The player of the Progress view, empty for the Main Player Name of Config.
+    pub progress_player: RwSignal<String>,
+    /// The map shown in the Map Details view.
     pub map_title: RwSignal<String>,
     /// The unit shown in the Unit Overview view.
     pub unit_name: RwSignal<String>,
@@ -36,7 +39,7 @@ pub struct Navigation {
     pub patch_version: RwSignal<Option<u32>>,
     /// The race the Patch Overview view is filtered by, empty for all races.
     pub race: RwSignal<String>,
-    /// The race shown in the Race Detail view.
+    /// The race shown in the Race Overview view.
     pub race_detail: RwSignal<String>,
     /// The filters and the sort of the Replay List view, kept when going to other views.
     pub replay_query: RwSignal<ReplayListQuery>,
@@ -76,6 +79,8 @@ impl Navigation {
             active_page: RwSignal::new(active_page.to_string()),
             replay_id: RwSignal::new(None),
             player_name: RwSignal::new(String::new()),
+            compare_name: RwSignal::new(String::new()),
+            progress_player: RwSignal::new(String::new()),
             map_title: RwSignal::new(String::new()),
             unit_name: RwSignal::new("Marine".to_string()),
             patch_version: RwSignal::new(None),
@@ -112,11 +117,6 @@ impl Navigation {
         self.active_page.set(MAP_DETAILS_PAGE.to_string());
     }
 
-    pub fn scout_map(&self, map_title: &str) {
-        self.map_title.set(map_title.to_string());
-        self.active_page.set(MAP_SCOUT_PAGE.to_string());
-    }
-
     /// Opens the Ability view of an ability, i.e. `SpawnLarva.Execute`.
     pub fn open_ability(&self, ability: &str) {
         self.ability.set(ability.to_string());
@@ -139,7 +139,7 @@ impl Navigation {
         self.active_page.set(PATCH_OVERVIEW_PAGE.to_string());
     }
 
-    /// Opens the Race Detail view of the race: its matchups, maps, units and abilities.
+    /// Opens the Race Overview view of the race: its matchups, maps, units and abilities.
     pub fn open_race_detail(&self, race: &str) {
         self.race_detail.set(race.to_string());
         self.active_page.set(RACE_DETAIL_PAGE.to_string());
@@ -167,7 +167,12 @@ impl Navigation {
         self.active_page.set(SCAN_PAGE.to_string());
     }
 
+    /// Opens the Player view of a player, the comparison with another player stays. Opening the
+    /// player compared with swaps the two sides.
     pub fn open_player(&self, player_name: &str) {
+        if self.compare_name.get_untracked() == player_name {
+            self.compare_name.set(self.player_name.get_untracked());
+        }
         self.player_name.set(player_name.to_string());
         self.active_page.set(PLAYER_PAGE.to_string());
     }
@@ -197,9 +202,9 @@ pub fn use_navigation() -> Navigation {
     expect_context::<Navigation>()
 }
 
-/// The address of a view: `#/<page>?<what it shows>`, i.e. `#/replay-detail?replay=1234` or
-/// `#/player?name=Serral`. The browser version can then be shared and the Back button works; the app
-/// shows its views the same way.
+/// The address of a view: `#/<page>?<what it shows>`, i.e. `#/replay-detail?replay=1234`,
+/// `#/player?name=Serral` or `#/player?name=Serral&vs=Maru`. The browser version can then be
+/// shared and the Back button works; the app shows its views the same way.
 pub fn view_route(navigation: &Navigation) -> String {
     let page = navigation.active_page.get();
     let encode = |value: &str| String::from(js_sys::encode_uri_component(value));
@@ -207,8 +212,18 @@ pub fn view_route(navigation: &Navigation) -> String {
         REPLAY_DETAIL_PAGE => navigation.replay_id.get().map(|id| format!("replay={id}")),
         PLAYER_PAGE => Some(navigation.player_name.get())
             .filter(|name| !name.is_empty())
+            .map(|name| {
+                let compare = navigation.compare_name.get();
+                if compare.is_empty() || compare == name {
+                    format!("name={}", encode(&name))
+                } else {
+                    format!("name={}&vs={}", encode(&name), encode(&compare))
+                }
+            }),
+        PROGRESS_PAGE => Some(navigation.progress_player.get())
+            .filter(|name| !name.is_empty())
             .map(|name| format!("name={}", encode(&name))),
-        MAP_DETAILS_PAGE | MAP_SCOUT_PAGE => Some(navigation.map_title.get())
+        MAP_DETAILS_PAGE => Some(navigation.map_title.get())
             .filter(|map| !map.is_empty())
             .map(|map| format!("map={}", encode(&map))),
         UNIT_OVERVIEW_PAGE => Some(format!("unit={}", encode(&navigation.unit_name.get()))),
@@ -243,7 +258,6 @@ fn page_of_slug(slug: &str) -> Option<&'static str> {
         TOUR_PAGE,
         REPLAY_DETAIL_PAGE,
         PLAYER_PAGE,
-        MAP_SCOUT_PAGE,
         MAP_LIST_PAGE,
         MAP_DETAILS_PAGE,
         PATCH_OVERVIEW_PAGE,
@@ -274,6 +288,10 @@ pub fn open_route(navigation: &Navigation, route: &str) {
             .map(String::from)
             .unwrap_or_else(|_| value.to_string())
     };
+    // The address says it all: a player address without `vs` compares with nobody.
+    if page == PLAYER_PAGE {
+        navigation.compare_name.set(String::new());
+    }
     for (key, value) in query.split('&').filter_map(|part| part.split_once('=')) {
         let value = decode(value);
         match key {
@@ -284,7 +302,9 @@ pub fn open_route(navigation: &Navigation, route: &str) {
                     navigation.replay_id.set(Some(id));
                 }
             }
+            "name" if page == PROGRESS_PAGE => navigation.progress_player.set(value),
             "name" => navigation.player_name.set(value),
+            "vs" => navigation.compare_name.set(value),
             "map" => navigation.map_title.set(value),
             "unit" => navigation.unit_name.set(value),
             "version" => navigation.patch_version.set(value.parse().ok()),

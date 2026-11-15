@@ -1,9 +1,12 @@
 [package]
 name = "swarmy-common"
-version = "0.2.4"
+version = "0.2.5"
 description = "Swarmy Common, shared between tauri/leptos"
 authors = ["Seb Ospina <kraige@gmail.com>"]
-edition = "2021"
+edition = "2024"
+
+[lints]
+workspace = true
 
 [dependencies]
 thiserror = "2.0"

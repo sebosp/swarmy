@@ -5,20 +5,31 @@
 //! The Client ID and Secret of the user's Battle.net application are kept by the backend in
 //! `battlenet.json` of its data directory, readable by its user only, and never sent back to the
 //! views; `SWARMY_BATTLENET_CLIENT_ID` and `SWARMY_BATTLENET_CLIENT_SECRET` replace them (tests,
-//! servers). The OAuth token is of the client credentials flow, it needs no redirect.
+//! servers). The app sets them in Config; a server (`swarmy --serve`) takes them from its
+//! environment or its data directory only, the browser version has no Config for them and the
+//! server refuses `get_battlenet_status` and `set_battlenet_credentials`
+//! (`web::DESKTOP_COMMANDS`). The OAuth token is of the client credentials flow, it needs no
+//! redirect.
 
 use crate::host::SwarmyHost;
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use swarmy_common::*;
 
 const CREDENTIALS_FILE: &str = "battlenet.json";
 const TOKEN_URL: &str = "https://oauth.battle.net/token";
-/// The profiles are kept this long, the ladders change with each game.
-const PROFILE_TTL: Duration = Duration::from_secs(30 * 60);
+/// The profiles fetched, kept in the data directory of the backend: the Player view shows a
+/// profile at once instead of waiting the seconds Battle.net takes (a profile is one request plus
+/// one per ladder of the season), also after a restart.
+const PROFILES_FILE: &str = "battlenet-profiles.json";
+/// A profile is served as it is this long; older, it is shown at once and fetched again in the
+/// background, the ladders change with each game.
+const PROFILE_FRESH: Duration = Duration::from_secs(30 * 60);
+/// A profile older than this is not shown, Battle.net is asked first.
+const PROFILE_KEEP: Duration = Duration::from_secs(7 * 24 * 3600);
 
 #[derive(Debug, Clone, serde::Serialize, Deserialize)]
 struct Credentials {
@@ -35,16 +46,16 @@ fn credentials(host: &dyn SwarmyHost) -> Option<(Credentials, bool)> {
     if let (Ok(client_id), Ok(client_secret)) = (
         std::env::var("SWARMY_BATTLENET_CLIENT_ID"),
         std::env::var("SWARMY_BATTLENET_CLIENT_SECRET"),
-    ) {
-        if !client_id.is_empty() && !client_secret.is_empty() {
-            return Some((
-                Credentials {
-                    client_id,
-                    client_secret,
-                },
-                true,
-            ));
-        }
+    ) && !client_id.is_empty()
+        && !client_secret.is_empty()
+    {
+        return Some((
+            Credentials {
+                client_id,
+                client_secret,
+            },
+            true,
+        ));
     }
     let path = credentials_path(host).ok()?;
     let text = std::fs::read_to_string(path).ok()?;
@@ -95,10 +106,10 @@ fn forget_token() {
 /// The token of the credentials, kept until shortly before it expires.
 async fn token(credentials: &Credentials) -> Result<String, SwarmyError> {
     if let Some((client_id, token, expires)) = TOKENS.lock().ok().and_then(|tokens| tokens.clone())
+        && client_id == credentials.client_id
+        && Instant::now() < expires
     {
-        if client_id == credentials.client_id && Instant::now() < expires {
-            return Ok(token);
-        }
+        return Ok(token);
     }
     let response = reqwest::Client::new()
         .post(TOKEN_URL)
@@ -260,22 +271,27 @@ async fn fetch_profile(
     let summary: LadderSummary = get_json(&format!("{base}/ladder/summary"), &token)
         .await
         .unwrap_or_default();
-    let mut ladders = vec![];
-    for entry in summary.show_case_entries {
-        // The MMR is in the ladder itself.
-        let mmr = get_json::<LadderAnswer>(&format!("{base}/ladder/{}", entry.ladder_id), &token)
-            .await
-            .ok()
-            .and_then(|ladder| ladder.ranks_and_pools.first().and_then(|pool| pool.mmr));
-        ladders.push(BattleNetLadder {
-            mode: entry.team.localized_game_mode,
-            league: entry.league_name,
-            rank: entry.rank,
-            wins: entry.wins,
-            losses: entry.losses,
-            mmr,
-        });
-    }
+    // The MMR is in the ladder itself: the ladders are asked at once, not one after the other.
+    let ladders =
+        futures_util::future::join_all(summary.show_case_entries.into_iter().map(|entry| {
+            let url = format!("{base}/ladder/{}", entry.ladder_id);
+            let token = token.clone();
+            async move {
+                let mmr = get_json::<LadderAnswer>(&url, &token)
+                    .await
+                    .ok()
+                    .and_then(|ladder| ladder.ranks_and_pools.first().and_then(|pool| pool.mmr));
+                BattleNetLadder {
+                    mode: entry.team.localized_game_mode,
+                    league: entry.league_name,
+                    rank: entry.rank,
+                    wins: entry.wins,
+                    losses: entry.losses,
+                    mmr,
+                }
+            }
+        }))
+        .await;
     let best = profile.career.best_1v1_finish.unwrap_or_default();
     Ok(BattleNetProfile {
         account: account.to_string(),
@@ -339,37 +355,132 @@ pub async fn set_battlenet_credentials(
     Ok(ApiResponseBuilder::new().process_result(result))
 }
 
-/// The Battle.net profile of an account, kept [`PROFILE_TTL`].
+/// A profile of the cache, with when Battle.net answered it (seconds since the epoch).
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
+struct CachedProfile {
+    profile: BattleNetProfile,
+    fetched_at: u64,
+}
+
+impl CachedProfile {
+    fn age(&self) -> Duration {
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|since| since.as_secs())
+            .unwrap_or_default();
+        Duration::from_secs(now.saturating_sub(self.fetched_at))
+    }
+}
+
+/// The profiles fetched, by account: in memory, loaded from [`PROFILES_FILE`] the first time and
+/// written back after each fetch.
+static PROFILES: Mutex<Option<HashMap<String, CachedProfile>>> = Mutex::new(None);
+/// The accounts being fetched in the background, so that a profile asked twice is fetched once.
+static REFRESHING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+fn profiles_path(host: &dyn SwarmyHost) -> Option<PathBuf> {
+    host.data_dir().ok().map(|dir| dir.join(PROFILES_FILE))
+}
+
+/// The cached profile of the account, if it is younger than [`PROFILE_KEEP`].
+fn cached_profile(path: Option<&Path>, account: &str) -> Option<CachedProfile> {
+    let mut profiles = PROFILES.lock().ok()?;
+    let profiles = profiles.get_or_insert_with(|| {
+        path.and_then(|path| std::fs::read_to_string(path).ok())
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default()
+    });
+    profiles
+        .get(account)
+        .filter(|cached| cached.age() < PROFILE_KEEP)
+        .cloned()
+}
+
+/// Keeps a profile just fetched, in memory and in the file.
+fn remember_profile(path: Option<&Path>, account: &str, profile: &BattleNetProfile) {
+    let Ok(mut profiles) = PROFILES.lock() else {
+        return;
+    };
+    let profiles = profiles.get_or_insert_with(HashMap::new);
+    profiles.insert(
+        account.to_string(),
+        CachedProfile {
+            profile: profile.clone(),
+            fetched_at: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|since| since.as_secs())
+                .unwrap_or_default(),
+        },
+    );
+    // The profiles are public data, the file can be read by anyone.
+    if let Some(path) = path {
+        let written = serde_json::to_string(&*profiles)
+            .map_err(SwarmyError::from)
+            .and_then(|text| {
+                if let Some(dir) = path.parent() {
+                    std::fs::create_dir_all(dir)?;
+                }
+                std::fs::write(path, text).map_err(SwarmyError::from)
+            });
+        if let Err(err) = written {
+            tracing::warn!("Unable to write {}: {err}", path.display());
+        }
+    }
+}
+
+/// Fetches a profile again in the background, once at a time per account.
+fn refresh_in_background(credentials: Credentials, path: Option<PathBuf>, account: String) {
+    if let Ok(mut refreshing) = REFRESHING.lock()
+        && !refreshing
+            .get_or_insert_with(HashSet::new)
+            .insert(account.clone())
+    {
+        return;
+    }
+    tokio::spawn(async move {
+        match fetch_profile(&credentials, &account).await {
+            Ok(profile) => remember_profile(path.as_deref(), &account, &profile),
+            Err(err) => tracing::warn!("Unable to refresh the Battle.net profile {account}: {err}"),
+        }
+        if let Ok(mut refreshing) = REFRESHING.lock()
+            && let Some(refreshing) = refreshing.as_mut()
+        {
+            refreshing.remove(&account);
+        }
+    });
+}
+
+/// The Battle.net profile of an account: from the cache when it is younger than
+/// [`PROFILE_FRESH`]; an older one is answered at once and fetched again in the background; one
+/// not cached is fetched first. The cache survives a restart ([`PROFILES_FILE`]).
 pub async fn query_battlenet_profile(
     host: &dyn SwarmyHost,
     account: String,
 ) -> Result<ApiResponse, SwarmyError> {
-    static PROFILES: Mutex<Option<HashMap<String, (BattleNetProfile, Instant)>>> = Mutex::new(None);
-    let cached = PROFILES.lock().ok().and_then(|profiles| {
-        profiles
-            .as_ref()?
-            .get(&account)
-            .filter(|(_, at)| at.elapsed() < PROFILE_TTL)
-            .map(|(profile, _)| profile.clone())
-    });
-    if let Some(profile) = cached {
-        return Ok(ApiResponseBuilder::new().process_result(Ok(profile)));
+    let path = profiles_path(host);
+    let cached = cached_profile(path.as_deref(), &account);
+    let credentials = credentials(host).map(|(credentials, _)| credentials);
+    if let Some(cached) = cached {
+        if cached.age() >= PROFILE_FRESH
+            && let Some(credentials) = credentials
+        {
+            refresh_in_background(credentials, path.clone(), account.clone());
+        }
+        return Ok(ApiResponseBuilder::new().process_result(Ok(cached.profile)));
     }
-    let Some((credentials, _)) = credentials(host) else {
+    let Some(credentials) = credentials else {
         return Ok(
-            ApiResponseBuilder::new().process_result(Err::<BattleNetProfile, _>(
-                SwarmyError::Other(
-                    "No Battle.net API credentials: add a Client ID and Secret in Config"
-                        .to_string(),
-                ),
-            )),
+            ApiResponseBuilder::new()
+                .process_result(Err::<BattleNetProfile, _>(SwarmyError::Other(
+                "No Battle.net API credentials: the app takes a Client ID and Secret in Config, \
+                     a server in its environment (SWARMY_BATTLENET_CLIENT_ID and _SECRET)"
+                    .to_string(),
+            ))),
         );
     };
     let result = fetch_profile(&credentials, &account).await;
-    if let (Ok(profile), Ok(mut profiles)) = (&result, PROFILES.lock()) {
-        profiles
-            .get_or_insert_with(HashMap::new)
-            .insert(account, (profile.clone(), Instant::now()));
+    if let Ok(profile) = &result {
+        remember_profile(path.as_deref(), &account, profile);
     }
     Ok(ApiResponseBuilder::new().process_result(result))
 }

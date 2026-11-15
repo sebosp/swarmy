@@ -1,17 +1,18 @@
 //! Leptos view for the details of a map: matchups, top players, recent games and terrain.
 
-use super::resources::{MapPicture, MapResourcesPanel};
-use crate::components::brand_icon::{native_title, BrandIcon};
+use super::resources::MapResourcesPanel;
+use crate::components::brand_icon::{BrandIcon, native_title};
+use crate::components::debug::Debuggable;
 use crate::components::links::{PlayerLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
-use crate::components::map_cell::{MapCell, MapHighlightContext};
+use crate::components::map_cell::MapHighlightContext;
+use crate::components::map_picture::MapPicture;
 use crate::components::name_select::NameSelect;
 use crate::navigation::use_navigation;
 use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, BINOCULARS};
 use swarmy_common::*;
 
 const HEADING_CLASS: &str = "text-base/7 font-semibold text-base-content";
@@ -90,10 +91,9 @@ fn figure(value: impl std::fmt::Display) -> impl IntoView {
 #[component]
 fn MapDetailsContent(details: MapDetails) -> impl IntoView {
     let navigation = use_navigation();
-    let title = details.title.clone();
     let cache_handles = details.cache_handles.clone();
     // The spot hovered in the tables, highlighted on the map.
-    provide_context(MapHighlightContext(RwSignal::new(None)));
+    provide_context(MapHighlightContext::new());
     let bevy_status = RwSignal::new(String::new());
     let open_in_bevy = move |_ev: MouseEvent| {
         #[derive(serde::Serialize)]
@@ -120,49 +120,54 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
         .cloned()
         .collect();
     matchups.sort_by(|a, b| b.games.cmp(&a.games));
+    // What the Debuggable blocks show, taken out of `details` first: each block is a closure.
+    let summary = (
+        details.num_games,
+        details.min_date.clone(),
+        details.max_date.clone(),
+        details.avg_duration_seconds,
+    );
+    let summary_title = details.title.clone();
+    let matchups_title = details.title.clone();
+    let top_players = details.top_players.clone();
+    let recent_games = details.recent_games.clone();
+    let recent_title = details.title.clone();
     view! {
         <div class="flex items-start justify-between gap-4">
             <div>
                 <h1 class="text-xl font-semibold text-base-content">{details.title.clone()}</h1>
+                <Debuggable query="map_details::games_summary" view_source=crate::source!()>
                 <p class="text-sm text-muted">
                     <a
                         href="#"
                         class="nav-link"
                         title="Open the games of this map in the Replay List"
                         on:click={
-                            let map_title = details.title.clone();
+                            let map_title = summary_title.clone();
                             move |ev: MouseEvent| {
                                 ev.prevent_default();
                                 navigation.open_replays(&map_title, "");
                             }
                         }
                     >
-                        {figure(details.num_games)}
+                        {figure(summary.0)}
                         " games"
                     </a>
                     " from "
-                    {figure(details.min_date.clone())}
+                    {figure(summary.1.clone())}
                     " to "
-                    {figure(details.max_date.clone())}
+                    {figure(summary.2.clone())}
                     ", "
-                    {figure(format_game_time(details.avg_duration_seconds))}
+                    {figure(format_game_time(summary.3))}
                     " on average"
                 </p>
+                </Debuggable>
             </div>
             <div class="flex flex-col items-end gap-1">
                 <div class="flex gap-2">
                     <button class="btn btn-primary btn-sm native-only" title=native_title("Open in Swarmy-Bevy") on:click=open_in_bevy>
                         <BrandIcon name="bevy" />
                         "Open in Swarmy-Bevy"
-                    </button>
-                    // Map Scout is experimental: in its yellow, the last of the actions.
-                    <button
-                        class="btn btn-outline btn-warning btn-sm"
-                        title="Scout this map, experimental: where the players send their first units and when"
-                        on:click=move |_ev: MouseEvent| navigation.scout_map(&title)
-                    >
-                        <Icon icon=BINOCULARS weight=IconWeight::Light />
-                        "Scout this map"
                     </button>
                 </div>
                 <span class="text-xs text-muted">{move || bevy_status.get()}</span>
@@ -172,12 +177,13 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
         // highlights it on the map.
         <div class="grid grid-cols-[minmax(0,28rem)_minmax(0,1fr)] gap-6 items-start">
             <div class="sticky top-0 self-start pt-1">
-                <MapPicture details=details.clone() />
+                <MapPicture picture=details.picture.clone() />
             </div>
             <div class="space-y-5 min-w-0">
                 <p class="text-xs text-muted whitespace-pre-line">{details.description.clone()}</p>
                 // Side by side when they fit, one under the other on a narrow window.
                 <div class="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-6">
+                    <Debuggable query="map_details::matchups" view_source=crate::source!()>
                     <table class=TABLE_CLASS>
                         <thead>
                             <tr class="text-left text-muted">
@@ -192,7 +198,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                             {matchups
                                 .into_iter()
                                 .map(|matchup| {
-                                    let map_title = details.title.clone();
+                                    let map_title = matchups_title.clone();
                                     let label = matchup.label.clone();
                                     view! {
                                         <tr
@@ -213,6 +219,8 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                 .collect_view()}
                         </tbody>
                     </table>
+                    </Debuggable>
+                    <Debuggable query="map_details::top_players" view_source=crate::source!()>
                     <table class=TABLE_CLASS>
                         <thead>
                             <tr class="text-left text-muted">
@@ -222,8 +230,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                             </tr>
                         </thead>
                         <tbody>
-                            {details
-                                .top_players
+                            {top_players
                                 .iter()
                                 .map(|player| {
                                     view! {
@@ -239,15 +246,14 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                 .collect_view()}
                         </tbody>
                     </table>
+                    </Debuggable>
                 </div>
                 {details
+                    .picture
                     .resources
                     .clone()
                     .map(|resources| view! { <MapResourcesPanel resources /> })}
-                <MapLayersPanel
-                    map_title=details.title.clone()
-                    cache_handles=details.cache_handles.clone()
-                />
+                <Debuggable query="map_details::recent_games" view_source=crate::source!()>
                 <div>
                     <h2 class=HEADING_CLASS>"Recent games"</h2>
                     <table class=TABLE_CLASS>
@@ -259,8 +265,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                             </tr>
                         </thead>
                         <tbody>
-                            {details
-                                .recent_games
+                            {recent_games
                                 .into_iter()
                                 .map(|game| {
                                     // The winners first, then the others in their order.
@@ -277,7 +282,7 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                                             <td class="pr-2">
                                                 <ReplayLink
                                                     ext_fs_id=game.ext_fs_id
-                                                    map_title=details.title.clone()
+                                                    map_title=recent_title.clone()
                                                     players=names
                                                 />
                                             </td>
@@ -302,258 +307,8 @@ fn MapDetailsContent(details: MapDetails) -> impl IntoView {
                         </tbody>
                     </table>
                 </div>
-                <LongRangeSpotsPanel
-                    map_title=details.title.clone()
-                    cache_handles=details.cache_handles.clone()
-                />
+                </Debuggable>
             </div>
-        </div>
-    }
-}
-
-/// The spots shown in the table, the most kills first.
-const SIEGE_SPOTS_SHOWN: usize = 8;
-
-/// The fights, proxies, creep tumors and early buildings of the games of the map, with a button
-/// to see them as bars on the map in swarmy-bevy.
-#[component]
-fn MapLayersPanel(map_title: String, cache_handles: String) -> impl IntoView {
-    #[derive(serde::Serialize)]
-    struct Args {
-        map_title: String,
-    }
-    #[derive(serde::Serialize)]
-    struct BevyArgs {
-        map_title: String,
-        cache_ids: String,
-    }
-    let layers = RwSignal::new(None::<Result<MapLayers, String>>);
-    let status = RwSignal::new(String::new());
-    let query_title = map_title.clone();
-    spawn_local(async move {
-        layers.set(Some(
-            invoke_json::<MapLayers>(
-                "query_map_layers",
-                &Args {
-                    map_title: query_title,
-                },
-            )
-            .await,
-        ));
-    });
-    let open = move |_ev: MouseEvent| {
-        let args = BevyArgs {
-            map_title: map_title.clone(),
-            cache_ids: cache_handles.clone(),
-        };
-        status.set("Starting swarmy-bevy...".to_string());
-        spawn_local(async move {
-            match invoke_response("exec_swarmy_bevy_map_layers", &args).await {
-                Ok(response) => status.set(response.message),
-                Err(err) => status.set(err),
-            }
-        });
-    };
-    view! {
-        <div>
-            <div class="flex items-center gap-2">
-                <h2 class=HEADING_CLASS>"Map lessons"</h2>
-                <button
-                    class="btn btn-primary btn-xs native-only"
-                    title=native_title("The layers as bars on the map, each in its color, the keys F1 to F4 show or hide them")
-                    on:click=open
-                >
-                    <BrandIcon name="bevy" />
-                    "Show in swarmy-bevy"
-                </button>
-                <span class="text-xs text-muted">{move || status.get()}</span>
-            </div>
-            {move || match layers.get() {
-                None => {
-                    view! { <Loading message="Finding the fights, proxies and creep" /> }.into_any()
-                }
-                Some(Err(err)) => view! { <p class="text-xs text-muted">{err}</p> }.into_any(),
-                Some(Ok(layers)) => {
-                    view! {
-                        <table class=TABLE_CLASS>
-                            <tbody>
-                                {layers
-                                    .layers
-                                    .iter()
-                                    .map(|layer| {
-                                        let total: usize = layer
-                                            .spots
-                                            .iter()
-                                            .map(|spot| spot.count)
-                                            .sum();
-                                        let cells = layers.spot_cells as f32;
-                                        let top = layer
-                                            .spots
-                                            .first()
-                                            .map(|spot| {
-                                                view! {
-                                                    "the most at "
-                                                    <MapCell
-                                                        x=spot.x as f32 * cells
-                                                        y=spot.y as f32 * cells
-                                                        size=cells
-                                                    />
-                                                    ": "
-                                                    {figure(spot.count)}
-                                                    " in "
-                                                    {figure(spot.games)}
-                                                    " games"
-                                                }
-                                                    .into_any()
-                                            })
-                                            .unwrap_or_else(|| "none".into_any());
-                                        view! {
-                                            <tr title=layer.description.clone()>
-                                                <td class="pr-3 text-muted">{layer.label.clone()}</td>
-                                                <td class="pr-3 num">{total}</td>
-                                                <td>{top}</td>
-                                            </tr>
-                                        }
-                                    })
-                                    .collect_view()}
-                            </tbody>
-                        </table>
-                    }
-                        .into_any()
-                }
-            }}
-        </div>
-    }
-}
-
-/// Where the long range units stood and killed the most in the games of the map, with a button to
-/// see all the spots as bars on the map in swarmy-bevy. A preview: only the Siege Tanks so far.
-#[component]
-fn LongRangeSpotsPanel(map_title: String, cache_handles: String) -> impl IntoView {
-    #[derive(serde::Serialize)]
-    struct Args {
-        map_title: String,
-    }
-    #[derive(serde::Serialize)]
-    struct BevyArgs {
-        map_title: String,
-        cache_ids: String,
-    }
-    let spots = RwSignal::new(None::<Result<SiegeSpots, String>>);
-    let status = RwSignal::new(String::new());
-    let query_title = map_title.clone();
-    spawn_local(async move {
-        spots.set(Some(
-            invoke_json::<SiegeSpots>(
-                "query_siege_spots",
-                &Args {
-                    map_title: query_title,
-                },
-            )
-            .await,
-        ));
-    });
-    let open = move |_ev: MouseEvent| {
-        let args = BevyArgs {
-            map_title: map_title.clone(),
-            cache_ids: cache_handles.clone(),
-        };
-        status.set("Starting swarmy-bevy...".to_string());
-        spawn_local(async move {
-            match invoke_response("exec_swarmy_bevy_siege_spots", &args).await {
-                Ok(response) => status.set(response.message),
-                Err(err) => status.set(err),
-            }
-        });
-    };
-    view! {
-        <div>
-            <div class="flex items-center gap-2">
-                <h2 class=HEADING_CLASS>
-                    "Long Range Unit Spots "
-                    <span class="badge badge-sm badge-outline font-normal">"preview"</span>
-                </h2>
-                <button
-                    class="btn btn-primary btn-xs native-only"
-                    title=native_title("All the spots as bars on the map: the height is the kills, red the most kills per siege")
-                    on:click=open
-                >
-                    <BrandIcon name="bevy" />
-                    "Show in swarmy-bevy"
-                </button>
-                <span class="text-xs text-muted">{move || status.get()}</span>
-            </div>
-            <p class="text-xs text-faint">
-                {format!(
-                    "Where the Siege Tanks sieged, in squares of {SIEGE_SPOT_CELLS}x{SIEGE_SPOT_CELLS} cells, and the enemy units that cost resources they killed until they unsieged. \
-                    This is a preview: more long range units (Lurkers, Liberators, Tempests...) and more of what they did are being added.",
-                )}
-            </p>
-            {move || match spots.get() {
-                None => view! { <Loading message="Finding the sieges" /> }.into_any(),
-                Some(Err(err)) => view! { <p class="text-xs text-muted">{err}</p> }.into_any(),
-                Some(Ok(spots)) if spots.spots.is_empty() => {
-                    view! {
-                        <p class="text-xs text-muted">
-                            "No Siege Tank sieged in the games of this map."
-                        </p>
-                    }
-                        .into_any()
-                }
-                Some(Ok(spots)) => {
-                    view! {
-                        <p class="text-xs text-muted">
-                            {figure(spots.sieges)}
-                            " sieges in "
-                            {figure(spots.games)}
-                            " games, "
-                            {figure(spots.kills)}
-                            " kills."
-                        </p>
-                        <table class=TABLE_CLASS>
-                            <thead>
-                                <tr class="text-left text-muted">
-                                    <th class="pr-3">"Cell"</th>
-                                    <th class="pr-3 text-right">"Kills"</th>
-                                    <th class="pr-3 text-right">"Sieges"</th>
-                                    <th class="pr-3 text-right">"Kills per siege"</th>
-                                    <th class="text-right">"Games"</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {spots
-                                    .spots
-                                    .iter()
-                                    .take(SIEGE_SPOTS_SHOWN)
-                                    .map(|spot| {
-                                        let cells = spots.spot_cells as f32;
-                                        view! {
-                                            <tr>
-                                                <td class="pr-3">
-                                                    <MapCell
-                                                        x=spot.x as f32 * cells
-                                                        y=spot.y as f32 * cells
-                                                        size=cells
-                                                    />
-                                                </td>
-                                                <td class="pr-3 num text-base-content">
-                                                    {spot.kills}
-                                                </td>
-                                                <td class="pr-3 num">{spot.sieges}</td>
-                                                <td class="pr-3 num">
-                                                    {format!("{:.1}", spot.kills_per_siege())}
-                                                </td>
-                                                <td class="num">{spot.games}</td>
-                                            </tr>
-                                        }
-                                    })
-                                    .collect_view()}
-                            </tbody>
-                        </table>
-                    }
-                        .into_any()
-                }
-            }}
         </div>
     }
 }

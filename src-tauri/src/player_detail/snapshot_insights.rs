@@ -9,10 +9,10 @@
 
 use crate::data::*;
 use crate::replay_detail::data::{
-    idle_seconds, is_cosmetic_upgrade, is_tech_structure, BENCHMARK_MINUTES, CASTERS,
-    EXPANSION_TOWNHALLS, FLOATING_THRESHOLD, NOT_SCOUTS, OPENING_STRUCTURES, PRODUCTION_STRUCTURES,
-    PROXY_DISTANCE, PROXY_MAX_SECONDS, PROXY_STRUCTURES, SCOUT_DISTANCE, SNAPSHOT_SECONDS,
-    TOWNHALLS,
+    BENCHMARK_MINUTES, CASTERS, EXPANSION_TOWNHALLS, FLOATING_THRESHOLD, NOT_SCOUTS,
+    OPENING_STRUCTURES, PRODUCTION_STRUCTURES, PROXY_DISTANCE, PROXY_MAX_SECONDS, PROXY_STRUCTURES,
+    SCOUT_DISTANCE, SNAPSHOT_SECONDS, TOWNHALLS, idle_seconds, is_cosmetic_upgrade,
+    is_tech_structure,
 };
 use crate::replay_rerun::decisions::{
     army_supply, base_unit_name, closest_balance_units, has_cost, is_morph_death, unit_cost,
@@ -48,6 +48,16 @@ fn sorted_counts(counts: BTreeMap<String, usize>) -> Vec<UnitCount> {
 
 /// Reads the columns of a file of the day.
 fn read_day_file(day: &Path, file: &str, columns: &[&str]) -> Result<DataFrame, SwarmyError> {
+    read_day_file_of(day, file, columns, None)
+}
+
+/// Reads the columns of a file of the day, of the games `ids` only when given.
+fn read_day_file_of(
+    day: &Path,
+    file: &str,
+    columns: &[&str],
+    ids: Option<&[u64]>,
+) -> Result<DataFrame, SwarmyError> {
     let path = day.join(file);
     if !path.is_file() {
         return Err(SwarmyError::Other(format!(
@@ -63,6 +73,7 @@ fn read_day_file(day: &Path, file: &str, columns: &[&str]) -> Result<DataFrame, 
             ..Default::default()
         },
     )?
+    .filter(ids.map_or(lit(true), is_in_replays))
     .select(columns.iter().map(|name| col(*name)).collect::<Vec<_>>())
     .collect()?)
 }
@@ -211,11 +222,153 @@ struct Accumulator {
     caster_seconds: BTreeMap<&'static str, f32>,
 }
 
+/// The columns of the files of a day the analysis reads.
+const DAY_COLUMNS: [(&str, &[&str]); 11] = [
+    (
+        DETAILS_IPC,
+        &[
+            "ext_fs_id",
+            "player_name",
+            "player_race",
+            "player_result",
+            "player_team_id",
+            "player_observe",
+            "player_scaled_rating",
+            "title",
+            "ext_protocol_version",
+        ],
+    ),
+    (GAME_PLAYERS_IPC, &["ext_fs_id", "player_name", "player_id"]),
+    (UNIT_INIT_IPC, &UNIT_COLUMNS),
+    (UNIT_BORN_IPC, &UNIT_COLUMNS),
+    (
+        UNIT_DIED_IPC,
+        &[
+            "ext_fs_id",
+            "ext_replay_loop",
+            "unit_tag_index",
+            "unit_died_name",
+            "killer_player_id",
+            "unit_killer_name",
+        ],
+    ),
+    (
+        STATS_IPC,
+        &[
+            "ext_fs_id",
+            "ext_replay_loop",
+            "player_id",
+            "food_used",
+            "food_made",
+            "minerals_current",
+            "vespene_current",
+            "minerals_collection_rate",
+            "vespene_collection_rate",
+            "workers_active_count",
+            "minerals_used_current_army",
+            "vespene_used_current_army",
+        ],
+    ),
+    (
+        UPGRADES_IPC,
+        &["ext_fs_id", "ext_replay_loop", "player_id", "name"],
+    ),
+    (
+        CMD_TARGET_POINT_IPC,
+        &[
+            "ext_fs_id",
+            "ext_replay_loop",
+            "player_name",
+            "ability",
+            "unit_name",
+            "target_point_x",
+            "target_point_y",
+        ],
+    ),
+    (CMD_TARGET_UNIT_IPC, &CMD_COLUMNS),
+    (CMD_NO_TARGET_IPC, &CMD_COLUMNS),
+    (
+        GAME_ACTIONS_IPC,
+        &["ext_fs_id", "player_name", "minute", "commands"],
+    ),
+];
+
+const UNIT_COLUMNS: [&str; 9] = [
+    "ext_fs_id",
+    "ext_replay_loop",
+    "unit_tag_index",
+    "unit_type_name",
+    "control_player_id",
+    "x",
+    "y",
+    "creator_unit_tag_index",
+    "creator_unit_type_name",
+];
+
+const CMD_COLUMNS: [&str; 5] = [
+    "ext_fs_id",
+    "ext_replay_loop",
+    "player_name",
+    "ability",
+    "unit_name",
+];
+
+/// The columns of the files of a day, of some of its games: the games are built from them a few
+/// at a time. A whole AI Arena day (2,700 games, 39 million commands) takes 5 GiB as frames and
+/// 11 GiB as games.
+pub(crate) struct DayFrames(HashMap<&'static str, DataFrame>);
+
+impl DayFrames {
+    /// The files of the games `ids` of the day, all of them when `None`.
+    pub(crate) fn read(day: &Path, ids: Option<&[u64]>) -> Result<Self, SwarmyError> {
+        DAY_COLUMNS
+            .iter()
+            .map(|(file, columns)| Ok((*file, read_day_file_of(day, file, columns, ids)?)))
+            .collect::<Result<_, SwarmyError>>()
+            .map(Self)
+    }
+
+    /// The games, in the order of their first row.
+    #[cfg(test)]
+    pub(crate) fn game_ids(&self) -> Result<Vec<u64>, SwarmyError> {
+        unique_game_ids(&self.0[DETAILS_IPC])
+    }
+
+    /// The rows of `file` of the games `ids`, with `columns`.
+    fn games(&self, ids: &[u64], file: &str, columns: &[&str]) -> Result<DataFrame, SwarmyError> {
+        let frame = self
+            .0
+            .get(file)
+            .ok_or_else(|| SwarmyError::Other(format!("{file} is not read for the analysis")))?;
+        Ok(frame
+            .clone()
+            .lazy()
+            .filter(is_in_replays(ids))
+            .select(columns.iter().map(|name| col(*name)).collect::<Vec<_>>())
+            .collect()?)
+    }
+}
+
+/// The games of a frame with `ext_fs_id`, in the order of their first row.
+fn unique_game_ids(frame: &DataFrame) -> Result<Vec<u64>, SwarmyError> {
+    let mut seen = std::collections::HashSet::new();
+    let mut ids = u64_values(frame, "ext_fs_id")?;
+    ids.retain(|id| seen.insert(*id));
+    Ok(ids)
+}
+
 /// Reads the rows of the games of a day, by game.
+#[cfg(test)]
 fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
+    let frames = DayFrames::read(day, None)?;
+    read_games(&frames, &frames.game_ids()?)
+}
+
+/// The rows of the games `ids` of a day, by game.
+fn read_games(frames: &DayFrames, ids: &[u64]) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
     let mut games: BTreeMap<u64, GameRows> = BTreeMap::new();
-    let details = read_day_file(
-        day,
+    let details = frames.games(
+        ids,
         DETAILS_IPC,
         &[
             "ext_fs_id",
@@ -264,8 +417,8 @@ fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
             tracker_id: u8::try_from(game.details_rows).ok(),
         });
     }
-    let players = read_day_file(
-        day,
+    let players = frames.games(
+        ids,
         GAME_PLAYERS_IPC,
         &["ext_fs_id", "player_name", "player_id"],
     )?;
@@ -288,19 +441,8 @@ fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
             game.tracker.push((game_loop, order, item));
         }
     };
-    let unit_columns = [
-        "ext_fs_id",
-        "ext_replay_loop",
-        "unit_tag_index",
-        "unit_type_name",
-        "control_player_id",
-        "x",
-        "y",
-        "creator_unit_tag_index",
-        "creator_unit_type_name",
-    ];
     for (file, init) in [(UNIT_INIT_IPC, true), (UNIT_BORN_IPC, false)] {
-        let rows = read_day_file(day, file, &unit_columns)?;
+        let rows = frames.games(ids, file, &UNIT_COLUMNS)?;
         let ids = u64_values(&rows, "ext_fs_id")?;
         let loops = i64_values(&rows, "ext_replay_loop")?;
         let tags = u32_values(&rows, "unit_tag_index")?;
@@ -328,8 +470,8 @@ fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
             );
         }
     }
-    let died = read_day_file(
-        day,
+    let died = frames.games(
+        ids,
         UNIT_DIED_IPC,
         &[
             "ext_fs_id",
@@ -365,8 +507,8 @@ fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
             );
         }
     }
-    let stats = read_day_file(
-        day,
+    let stats = frames.games(
+        ids,
         STATS_IPC,
         &[
             "ext_fs_id",
@@ -417,8 +559,8 @@ fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
             );
         }
     }
-    let upgrades = read_day_file(
-        day,
+    let upgrades = frames.games(
+        ids,
         UPGRADES_IPC,
         &["ext_fs_id", "ext_replay_loop", "player_id", "name"],
     )?;
@@ -460,7 +602,7 @@ fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
         if has_point {
             columns.extend(["target_point_x", "target_point_y"]);
         }
-        let rows = read_day_file(day, file, &columns)?;
+        let rows = frames.games(ids, file, &columns)?;
         let ids = u64_values(&rows, "ext_fs_id")?;
         let loops = i64_values(&rows, "ext_replay_loop")?;
         let names = str_values(&rows, "player_name")?;
@@ -499,8 +641,8 @@ fn read_day(day: &Path) -> Result<BTreeMap<u64, GameRows>, SwarmyError> {
     {
         commands.sort_by_key(|command| command.game_loop);
     }
-    let actions = read_day_file(
-        day,
+    let actions = frames.games(
+        ids,
         GAME_ACTIONS_IPC,
         &["ext_fs_id", "player_name", "minute", "commands"],
     )?;
@@ -961,22 +1103,46 @@ fn game_insights(game: &GameRows) -> Result<Vec<(String, PlayerGameInsight)>, Sw
 /// The insights of every player of every game of the day: `(ext_fs_id, name, insight)`, the name
 /// without the clan tag. A game that cannot be computed is left out with a warning.
 pub fn day_insights(day: &Path) -> Result<Vec<(u64, String, PlayerGameInsight)>, SwarmyError> {
-    let games = read_day(day)?;
+    use rayon::prelude::*;
+    let ids = unique_game_ids(&read_day_file(day, DETAILS_IPC, &["ext_fs_id"])?)?;
     let mut rows = vec![];
-    for (ext_fs_id, game) in &games {
-        match game_insights(game) {
-            Ok(insights) => rows.extend(
-                insights
-                    .into_iter()
-                    .map(|(name, insight)| (*ext_fs_id, name, insight)),
-            ),
-            Err(err) => {
-                tracing::warn!("Unable to compute the insights of game {ext_fs_id}: {err:?}")
-            }
-        }
+    // The files of a group of games are read together, its games analysed in parallel.
+    for group in ids.chunks(GAMES_PER_GROUP) {
+        let frames = DayFrames::read(day, Some(group))?;
+        let batches: Vec<Vec<(u64, String, PlayerGameInsight)>> = group
+            .par_chunks(GAMES_PER_BATCH)
+            .map(|ids| {
+                // The errors cross the threads as text, `SwarmyError` is not `Send`.
+                let games = read_games(&frames, ids).map_err(|err| format!("{err:?}"))?;
+                let mut rows = vec![];
+                for (ext_fs_id, game) in &games {
+                    match game_insights(game) {
+                        Ok(insights) => rows.extend(
+                            insights
+                                .into_iter()
+                                .map(|(name, insight)| (*ext_fs_id, name, insight)),
+                        ),
+                        Err(err) => tracing::warn!(
+                            "Unable to compute the insights of game {ext_fs_id}: {err:?}"
+                        ),
+                    }
+                }
+                Ok(rows)
+            })
+            .collect::<Result<_, String>>()
+            .map_err(SwarmyError::Other)?;
+        rows.extend(batches.into_iter().flatten());
     }
     Ok(rows)
 }
+
+/// The games whose files are read together: the frames of a group are in memory while its
+/// games are analysed (500 AI Arena games: about 1 GiB).
+const GAMES_PER_GROUP: usize = 500;
+
+/// The games built and analysed together by a thread: their events are only in memory while
+/// they are analysed.
+const GAMES_PER_BATCH: usize = 16;
 
 #[cfg(test)]
 mod tests {

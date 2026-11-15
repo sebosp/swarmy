@@ -1,118 +1,20 @@
 //! One ability in the games of the snapshot, for the Ability view: who uses it the most, its use
 //! over time, by patch and by matchup, the games with the most uses, and when it is first used.
+//! The rows come from the query file `player_games.rs` (AGENTS.md, "A query is a file"), this
+//! file adds them up.
 
-use crate::data::*;
+pub mod player_games;
+
+use crate::data::{IpcSnapshot, QueryMeta};
 use crate::host::SwarmyHost;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
-use polars::prelude::*;
+use player_games::{PlayerGame, TEAM_GAMES};
 use std::collections::{BTreeMap, HashMap};
 use swarmy_common::*;
 
-/// The matchup of the games of more than two players.
-const TEAM_GAMES: &str = "Team games";
-
-/// A player game of the race of the ability, with its uses.
-#[derive(Debug, Clone)]
-struct PlayerGame {
-    game: AbilityGameUse,
-    patch: u32,
-}
-
-/// The uses of the ability per player and game, the commands counted once by their sequence
-/// number as in `ability_usage`, with the first use.
-fn ability_uses(ipc_path: &str, ability: &str) -> Result<LazyFrame, SwarmyError> {
-    Ok(scan_snapshot_ipc(ipc_path, GAME_ABILITIES_IPC)?
-        .filter(col("ability").eq(lit(ability)))
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            col("uses").cast(DataType::UInt64),
-            col("first_seconds"),
-        ]))
-}
-
-/// Every game of a player of the race of the ability, with its uses (0 when not used), map,
-/// patch, date and opponent race.
-fn player_games(ipc_path: &str, tracked: &TrackedAbility) -> Result<Vec<PlayerGame>, SwarmyError> {
-    let players = snapshot_players(ipc_path)?;
-    let opponents = players.clone().select([
-        col("ext_fs_id"),
-        col("player_name").alias("opponent"),
-        col("race").alias("opponent_race"),
-    ]);
-    let matchups = players
-        .clone()
-        .select([col("ext_fs_id"), col("player_name")])
-        .join(
-            opponents,
-            [col("ext_fs_id")],
-            [col("ext_fs_id")],
-            JoinArgs::new(JoinType::Inner),
-        )
-        .filter(col("player_name").neq(col("opponent")))
-        .group_by([col("ext_fs_id"), col("player_name")])
-        .agg([
-            col("opponent_race").first(),
-            len().cast(DataType::UInt32).alias("opponents"),
-        ]);
-    let dates = scan_snapshot_ipc(ipc_path, DETAILS_IPC)?
-        .select([
-            col("ext_fs_id"),
-            col("ext_datetime").dt().to_string("%Y-%m-%d").alias("date"),
-        ])
-        .unique(Some(cols(["ext_fs_id"])), UniqueKeepStrategy::Any);
-    let keys = [col("ext_fs_id"), col("player_name")];
-    let games = players
-        .filter(col("race").eq(lit(tracked.race)))
-        .select([
-            col("ext_fs_id"),
-            col("player_name"),
-            col("title"),
-            col("patch"),
-        ])
-        .join(
-            ability_uses(ipc_path, tracked.ability)?,
-            keys.clone(),
-            keys.clone(),
-            JoinArgs::new(JoinType::Left),
-        )
-        .join(matchups, keys.clone(), keys, JoinArgs::new(JoinType::Left))
-        .join(
-            dates,
-            [col("ext_fs_id")],
-            [col("ext_fs_id")],
-            JoinArgs::new(JoinType::Left),
-        )
-        .with_columns([col("uses").fill_null(lit(0u64))])
-        .collect()?;
-    let ids = u64_values(&games, "ext_fs_id")?;
-    let names = str_values(&games, "player_name")?;
-    let titles = str_values(&games, "title")?;
-    let patches = u32_values(&games, "patch")?;
-    let uses = u64_values(&games, "uses")?;
-    let first: Vec<Option<u32>> = games.column("first_seconds")?.u32()?.iter().collect();
-    let opponent_races = str_values(&games, "opponent_race")?;
-    let opponents: Vec<Option<u32>> = games.column("opponents")?.u32()?.iter().collect();
-    let dates = str_values(&games, "date")?;
-    Ok((0..games.height())
-        .map(|idx| PlayerGame {
-            game: AbilityGameUse {
-                ext_fs_id: ids[idx],
-                player_name: names[idx].clone(),
-                map_title: titles[idx].clone(),
-                date: dates[idx].clone(),
-                matchup: match opponents[idx] {
-                    Some(1) => matchup_label(tracked.race, &opponent_races[idx]),
-                    _ => TEAM_GAMES.to_string(),
-                },
-                uses: uses[idx] as usize,
-                first_seconds: first[idx],
-            },
-            patch: patches[idx],
-        })
-        .collect())
-}
+/// The queries of the view, for the debug links.
+pub const QUERIES: [QueryMeta; 1] = [player_games::META];
 
 /// The sums of a group of player games.
 #[derive(Default)]
@@ -228,14 +130,14 @@ fn aggregate(ability: &str, games: Vec<PlayerGame>) -> AbilityDetail {
 }
 
 pub fn try_query_ability_detail(
-    replay_path: String,
-    ability: String,
+    replay_path: &str,
+    ability: &str,
 ) -> Result<AbilityDetail, SwarmyError> {
-    let tracked = tracked_ability(&ability)
+    let tracked = tracked_ability(ability)
         .ok_or_else(|| SwarmyError::Other(format!("{ability} is not a tracked ability")))?;
-    let replay_path = sanitize_replay_path(&replay_path)?;
-    let ipc_path = build_ipc_path(&replay_path)?;
-    Ok(aggregate(&ability, player_games(&ipc_path, tracked)?))
+    let source = IpcSnapshot::open(replay_path)?;
+    let games = player_games::shape(player_games::plan(&source, tracked)?.collect()?)?;
+    Ok(aggregate(ability, games))
 }
 
 /// The detail of an ability in the games of the snapshot.
@@ -245,10 +147,12 @@ pub async fn query_ability_detail(
 ) -> Result<ApiResponse, SwarmyError> {
     let app_config = load_stored_app_settings(host)?;
     run_query(move || {
-        ApiResponseBuilder::new().process_result(try_query_ability_detail(
-            app_config.replay_path,
-            query.ability,
-        ))
+        ApiResponseBuilder::new()
+            .with_sources(QUERIES.map(QuerySource::from))
+            .process_result(try_query_ability_detail(
+                &app_config.replay_path,
+                &query.ability,
+            ))
     })
     .await
 }
@@ -332,8 +236,7 @@ mod snapshot_tests {
     fn it_queries_the_detail_of_an_ability() {
         let replay_path = std::env::var("SWARMY_TEST_REPLAY_PATH").unwrap();
         let start = std::time::Instant::now();
-        let detail =
-            super::try_query_ability_detail(replay_path, "SpawnLarva.Execute".to_string()).unwrap();
+        let detail = super::try_query_ability_detail(&replay_path, "SpawnLarva.Execute").unwrap();
         eprintln!("{:?}", start.elapsed());
         eprintln!("{:?}", detail.totals);
         eprintln!("fastest {:?}", detail.fastest);

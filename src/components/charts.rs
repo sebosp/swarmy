@@ -5,6 +5,7 @@
 use leptos::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use swarmy_common::{GamesWins, UnitMonthUsage};
+use wasm_bindgen::prelude::*;
 
 /// The colors of the series, tailwind indigo-500, green-500, sky-500, yellow-500, purple-500.
 /// The series colors of the theme, `--chart-N` of styles.css, in a fixed order: a series keeps
@@ -128,13 +129,25 @@ impl ChartData {
     }
 }
 
-/// The chart container, `name` is the ApexCharts type, `BarChart` or `LineChart`.
+#[wasm_bindgen]
+extern "C" {
+    /// A band over the chart between two labels, `public/charts/chart_init.js`.
+    #[wasm_bindgen(js_namespace = swarmyCharts, js_name = highlight)]
+    pub fn chart_highlight(id: &str, from: &str, to: &str);
+    /// Removes the band.
+    #[wasm_bindgen(js_namespace = swarmyCharts, js_name = clear)]
+    pub fn chart_clear_highlight(id: &str);
+}
+
+/// The chart container, `name` is the ApexCharts type, `BarChart` or `LineChart`; `id` names the
+/// container for [`chart_highlight`], else it gets one.
 #[component]
 fn ApexChart(
     name: &'static str,
     data: ChartData,
     /// The tailwind classes of the container, its height is the height of the chart.
     class: &'static str,
+    #[prop(optional_no_strip)] id: Option<String>,
 ) -> impl IntoView {
     let values: Vec<&Vec<Option<f64>>> = data.series.iter().map(|(_, values)| values).collect();
     let names: Vec<&String> = data.series.iter().map(|(name, _)| name).collect();
@@ -145,7 +158,7 @@ fn ApexChart(
     };
     view! {
         <div
-            id=next_chart_id(name)
+            id=id.unwrap_or_else(|| next_chart_id(name))
             // The chart is drawn at the width of the container, it must not widen its parent.
             // Clipped across only: the tooltips may go past the top and the bottom.
             class=format!("w-full min-w-0 overflow-x-clip {class}")
@@ -183,8 +196,9 @@ pub fn LineChart(data: ChartData, #[prop(default = "h-48")] class: &'static str)
 pub fn AdvantageChart(
     data: ChartData,
     #[prop(default = "h-48")] class: &'static str,
+    #[prop(optional)] id: Option<String>,
 ) -> impl IntoView {
-    view! { <ApexChart name="AdvantageChart" data class /> }
+    view! { <ApexChart name="AdvantageChart" data class id /> }
 }
 
 /// The games (gray) and wins (green) of each label, i.e. per month, as bars.

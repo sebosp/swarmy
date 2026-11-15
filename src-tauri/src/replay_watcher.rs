@@ -11,7 +11,7 @@
 use crate::host::SwarmyHost;
 use crate::settings::load_stored_app_settings;
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use s2protocol::arrow_store::partitioned::{is_current_partition, list_partitions, SnapshotIndex};
+use s2protocol::arrow_store::partitioned::{SnapshotIndex, is_current_partition, list_partitions};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -141,27 +141,29 @@ fn count_missing_aggregates(replay_path: &str) -> usize {
 /// Checks the aggregations for as long as the directory is watched, tells the frontend when
 /// their number changes.
 fn watch_aggregates(host: Arc<dyn SwarmyHost>, watch_id: u64) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(AGGREGATES_CHECK);
-        let state = host.replay_watcher();
-        let replay_path = {
-            let dir = state.dir.lock().unwrap();
-            if dir.watch_id != watch_id {
-                return;
-            }
-            dir.replay_path.clone()
-        };
-        let missing = count_missing_aggregates(&replay_path);
-        let status = {
-            let mut dir = state.dir.lock().unwrap();
-            if dir.watch_id != watch_id || dir.missing_aggregates == missing {
-                continue;
-            }
-            dir.missing_aggregates = missing;
-            dir.status()
-        };
-        tracing::info!("Aggregations to compute in {replay_path}: {missing}");
-        emit_status(host.as_ref(), &status);
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(AGGREGATES_CHECK);
+            let state = host.replay_watcher();
+            let replay_path = {
+                let dir = state.dir.lock().unwrap();
+                if dir.watch_id != watch_id {
+                    return;
+                }
+                dir.replay_path.clone()
+            };
+            let missing = count_missing_aggregates(&replay_path);
+            let status = {
+                let mut dir = state.dir.lock().unwrap();
+                if dir.watch_id != watch_id || dir.missing_aggregates == missing {
+                    continue;
+                }
+                dir.missing_aggregates = missing;
+                dir.status()
+            };
+            tracing::info!("Aggregations to compute in {replay_path}: {missing}");
+            emit_status(host.as_ref(), &status);
+        }
     });
 }
 

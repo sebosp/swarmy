@@ -1,5 +1,5 @@
 //! The race buttons of the views that pick a race first, then a unit or an ability of it: as in
-//! Race Detail, the race chosen is the primary button.
+//! Race Overview, the race chosen is the primary button.
 
 use leptos::prelude::*;
 

@@ -41,6 +41,18 @@ the backend has `data-server-sort`, a header that should not sort has `data-no-s
 
 The README video and the screenshots are recorded with `scripts/walkthrough/`, see its README.
 
+## Tests and benchmarks
+`cargo test -p swarmy -p swarmy-common` runs the unit tests, among them the tests of each query
+file on hand-made games (`src-tauri/src/data/fixtures.rs`) and the check that the SQL of each
+query's README gives the same frame as its Polars plan. The tests on a real snapshot are
+ignored, named `snapshot_...`: `SWARMY_TEST_REPLAYS=~/SC2Replays/PRO cargo test --release --
+--ignored snapshot_`.
+
+Before a release, on the benchmark machine: `scripts/bench.sh` times every query on the snapshot
+of `SWARMY_TEST_REPLAYS` (criterion, `src-tauri/benches/queries.rs`) and compares the medians
+with `src-tauri/benches/baseline-corvid.json`; a query 20 % slower than the baseline fails the
+run. A deliberate change of a query is accepted with `scripts/bench.sh --accept`.
+
 ## Releases
 `.github/workflows/ci.yaml` checks the formatting, runs the tests and checks the frontend.
 `.github/workflows/release.yaml` builds the bundles of Linux (x86_64, aarch64), Windows (x86_64) and

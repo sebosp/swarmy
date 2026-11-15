@@ -63,8 +63,6 @@ backend_commands! {
     );
     snapshot_stats::get_snapshot_metadata();
     map_stats::query_map_stats(map_title: String, player_name: String);
-    swarmy_bevy::query_siege_spots(map_title: String);
-    swarmy_bevy::query_map_layers(map_title: String);
     replay_list::query_replay_list(query: ReplayListQuery);
     replay_list::list_replay_filters();
     replay_detail::query_replay_detail(ext_fs_id: u64);
@@ -79,13 +77,6 @@ backend_commands! {
     player_detail::query_player_detail(player_name: String);
     player_detail::list_players();
     player_detail::query_head_to_head(player_name: String, opponent_name: String);
-    map_scout::query_map_scout(
-        map_title: String,
-        player_name: String,
-        unit_name: String,
-        max_seconds: u32,
-        layer: ScoutLayer
-    );
     map_details::query_map_details(map_title: String);
     map_details::list_maps();
     patch_overview::query_unit_snapshot_stats(unit_name: String);

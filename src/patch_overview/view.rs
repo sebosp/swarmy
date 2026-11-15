@@ -1,8 +1,9 @@
 //! The changes of a patch compared to the previous one, from the s2protocol balance data.
 
-use crate::components::abilities::{fetch_ability_usage, AbilityUsageRows};
+use crate::components::abilities::{AbilityUsageRows, fetch_ability_usage};
 use crate::components::links::{RaceLink, UnitLink};
 use crate::components::patch::ChangeMarker;
+use crate::components::unit_icon::PropertyLabel;
 use crate::components::usage_over_time::AbilitiesOverTime;
 use crate::navigation::use_navigation;
 use crate::*;
@@ -73,7 +74,7 @@ pub fn PatchOverviewView() -> impl IntoView {
     });
     view! {
         <div class="p-2 space-y-2">
-            <h1 class="text-xl font-semibold text-base-content">"Patch overview"</h1>
+            <h1 class="text-xl font-semibold text-base-content">"Patch Overview"</h1>
             <p class="text-xs text-faint">
                 "The units that changed in a patch, from the s2protocol balance data. Click on a unit to see it in every patch."
             </p>
@@ -210,8 +211,8 @@ fn PatchChangesTable(changes: PatchChanges) -> impl IntoView {
                         <tr>
                             <td class="pr-3 py-1"><RaceLink race=change.race /></td>
                             <td class="pr-3 py-1 text-base-content"><UnitLink unit_name=change.unit /></td>
-                            <td class="pr-3 py-1">{change.label}</td>
-                            <td class="pr-3 py-1">{change.previous}</td>
+                            <td class="pr-3 py-1"><PropertyLabel label=change.label /></td>
+                            <td class="pr-3 py-1 text-base-content">{change.previous}</td>
                             <td class="py-1 text-base-content">
                                 <ChangeMarker kind=change.kind change=change.change />
                                 {change.value}

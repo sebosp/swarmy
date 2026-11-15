@@ -26,6 +26,24 @@
   const chartInstances = new Map();
   const chartMetadata = new Map();
 
+  // Called from the views (wasm): a band over the chart between two labels while a row of a
+  // table is hovered, i.e. a turning point of the Win chance; cleared when the pointer leaves.
+  window.swarmyCharts = {
+    highlight(id, from, to) {
+      const chart = chartInstances.get(id);
+      if (!chart) return;
+      const t = theme();
+      chart.clearAnnotations();
+      chart.addXaxisAnnotation(
+        { x: from, x2: to, fillColor: t.muted, opacity: 0.25, borderColor: t.muted, strokeDashArray: 0 },
+        false,
+      );
+    },
+    clear(id) {
+      chartInstances.get(id)?.clearAnnotations();
+    },
+  };
+
   // The colors of the theme picked in Config, the --chart-* variables of styles.css: read when a
   // chart renders, the charts render again when the theme changes.
   const cssVar = (name, fallback) => {

@@ -3,7 +3,7 @@
 
 use super::db_error;
 use crate::data::*;
-use duckdb::{params, Connection};
+use duckdb::{Connection, params};
 use polars::prelude::*;
 use rayon::prelude::*;
 use s2protocol::message_events::ReplayMessageEvent;

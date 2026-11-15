@@ -1,7 +1,7 @@
 //! How the costs of a unit, and of what it trains, builds, researches and upgrades, change over
 //! the patches of the balance data, for the Patch Evolution view.
 
-use crate::replay_rerun::decisions::{balance_units, NORMAL_SECONDS_PER_FASTER_SECOND};
+use crate::replay_rerun::decisions::{NORMAL_SECONDS_PER_FASTER_SECOND, balance_units};
 use s2protocol::game_events::{Cost, VersionedBalanceUnit};
 use std::collections::BTreeSet;
 use swarmy_common::*;
@@ -180,10 +180,12 @@ mod tests {
         let evolution = try_query_patch_evolution(&series).unwrap();
         assert_eq!(evolution.values.len(), 2);
         assert_eq!(evolution.values[0].len(), evolution.versions.len());
-        assert!(evolution.values[0]
-            .iter()
-            .flatten()
-            .all(|minerals| *minerals == 50.));
+        assert!(
+            evolution.values[0]
+                .iter()
+                .flatten()
+                .all(|minerals| *minerals == 50.)
+        );
         assert!(evolution.values[1].iter().all(|exists| *exists == Some(1.)));
     }
 }

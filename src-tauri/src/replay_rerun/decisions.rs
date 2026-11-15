@@ -1,11 +1,11 @@
 //! Scores the unit production choices of a player against the army of its opponents, using the
 //! strengths and weaknesses from the s2protocol balance data.
 
-use s2protocol::game_events::{
-    read_balance_data_from_included_assets, MultiVersionedBalanceUnits, UnitShortRef,
-    VersionedBalanceUnits,
-};
 use s2protocol::SC2Unit;
+use s2protocol::game_events::{
+    MultiVersionedBalanceUnits, UnitShortRef, VersionedBalanceUnits,
+    read_balance_data_from_included_assets,
+};
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 use swarmy_common::SwarmyError;
@@ -31,7 +31,10 @@ pub fn balance_units() -> Result<&'static MultiVersionedBalanceUnits, SwarmyErro
 /// so this is only used for the unit choices and not for the event iterator.
 pub fn closest_balance_units(version: u32) -> Result<&'static VersionedBalanceUnits, SwarmyError> {
     let closest = closest_balance_version(version)?;
-    if closest != version {
+    // Said once per version: it was a line per replay, 65,000 in the AI Arena server's log.
+    static SAID: std::sync::Mutex<std::collections::BTreeSet<u32>> =
+        std::sync::Mutex::new(std::collections::BTreeSet::new());
+    if closest != version && SAID.lock().is_ok_and(|mut said| said.insert(version)) {
         tracing::info!("No balance data for protocol {version}, using {closest} instead");
     }
     Ok(&balance_units()?[&closest])

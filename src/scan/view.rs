@@ -10,7 +10,7 @@ use crate::*;
 use leptos::ev::MouseEvent;
 use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, ARROWS_CLOCKWISE, ARROW_COUNTER_CLOCKWISE, DATABASE};
+use phosphor_leptos::{ARROW_COUNTER_CLOCKWISE, ARROWS_CLOCKWISE, DATABASE, Icon, IconWeight};
 use reactive_graph::traits::Write;
 use reactive_stores::Store;
 use s2protocol::dir_stats::SC2ReplaysDirStats;

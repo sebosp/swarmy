@@ -6,10 +6,10 @@ use crate::navigation::use_navigation;
 use crate::scan::optimize_progress::TauriEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, DATABASE};
+use phosphor_leptos::{DATABASE, Icon, IconWeight};
 use s2protocol::snapshot::SnapshotProgress;
 use swarmy_common::{
-    AppSettings, Lesson, NewReplaysStatus, NEW_REPLAYS_EVENT, OPTIMIZE_PROGRESS_EVENT,
+    AppSettings, Lesson, NEW_REPLAYS_EVENT, NewReplaysStatus, OPTIMIZE_PROGRESS_EVENT,
 };
 use wasm_bindgen::prelude::*;
 

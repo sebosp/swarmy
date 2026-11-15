@@ -1,6 +1,7 @@
 use super::actions::*;
 use super::*;
-use crate::components::brand_icon::{native_title, BrandIcon};
+use crate::components::brand_icon::{BrandIcon, native_title};
+use crate::components::debug::Debuggable;
 use crate::components::links::{MapLink, PlayerLink, RaceLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
 use crate::navigation::use_navigation;
@@ -10,7 +11,7 @@ use chrono::Utc;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use phosphor_leptos::{Icon, IconWeight, CLIPBOARD, FOLDER_OPEN};
+use phosphor_leptos::{CLIPBOARD, FOLDER_OPEN, Icon, IconWeight};
 use reactive_stores::Store;
 use swarmy_common::*;
 
@@ -340,6 +341,7 @@ pub fn ReplayListDataTable(
     replay_query: RwSignal<ReplayListQuery>,
 ) -> impl IntoView {
     view! {
+        <Debuggable query="replay_list::games" view_source=crate::source!()>
         <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
             <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
                 <table class="relative min-w-full divide-y divide-base-content/15" data-server-sort>
@@ -518,7 +520,7 @@ pub fn ReplayListDataTable(
                                                 );
                                                 view! {
                                                     <span class="inline-flex items-center gap-1" title=title.clone()>
-                                                        <crate::components::abilities::RankBadge rank=best.rank what="game" title=title.clone() />
+                                                        <crate::components::abilities::RankBadge rank=best.rank title=title.clone() />
                                                         <span class="text-base-content">{ability}</span>
                                                         <span class="tabular-nums">
                                                             {crate::components::abilities::rank_of(best.rank.rank, best.rank.of)}
@@ -548,6 +550,7 @@ pub fn ReplayListDataTable(
                 </table>
             </div>
         </div>
+        </Debuggable>
     }
 }
 

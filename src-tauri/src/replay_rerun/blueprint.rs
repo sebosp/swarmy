@@ -15,7 +15,7 @@ use rerun::external::re_sdk_types::blueprint::components::{
 };
 use rerun::external::re_sdk_types::components::Name;
 use rerun::external::re_sdk_types::encodings::{self, Float32, TimeRangeBoundary};
-use rerun::{entity_path, RecordingStream, RecordingStreamResult};
+use rerun::{RecordingStream, RecordingStreamResult, entity_path};
 use uuid::Uuid;
 
 use super::PLAYER_STATS;

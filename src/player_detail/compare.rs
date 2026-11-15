@@ -119,46 +119,54 @@ fn optional_time(seconds: Option<f32>) -> String {
         .unwrap_or_else(|| "-".to_string())
 }
 
-/// Fetches the second player and the games between both, and shows them side by side.
+/// Fetches the second player and the games between both, and shows them side by side. The
+/// strategies of both are shown as soon as the second player is known, the games between them when
+/// they are analysed: two players who never met still compare.
 #[component]
 pub fn PlayerComparison(player: PlayerDetail, opponent_name: String) -> impl IntoView {
     let opponent = RwSignal::new(None::<PlayerDetail>);
     let head_to_head = RwSignal::new(None::<HeadToHead>);
     let error = RwSignal::new(None::<String>);
     let player_name = player.player_name.clone();
+    spawn_local({
+        let opponent_name = opponent_name.clone();
+        async move {
+            match invoke_json::<PlayerDetail>(
+                "query_player_detail",
+                &PlayerDetailQuery {
+                    player_name: opponent_name,
+                },
+            )
+            .await
+            {
+                Ok(detail) => opponent.set(Some(detail)),
+                Err(err) => error.set(Some(err)),
+            }
+        }
+    });
     spawn_local(async move {
-        let opponent_detail = invoke_json::<PlayerDetail>(
-            "query_player_detail",
-            &PlayerDetailQuery {
-                player_name: opponent_name.clone(),
-            },
-        )
-        .await;
-        let games = invoke_json::<HeadToHead>(
+        match invoke_json::<HeadToHead>(
             "query_head_to_head",
             &HeadToHeadQuery {
                 player_name,
                 opponent_name,
             },
         )
-        .await;
-        match (opponent_detail, games) {
-            (Ok(opponent_detail), Ok(games)) => {
-                opponent.set(Some(opponent_detail));
-                head_to_head.set(Some(games));
-            }
-            (Err(err), _) | (_, Err(err)) => error.set(Some(err)),
+        .await
+        {
+            Ok(games) => head_to_head.set(Some(games)),
+            Err(err) => error.set(Some(err)),
         }
     });
     view! {
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
             <ErrorMessage error />
-            {move || match (opponent.get(), head_to_head.get()) {
-                (Some(opponent), Some(head_to_head)) => {
+            {move || match opponent.get() {
+                Some(opponent) => {
                     view! { <ComparisonContent player=player.clone() opponent head_to_head /> }
                         .into_any()
                 }
-                _ => view! { <Loading message="Analysing the games of both players..." /> }.into_any(),
+                None => view! { <Loading message="Analysing the games of the other player..." /> }.into_any(),
             }}
         </div>
     }
@@ -168,10 +176,31 @@ pub fn PlayerComparison(player: PlayerDetail, opponent_name: String) -> impl Int
 fn ComparisonContent(
     player: PlayerDetail,
     opponent: PlayerDetail,
-    head_to_head: HeadToHead,
+    /// The games between them, `None` while they are analysed.
+    head_to_head: RwSignal<Option<HeadToHead>>,
 ) -> impl IntoView {
-    let games = head_to_head.games;
-    let player_wins = games.iter().filter(|game| game.player.won).count();
+    let player_name = player.player_name.clone();
+    let opponent_name = opponent.player_name.clone();
+    let (games_player, games_opponent) = (player_name.clone(), opponent_name.clone());
+    // The games between them in the heading, once known.
+    let games_summary = move || {
+        head_to_head.get().map(|head_to_head| {
+            let games = head_to_head.games.len();
+            let player_wins = head_to_head
+                .games
+                .iter()
+                .filter(|game| game.player.won)
+                .count();
+            match games {
+                0 => ": no games between them in this snapshot".to_string(),
+                1 => format!(": 1 game between them, {player_wins} – {}", 1 - player_wins),
+                _ => format!(
+                    ": {games} games between them, {player_wins} – {}",
+                    games - player_wins
+                ),
+            }
+        })
+    };
     // A row of the strategies table, the same strategy of both players side by side.
     let strategy_row = |label: &'static str, detail: &dyn Fn(&PlayerDetail) -> AnyView| {
         view! {
@@ -183,30 +212,7 @@ fn ComparisonContent(
         }
     };
     let analyzed = |detail: &PlayerDetail| detail.insights.analyzed_games;
-    let h2h_row = |label: &'static str,
-                   units: bool,
-                   choice: fn(&HeadToHeadSide) -> Option<String>| {
-        let total = games.len();
-        view! {
-            <tr class="align-top">
-                <td class="pr-3 py-1 text-muted">{label}</td>
-                <td class="pr-3 py-1 break-words">
-                    {choice_list(head_to_head_choices(&games, |game| &game.player, choice), total, units)}
-                </td>
-                <td class="py-1 break-words">
-                    {choice_list(head_to_head_choices(&games, |game| &game.opponent, choice), total, units)}
-                </td>
-            </tr>
-        }
-    };
     let header = view! {
-        <tr class="text-left text-base-content">
-            <th class="pr-3 py-1"></th>
-            <th class="pr-3 py-1"><PlayerLink player_name=player.player_name.clone() /></th>
-            <th class="py-1"><PlayerLink player_name=opponent.player_name.clone() /></th>
-        </tr>
-    };
-    let header_h2h = view! {
         <tr class="text-left text-base-content">
             <th class="pr-3 py-1"></th>
             <th class="pr-3 py-1"><PlayerLink player_name=player.player_name.clone() /></th>
@@ -216,12 +222,11 @@ fn ComparisonContent(
     view! {
         <h2 class="px-2 py-1 text-base/7 font-semibold text-base-content border-b border-base-content/15 bg-base-200/80 rounded-t-md">
             {format!(
-                "{} vs {}: {} games between them, {player_wins} – {}",
+                "{} vs {}",
                 clean_player_name_clan_escapes(&player.player_name),
                 clean_player_name_clan_escapes(&opponent.player_name),
-                games.len(),
-                games.len() - player_wins,
             )}
+            {games_summary}
         </h2>
         <div class="grid grid-cols-1 2xl:grid-cols-2 gap-4 p-2">
             <div class="min-w-0">
@@ -297,24 +302,91 @@ fn ComparisonContent(
             </div>
             <div class="min-w-0">
                 <h3 class="text-sm font-semibold text-base-content">"In the games between them"</h3>
-                <table class=FIXED_TABLE_CLASS>
-                    <colgroup><col class="w-40" /><col /><col /></colgroup>
-                    <thead>{header_h2h}</thead>
-                    <tbody class="divide-y divide-base-content/5">
-                        {h2h_row("Openings", false, opening)}
-                        {h2h_row("First army unit", true, |side| side.first_army_unit.clone())}
-                        {h2h_row("Favourite army unit", true, |side| side.favourite_army_unit.clone())}
-                        {h2h_row("First upgrade", false, |side| side.first_upgrade.clone())}
-                    </tbody>
-                </table>
+                {move || match head_to_head.get() {
+                    None => view! { <Loading message="Analysing the games between them..." /> }.into_any(),
+                    Some(head_to_head) if head_to_head.games.is_empty() => {
+                        view! {
+                            <p class="text-xs text-muted">
+                                "They never met in the games of this snapshot: compare their preferred strategies on the left."
+                            </p>
+                        }
+                            .into_any()
+                    }
+                    Some(head_to_head) => {
+                        view! {
+                            <HeadToHeadChoices
+                                games=head_to_head.games
+                                player_name=player_name.clone()
+                                opponent_name=opponent_name.clone()
+                            />
+                        }
+                            .into_any()
+                    }
+                }}
             </div>
         </div>
-        <div class="p-2">
-            <h3 class="text-sm font-semibold text-base-content">"Games between them"</h3>
-            <div class="scroll-section max-h-96 overflow-x-auto">
-                <HeadToHeadGames games player_name=player.player_name opponent_name=opponent.player_name />
-            </div>
-        </div>
+        {move || {
+            head_to_head
+                .get()
+                .filter(|head_to_head| !head_to_head.games.is_empty())
+                .map(|head_to_head| {
+                    view! {
+                        <div class="p-2">
+                            <h3 class="text-sm font-semibold text-base-content">"Games between them"</h3>
+                            <div class="scroll-section max-h-96 overflow-x-auto">
+                                <HeadToHeadGames
+                                    games=head_to_head.games
+                                    player_name=games_player.clone()
+                                    opponent_name=games_opponent.clone()
+                                />
+                            </div>
+                        </div>
+                    }
+                })
+        }}
+    }
+}
+
+/// What each player chose in the games between them, side by side.
+#[component]
+fn HeadToHeadChoices(
+    games: Vec<HeadToHeadGame>,
+    player_name: String,
+    opponent_name: String,
+) -> impl IntoView {
+    let total = games.len();
+    let h2h_row = |label: &'static str,
+                   units: bool,
+                   choice: fn(&HeadToHeadSide) -> Option<String>| {
+        view! {
+            <tr class="align-top">
+                <td class="pr-3 py-1 text-muted">{label}</td>
+                <td class="pr-3 py-1 break-words">
+                    {choice_list(head_to_head_choices(&games, |game| &game.player, choice), total, units)}
+                </td>
+                <td class="py-1 break-words">
+                    {choice_list(head_to_head_choices(&games, |game| &game.opponent, choice), total, units)}
+                </td>
+            </tr>
+        }
+    };
+    view! {
+        <table class=FIXED_TABLE_CLASS>
+            <colgroup><col class="w-40" /><col /><col /></colgroup>
+            <thead>
+                <tr class="text-left text-base-content">
+                    <th class="pr-3 py-1"></th>
+                    <th class="pr-3 py-1"><PlayerLink player_name=player_name /></th>
+                    <th class="py-1"><PlayerLink player_name=opponent_name /></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-base-content/5">
+                {h2h_row("Openings", false, opening)}
+                {h2h_row("First army unit", true, |side| side.first_army_unit.clone())}
+                {h2h_row("Favourite army unit", true, |side| side.favourite_army_unit.clone())}
+                {h2h_row("First upgrade", false, |side| side.first_upgrade.clone())}
+            </tbody>
+        </table>
     }
 }
 

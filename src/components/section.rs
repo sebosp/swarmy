@@ -3,7 +3,7 @@
 
 use crate::common::storage;
 use leptos::prelude::*;
-use phosphor_leptos::{Icon, IconWeight, CARET_DOWN, CARET_RIGHT};
+use phosphor_leptos::{CARET_DOWN, CARET_RIGHT, Icon, IconWeight};
 
 /// Whether the section of this title is collapsed, as the viewer left it.
 fn collapsed_state(title: &str) -> RwSignal<bool> {

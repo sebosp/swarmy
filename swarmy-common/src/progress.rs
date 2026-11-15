@@ -17,8 +17,7 @@ pub const PROGRESS_METRICS: [ProgressMetric; 4] = [
     ProgressMetric {
         key: "workers_6",
         label: "Workers at 06:00",
-        description:
-            "The workers mining at 06:00, a steady worker production is the base of the economy",
+        description: "The workers mining at 06:00, a steady worker production is the base of the economy",
         lower_is_better: false,
     },
     ProgressMetric {

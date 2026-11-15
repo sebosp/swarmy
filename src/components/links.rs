@@ -5,7 +5,7 @@ use crate::components::unit_icon::UnitIcon;
 use crate::navigation::use_navigation;
 use leptos::ev::MouseEvent;
 use leptos::prelude::*;
-use swarmy_common::{clean_player_name_clan_escapes, RACE_NAMES};
+use swarmy_common::{RACE_NAMES, clean_player_name_clan_escapes};
 
 /// A green up triangle for a win, a red down triangle for a loss, like stock prices.
 #[component]
@@ -166,9 +166,10 @@ pub fn RaceLink(
     }
 }
 
-/// Unit counts formatted as `2xMarine,1xMarauder`, each unit name is a [`UnitLink`].
+/// Unit counts formatted as `2xMarine,1xMarauder`, each unit name is a [`UnitLink`]; `lines`
+/// puts each unit on its own line.
 #[component]
-pub fn UnitCountLinks(counts: String) -> impl IntoView {
+pub fn UnitCountLinks(counts: String, #[prop(optional)] lines: bool) -> impl IntoView {
     counts
         .split(',')
         .filter(|entry| !entry.is_empty())
@@ -176,9 +177,11 @@ pub fn UnitCountLinks(counts: String) -> impl IntoView {
         .map(|(idx, entry)| {
             let (count, name) = entry.split_once('x').unwrap_or(("", entry));
             view! {
-                {(idx > 0).then_some(", ")}
-                {(!count.is_empty()).then(|| format!("{count} "))}
-                <UnitLink unit_name=name.to_string() />
+                <span class=if lines { "block whitespace-nowrap" } else { "" }>
+                    {(idx > 0 && !lines).then_some(", ")}
+                    {(!count.is_empty()).then(|| format!("{count} "))}
+                    <UnitLink unit_name=name.to_string() />
+                </span>
             }
         })
         .collect_view()

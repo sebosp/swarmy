@@ -26,8 +26,9 @@
   day, month and year instead of the event files, the small tables stay in memory and Optimize
   analyses each game once for the Player view. The AI Arena maps still have no map digest, and 8
   of its 58,452 replays could not be read, why is not known yet.
-- [ ] **Map Scout**: it does not give much yet. It may fit better in swarmy-bevy, on the 3D map,
-  as the map lessons do.
+- [x] **Map Scout** and the map lessons of Map Details: removed on 2026-11-12, they did not prove
+  useful (the scout no longer worked; the lessons took 13 GB on the AI Arena snapshot). Where
+  things happen on a map comes back with the layers shared with swarmy-bevy.
 
 ## Ideas for casters
 

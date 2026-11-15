@@ -1,9 +1,13 @@
-//! The progress of the main player of Config over their last games, with goals: the workers at
-//! 06:00, the income at 08:00, the seconds supply blocked and the army at 10:00.
+//! The progress of a player over their last games, the main player of Config unless another one
+//! is chosen, with goals: the workers at 06:00, the income at 08:00, the seconds supply blocked and
+//! the army at 10:00.
 
 use crate::components::charts::{ChartData, LineChart};
+use crate::components::debug::Debuggable;
 use crate::components::links::{MapLink, ReplayLink, ResultMarker};
 use crate::components::loading::Loading;
+use crate::components::name_select::NameSelect;
+use crate::components::web_session::{is_web, use_web_session};
 use crate::navigation::use_navigation;
 use crate::*;
 use leptos::ev::MouseEvent;
@@ -49,6 +53,9 @@ fn win_rate(games: &[&ProgressGame]) -> String {
     )
 }
 
+/// The goals of a visitor of the browser version, in the storage of their browser.
+const GOALS_STORAGE_KEY: &str = "swarmy.progress.goals";
+
 /// The average of the metric in the games, the games without it are left out.
 fn average(games: &[&ProgressGame], key: &str) -> Option<f64> {
     let values: Vec<f64> = games
@@ -67,32 +74,63 @@ pub fn ProgressView() -> impl IntoView {
     let opponents = RwSignal::new(Opponents::All);
     let goals = RwSignal::new(BTreeMap::<String, f64>::new());
     let saved = RwSignal::new(None::<String>);
-    spawn_local(async move {
-        // The Main Player Name of this computer, a remote backend has its own Config.
-        let player_name = serde_wasm_bindgen::from_value::<AppSettings>(
-            crate::invoke_without_args("get_ui_settings").await,
-        )
-        .map(|settings| settings.main_player_name)
-        .unwrap_or_default();
-        #[derive(serde::Serialize)]
-        struct Args {
-            player_name: String,
-        }
-        match invoke_json::<ProgressReport>("query_progress", &Args { player_name }).await {
-            Ok(loaded) => {
-                goals.set(loaded.goals.clone());
-                report.set(Some(loaded));
+    // The goals are personal: the app and the administrator keep them in the personal database,
+    // the visitors of the browser version (many at a time on a public server) each in their own
+    // browser.
+    let session = use_web_session();
+    let goals_in_browser = move || is_web() && !session.admin.get_untracked();
+    // The player chosen above the charts (in the address, `name=`), or the Main Player Name of
+    // this computer; a remote backend has its own Config and answers for its own main player when
+    // none is given.
+    Effect::new(move |_| {
+        let chosen = navigation.progress_player.get();
+        loading.set(true);
+        error.set(None);
+        spawn_local(async move {
+            let player_name = if chosen.is_empty() {
+                serde_wasm_bindgen::from_value::<AppSettings>(
+                    crate::invoke_without_args("get_ui_settings").await,
+                )
+                .map(|settings| settings.main_player_name)
+                .unwrap_or_default()
+            } else {
+                chosen
+            };
+            #[derive(serde::Serialize)]
+            struct Args {
+                player_name: String,
             }
-            Err(err) => error.set(Some(err)),
-        }
-        loading.set(false);
+            match invoke_json::<ProgressReport>("query_progress", &Args { player_name }).await {
+                Ok(loaded) => {
+                    let own = goals_in_browser()
+                        .then(|| crate::common::storage::load_json(GOALS_STORAGE_KEY))
+                        .flatten();
+                    goals.set(own.unwrap_or_else(|| loaded.goals.clone()));
+                    report.set(Some(loaded));
+                }
+                Err(err) => {
+                    report.set(None);
+                    error.set(Some(err));
+                }
+            }
+            loading.set(false);
+        });
     });
     let save_goals = move |_: MouseEvent| {
         #[derive(serde::Serialize)]
         struct Args {
             goals: BTreeMap<String, f64>,
         }
-        let goals = goals.get_untracked();
+        let goals: BTreeMap<String, f64> = goals
+            .get_untracked()
+            .into_iter()
+            .filter(|(_, goal)| *goal > 0.)
+            .collect();
+        if goals_in_browser() {
+            crate::common::storage::save_json(GOALS_STORAGE_KEY, &goals);
+            saved.set(Some("Goals saved in this browser".to_string()));
+            return;
+        }
         spawn_local(async move {
             match invoke_response("set_progress_goals", &Args { goals }).await {
                 Ok(_) => saved.set(Some("Goals saved".to_string())),
@@ -103,8 +141,17 @@ pub fn ProgressView() -> impl IntoView {
     view! {
         <div class="p-2 space-y-3">
             <h1 class="text-xl font-semibold text-base-content">"Progress"</h1>
+            // Any player of the snapshot: a tournament backend has no main player, and the progress
+            // of another player is a comparison.
+            <NameSelect
+                label="Player"
+                command="list_players"
+                value=navigation.progress_player
+                on_select=Callback::new(move |name: String| navigation.progress_player.set(name))
+                empty_label="The Main Player Name of Config"
+            />
             <Show when=move || loading.get()>
-                <Loading message="Reading your games..." />
+                <Loading message="Reading the games..." />
             </Show>
             <ErrorMessage error />
             {move || {
@@ -114,7 +161,7 @@ pub fn ProgressView() -> impl IntoView {
                         if report.player.is_empty() {
                             return view! {
                                 <p class="text-sm text-muted">
-                                    "Set your name in "
+                                    "Choose a player above, or set your name in "
                                     <a
                                         href="#"
                                         class="nav-link"
@@ -125,20 +172,22 @@ pub fn ProgressView() -> impl IntoView {
                                     >
                                         "Config"
                                     </a>
-                                    " (Main Player Name) to follow your progress over your games."
+                                    " (Main Player Name) to follow your own progress over your games."
                                 </p>
                             }
                                 .into_any();
                         }
                         let player = report.player.clone();
                         let all_games = report.games.clone();
+                        let games_count = all_games.len();
                         view! {
-                            <p class="text-xs text-muted">
-                                {format!(
-                                    "The last {} games of {player} in the snapshot, the oldest on the left. Set a goal for each number and work on one at a time.",
-                                    all_games.len(),
-                                )}
-                            </p>
+                            <Debuggable query="progress::games" view_source=crate::source!()>
+                                <p class="text-xs text-muted">
+                                    {format!(
+                                        "The last {games_count} games of {player} in the snapshot, the oldest on the left. Set a goal for each number and work on one at a time.",
+                                    )}
+                                </p>
+                            </Debuggable>
                             <div class="flex items-center gap-2 text-xs text-muted">
                                 "Opponents"
                                 <select
@@ -158,10 +207,21 @@ pub fn ProgressView() -> impl IntoView {
                                     <option value="humans">"Humans"</option>
                                     <option value="computers">"Computers"</option>
                                 </select>
-                                <button class="btn btn-primary btn-xs" on:click=save_goals>
+                                <button
+                                    class="btn btn-primary btn-xs"
+                                    title=move || {
+                                        if goals_in_browser() {
+                                            "Your goals stay in this browser: the server is shared"
+                                        } else {
+                                            "The goals are saved with your personal data"
+                                        }
+                                    }
+                                    on:click=save_goals
+                                >
                                     "Save goals"
                                 </button> <span class="text-faint">{move || saved.get()}</span>
                             </div>
+                            <Debuggable query="progress::metrics" view_source=crate::source!()>
                             {move || {
                                 let filter = opponents.get();
                                 let games: Vec<&ProgressGame> = all_games
@@ -255,6 +315,7 @@ pub fn ProgressView() -> impl IntoView {
                                         .collect() />
                                 }
                             }}
+                            </Debuggable>
                         }
                             .into_any()
                     })

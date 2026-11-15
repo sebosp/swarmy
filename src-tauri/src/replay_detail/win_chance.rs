@@ -156,7 +156,7 @@ pub fn turning_points(points: &[WinChancePoint], engagements: &[Engagement]) -> 
         .map(|(idx, change)| {
             let start_seconds = points[idx - TURNING_POINT_STEPS].seconds;
             let end_seconds = points[idx].seconds;
-            let engagement = engagements
+            let biggest = engagements
                 .iter()
                 .filter(|engagement| {
                     engagement.end_seconds + WIN_CHANCE_INTERVAL_SECONDS >= start_seconds
@@ -168,27 +168,30 @@ pub fn turning_points(points: &[WinChancePoint], engagements: &[Engagement]) -> 
                         .iter()
                         .map(|loss| loss.resources.minerals + loss.resources.vespene)
                         .sum::<u32>()
-                })
-                .map(|engagement| {
-                    engagement
-                        .losses
-                        .iter()
-                        .map(|loss| {
-                            format!(
-                                "{} lost {} ({})",
-                                swarmy_common::clean_player_name_clan_escapes(&loss.player),
-                                loss.resources.minerals + loss.resources.vespene,
-                                loss.units
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join(", ")
                 });
+            let engagement = biggest.map(|engagement| {
+                engagement
+                    .losses
+                    .iter()
+                    .map(|loss| {
+                        format!(
+                            "{} lost {} ({})",
+                            swarmy_common::clean_player_name_clan_escapes(&loss.player),
+                            loss.resources.minerals + loss.resources.vespene,
+                            loss.units
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            });
             TurningPoint {
                 start_seconds,
                 end_seconds,
                 change,
                 engagement,
+                losses: biggest
+                    .map(|engagement| engagement.losses.clone())
+                    .unwrap_or_default(),
             }
         })
         .collect()
