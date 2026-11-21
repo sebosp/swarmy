@@ -3,7 +3,7 @@
 //! Oracle revelations, Observers, then the army), compared with the games of the matchup.
 //!
 //! A tumor that lands is a `CreepTumorBurrowed` born in the tracker events, the tumors killed are
-//! its deaths with the opponent as the killer.
+//! its deaths killed by another player (`cause` killed), with the opponent as the killer.
 
 use crate::data::*;
 use polars::prelude::*;
@@ -180,6 +180,7 @@ pub fn compute_creep_stats(ipc_path: &str) -> Result<CreepStats, SwarmyError> {
             .filter(
                 col("unit_died_name")
                     .eq(lit(CREEP_TUMOR))
+                    .and(is_kill_row())
                     .and(col("killer_player_id").is_not_null()),
             )
             .select([

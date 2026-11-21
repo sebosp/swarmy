@@ -19,7 +19,8 @@
 //
 // An AdvantageChart is one line around an even middle, as the evaluation graph of a chess game:
 // its values go from -50 (the second side wins for sure) to 50 (the first one does), the area
-// between the line and the middle has the first color above it and the second one below.
+// between the line and the middle has the first color above it and the second one below. A side
+// of several players has their colors joined with "|": its area is split in one band per player.
 (() => {
   if (window.__chartInitDone) return;
   window.__chartInitDone = true;
@@ -225,8 +226,22 @@
     const options = commonOptions(container, "area");
     const t = theme();
     const values = options.series[0]?.data ?? [];
-    const [above, below] = options.colors;
+    const [above, below] = options.colors.map((colors) => String(colors).split("|"));
     const middle = middleOffset(values);
+    // The bands of a side from `from` to `to` (percent of the height), the opacity fading towards
+    // the middle; one band per player of the side.
+    const bands = (colors, from, to, opacityFrom, opacityTo) => {
+      const step = (to - from) / colors.length;
+      const opacity = (offset) => opacityFrom + ((offset - from) / (to - from || 1)) * (opacityTo - opacityFrom);
+      return colors.flatMap((color, index) => {
+        const start = from + index * step;
+        const end = start + step;
+        return [
+          { offset: start, color, opacity: opacity(start) },
+          { offset: end, color, opacity: opacity(end) },
+        ];
+      });
+    };
     options.colors = [t.foreground];
     options.stroke = { curve: "smooth", width: 2, colors: [t.foreground] };
     options.markers = { size: 0, hover: { size: 5 } };
@@ -235,12 +250,7 @@
       type: "gradient",
       gradient: {
         type: "vertical",
-        colorStops: [
-          { offset: 0, color: above, opacity: 0.45 },
-          { offset: middle, color: above, opacity: 0.15 },
-          { offset: middle, color: below, opacity: 0.15 },
-          { offset: 100, color: below, opacity: 0.45 },
-        ],
+        colorStops: [...bands(above, 0, middle, 0.45, 0.15), ...bands(below, middle, 100, 0.15, 0.45)],
       },
     };
     // The chance of the side ahead: 100% at both edges, 50% in the middle.

@@ -83,6 +83,19 @@ pub struct AppSettings {
     /// address of the query behind it in the repository (`ResponseMeta::sources`).
     #[serde(default)]
     pub show_polars_debug: bool,
+    /// The Wine prefix StarCraft II is installed in, to play a replay in the game on Linux:
+    /// empty for `~/Games/battlenet`, the prefix of Lutris' Battle.net.
+    #[serde(default)]
+    pub sc2_wine_prefix: String,
+    /// The Proton umu runs StarCraft II with, i.e.
+    /// `/usr/share/steam/compatibilitytools.d/proton-cachyos-slr`: empty for the first Proton of
+    /// the system's Steam compatibility tools, or umu's own.
+    #[serde(default)]
+    pub sc2_proton_path: String,
+    /// The folder of StarCraft II on Windows, to play a replay in the game: empty for
+    /// `C:\Program Files (x86)\StarCraft II`.
+    #[serde(default)]
+    pub sc2_game_dir: String,
 }
 
 /// The rows of a page of a table by default.

@@ -162,3 +162,51 @@ pub fn trigger_swarmy_bevy_on_replay_at(replay_file_name: &str, replay_seconds: 
         }
     });
 }
+
+fn user_agent() -> String {
+    web_sys::window()
+        .and_then(|window| window.navigator().user_agent().ok())
+        .unwrap_or_default()
+}
+
+/// Whether the app runs on Linux: StarCraft II is then the one of a Wine prefix.
+pub fn is_linux() -> bool {
+    let agent = user_agent();
+    agent.contains("Linux") && !agent.contains("Android")
+}
+
+/// Whether the app runs on Windows.
+pub fn is_windows() -> bool {
+    user_agent().contains("Windows")
+}
+
+/// Whether the app can play a replay in StarCraft II (`sc2_game` of the backend): on Linux and
+/// Windows.
+pub fn can_watch_in_sc2() -> bool {
+    is_linux() || is_windows()
+}
+
+/// Plays the replay in StarCraft II, `status` tells what happens: the game takes a while to
+/// start, a failure says why (a version not installed, a map missing).
+pub fn watch_in_sc2(
+    replay_file_name: &str,
+    ext_fs_id: Option<u64>,
+    status: RwSignal<Option<Result<String, String>>>,
+) {
+    #[derive(serde::Serialize)]
+    struct Args {
+        replay_file_name: String,
+        ext_fs_id: Option<u64>,
+    }
+    let args = Args {
+        replay_file_name: replay_file_name.to_string(),
+        ext_fs_id,
+    };
+    status.set(Some(Ok("Starting StarCraft II...".to_string())));
+    spawn_local(async move {
+        let result = crate::common::invoke_response("exec_sc2_replay", &args)
+            .await
+            .map(|response| response.message);
+        status.set(Some(result));
+    });
+}

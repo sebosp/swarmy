@@ -34,6 +34,9 @@ pub async fn set_current_app_config(
     store.set("duplicates_path", app_settings.duplicates_path);
     store.set("notify_new_replays", app_settings.notify_new_replays);
     store.set("main_player_name", app_settings.main_player_name.trim());
+    store.set("sc2_wine_prefix", app_settings.sc2_wine_prefix.trim());
+    store.set("sc2_proton_path", app_settings.sc2_proton_path.trim());
+    store.set("sc2_game_dir", app_settings.sc2_game_dir.trim());
     store.set(
         "remote_backend_url",
         app_settings.remote_backend_url.trim().trim_end_matches('/'),
@@ -140,6 +143,9 @@ pub fn app_settings_from_store(store: &Map<String, Value>) -> AppSettings {
         duplicates_path: str_of("duplicates_path").trim_end_matches('/').to_string(),
         notify_new_replays: bool_of("notify_new_replays"),
         main_player_name: str_of("main_player_name"),
+        sc2_wine_prefix: str_of("sc2_wine_prefix"),
+        sc2_proton_path: str_of("sc2_proton_path"),
+        sc2_game_dir: str_of("sc2_game_dir"),
         remote_backend_url: str_of("remote_backend_url")
             .trim_end_matches('/')
             .to_string(),

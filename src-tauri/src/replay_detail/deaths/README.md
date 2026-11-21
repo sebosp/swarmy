@@ -10,7 +10,7 @@ which builds on this query. Computed when the replay is opened.
 
 | Table | Columns | Rows |
 |---|---|---|
-| `unit_died` | `ext_fs_id`, `unit_died_name`, `killer_unit_tag_index`, `x`, `y`, `ext_replay_loop` | one per unit died |
+| `unit_died` | `ext_fs_id`, `unit_died_name`, `cause`, `x`, `y`, `ext_replay_loop` | one per unit died |
 | `valued_units` | `variant` | the units and structures that cost resources, with their variants; a frame swarmy builds, `replay_detail::valued_units::valued_units` |
 
 The id of the replay is the parameter, `1` below.
@@ -33,16 +33,19 @@ SELECT CAST(d.x AS REAL) AS x, CAST(d.y AS REAL) AS y,
 FROM unit_died d
 JOIN valued_units v ON d.unit_died_name = v.variant
 WHERE d.ext_fs_id = 1
-  AND NOT (d.unit_died_name IN ('Drone', 'HighTemplar', 'DarkTemplar') AND d.killer_unit_tag_index IS NULL)
+  AND d.cause IN ('killed', 'own_player')
 ORDER BY game_seconds, x, y
 ```
 
 ## Edge cases
 
-- A unit without a cost (a Larva, a Broodling, an Interceptor) is not a death; a Drone or a
-  templar dying without a killer morphed, it is not one either.
-- A unit that dies to its own player (a cancelled structure, a sacrificed unit) counts: it died
-  there.
+- A unit without a cost (a Larva, a Broodling, an Interceptor) is not a death; a death whose
+  `cause` is not a loss (killed or own_player) is not one either: a Drone that became a
+  building, templars merged into an Archon, a MULE or an AutoTurret that expired, a cancelled
+  structure, a hallucination.
+- A unit that dies to its own player (`own_player`: a Baneling that exploded, a burned-down
+  building, a salvaged Bunker) counts: it died there. A cancelled structure (`cancelled`) does
+  not, most of its cost is refunded.
 - A replay not in the snapshot has no rows, the map shows no deaths.
 
 ## Performance
@@ -52,6 +55,7 @@ A filter of the `unit_died` table of one game: milliseconds.
 ## Example
 
 The game of the test (`tests.rs`, `replay_detail::test_games::fight`): two Marines, an SCV, two
-Zerglings and an Overlord die, a Larva dies and a Drone morphs. Expected: six rows, the Marines
+Zerglings and an Overlord die, a Larva dies, a Drone and a Zergling morph and a Supply Depot is
+cancelled. Expected: six rows, the Marines
 and Zerglings of 300 s to 310 s around (50, 50), the SCV at (30, 30) at 450 s and the Overlord at
 (10, 90) at 500 s.

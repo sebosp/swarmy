@@ -18,6 +18,8 @@ pub mod replay_list;
 pub use replay_list::*;
 pub mod replay_detail;
 pub use replay_detail::*;
+pub mod sc2_replay;
+pub use sc2_replay::*;
 pub mod player_detail;
 pub use player_detail::*;
 pub mod patch_overview;

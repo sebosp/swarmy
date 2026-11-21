@@ -85,6 +85,9 @@ SWARMY_TEST_REPLAYS=~/SCReplaysOnNVMe cargo test --release --lib write_unit_form
 
 then review the diff of `unit_forms.json` (a new form, a disappeared one) and commit it.
 
+98745 (2026-11-21) has the table of 98310: its balance data is the same (s2protocol 6.1.0) and
+no snapshot had enough of its games yet. Generate it once one has.
+
 ## Performance
 
 At request time: none, a table parsed once. Measured on 2026-11-12, on a copy of the AI Arena

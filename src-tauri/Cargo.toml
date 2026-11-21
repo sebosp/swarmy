@@ -1,6 +1,6 @@
 [package]
 name = "swarmy"
-version = "0.2.5"
+version = "0.2.6"
 description = "Swarmy Tauri App"
 authors = ["Seb Ospina <kraige@gmail.com>"]
 edition = "2024"
@@ -83,3 +83,7 @@ prometheus = { version = "0.14", default-features = false }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+
+# The API of StarCraft II, to play a replay in the game (`sc2_game`).
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+tungstenite = "0.30"

@@ -5430,5 +5430,497 @@
       "to": "Roach",
       "changes": 1
     }
+  ],
+  "98745": [
+    {
+      "from": "Larva",
+      "to": "Egg",
+      "changes": 23833
+    },
+    {
+      "from": "Egg",
+      "to": "Larva",
+      "changes": 23535
+    },
+    {
+      "from": "SiegeTank",
+      "to": "SiegeTankSieged",
+      "changes": 15660
+    },
+    {
+      "from": "SiegeTankSieged",
+      "to": "SiegeTank",
+      "changes": 15094
+    },
+    {
+      "from": "VikingFighter",
+      "to": "VikingAssault",
+      "changes": 9340
+    },
+    {
+      "from": "VikingAssault",
+      "to": "VikingFighter",
+      "changes": 8342
+    },
+    {
+      "from": "CreepTumor",
+      "to": "CreepTumorBurrowed",
+      "changes": 3417
+    },
+    {
+      "from": "WidowMine",
+      "to": "WidowMineBurrowed",
+      "changes": 2759
+    },
+    {
+      "from": "LurkerMP",
+      "to": "LurkerMPBurrowed",
+      "changes": 2624
+    },
+    {
+      "from": "WidowMineBurrowed",
+      "to": "WidowMine",
+      "changes": 2599
+    },
+    {
+      "from": "CreepTumorQueen",
+      "to": "CreepTumorBurrowed",
+      "changes": 2181
+    },
+    {
+      "from": "Hellion",
+      "to": "HellionTank",
+      "changes": 1824
+    },
+    {
+      "from": "Hydralisk",
+      "to": "LurkerMPEgg",
+      "changes": 1389
+    },
+    {
+      "from": "LurkerMPEgg",
+      "to": "LurkerMP",
+      "changes": 1366
+    },
+    {
+      "from": "SupplyDepot",
+      "to": "SupplyDepotLowered",
+      "changes": 1354
+    },
+    {
+      "from": "LurkerMPBurrowed",
+      "to": "LurkerMP",
+      "changes": 1309
+    },
+    {
+      "from": "Zergling",
+      "to": "BanelingCocoon",
+      "changes": 1284
+    },
+    {
+      "from": "BanelingCocoon",
+      "to": "Baneling",
+      "changes": 1236
+    },
+    {
+      "from": "Zergling",
+      "to": "ZerglingBurrowed",
+      "changes": 639
+    },
+    {
+      "from": "Corruptor",
+      "to": "BroodLordCocoon",
+      "changes": 627
+    },
+    {
+      "from": "BroodLordCocoon",
+      "to": "BroodLord",
+      "changes": 622
+    },
+    {
+      "from": "Gateway",
+      "to": "WarpGate",
+      "changes": 572
+    },
+    {
+      "from": "Liberator",
+      "to": "LiberatorAG",
+      "changes": 510
+    },
+    {
+      "from": "Infestor",
+      "to": "InfestorBurrowed",
+      "changes": 472
+    },
+    {
+      "from": "SporeCrawler",
+      "to": "SporeCrawlerUprooted",
+      "changes": 439
+    },
+    {
+      "from": "SporeCrawlerUprooted",
+      "to": "SporeCrawler",
+      "changes": 435
+    },
+    {
+      "from": "LocustMP",
+      "to": "LocustMPFlying",
+      "changes": 416
+    },
+    {
+      "from": "LiberatorAG",
+      "to": "Liberator",
+      "changes": 396
+    },
+    {
+      "from": "LocustMPFlying",
+      "to": "LocustMP",
+      "changes": 385
+    },
+    {
+      "from": "InfestorBurrowed",
+      "to": "Infestor",
+      "changes": 383
+    },
+    {
+      "from": "CommandCenter",
+      "to": "OrbitalCommand",
+      "changes": 363
+    },
+    {
+      "from": "CreepTumorBurrowed",
+      "to": "CreepTumor",
+      "changes": 313
+    },
+    {
+      "from": "OverlordCocoon",
+      "to": "Overseer",
+      "changes": 278
+    },
+    {
+      "from": "Overlord",
+      "to": "OverlordCocoon",
+      "changes": 275
+    },
+    {
+      "from": "ZerglingBurrowed",
+      "to": "Zergling",
+      "changes": 241
+    },
+    {
+      "from": "Thor",
+      "to": "ThorAP",
+      "changes": 218
+    },
+    {
+      "from": "CreepTumorBurrowed",
+      "to": "CreepTumorQueen",
+      "changes": 217
+    },
+    {
+      "from": "Hatchery",
+      "to": "Lair",
+      "changes": 129
+    },
+    {
+      "from": "Barracks",
+      "to": "BarracksFlying",
+      "changes": 119
+    },
+    {
+      "from": "Overseer",
+      "to": "OverseerSiegeMode",
+      "changes": 117
+    },
+    {
+      "from": "BarracksFlying",
+      "to": "Barracks",
+      "changes": 112
+    },
+    {
+      "from": "CommandCenter",
+      "to": "PlanetaryFortress",
+      "changes": 110
+    },
+    {
+      "from": "CommandCenter",
+      "to": "CommandCenterFlying",
+      "changes": 105
+    },
+    {
+      "from": "Drone",
+      "to": "DroneBurrowed",
+      "changes": 102
+    },
+    {
+      "from": "Queen",
+      "to": "QueenBurrowed",
+      "changes": 95
+    },
+    {
+      "from": "Factory",
+      "to": "FactoryFlying",
+      "changes": 92
+    },
+    {
+      "from": "FactoryFlying",
+      "to": "Factory",
+      "changes": 91
+    },
+    {
+      "from": "CommandCenterFlying",
+      "to": "CommandCenter",
+      "changes": 90
+    },
+    {
+      "from": "Roach",
+      "to": "RavagerCocoon",
+      "changes": 88
+    },
+    {
+      "from": "QueenBurrowed",
+      "to": "Queen",
+      "changes": 87
+    },
+    {
+      "from": "RavagerCocoon",
+      "to": "Ravager",
+      "changes": 86
+    },
+    {
+      "from": "Roach",
+      "to": "RoachBurrowed",
+      "changes": 86
+    },
+    {
+      "from": "RoachBurrowed",
+      "to": "Roach",
+      "changes": 78
+    },
+    {
+      "from": "Lair",
+      "to": "Hive",
+      "changes": 75
+    },
+    {
+      "from": "DroneBurrowed",
+      "to": "Drone",
+      "changes": 74
+    },
+    {
+      "from": "SupplyDepotLowered",
+      "to": "SupplyDepot",
+      "changes": 65
+    },
+    {
+      "from": "BarracksTechLab",
+      "to": "TechLab",
+      "changes": 64
+    },
+    {
+      "from": "SpineCrawler",
+      "to": "SpineCrawlerUprooted",
+      "changes": 64
+    },
+    {
+      "from": "SpineCrawlerUprooted",
+      "to": "SpineCrawler",
+      "changes": 55
+    },
+    {
+      "from": "Overlord",
+      "to": "TransportOverlordCocoon",
+      "changes": 50
+    },
+    {
+      "from": "TransportOverlordCocoon",
+      "to": "OverlordTransport",
+      "changes": 50
+    },
+    {
+      "from": "BarracksReactor",
+      "to": "Reactor",
+      "changes": 48
+    },
+    {
+      "from": "FactoryTechLab",
+      "to": "TechLab",
+      "changes": 45
+    },
+    {
+      "from": "Starport",
+      "to": "StarportFlying",
+      "changes": 43
+    },
+    {
+      "from": "SwarmHostMP",
+      "to": "SwarmHostBurrowedMP",
+      "changes": 43
+    },
+    {
+      "from": "StarportFlying",
+      "to": "Starport",
+      "changes": 42
+    },
+    {
+      "from": "OrbitalCommand",
+      "to": "OrbitalCommandFlying",
+      "changes": 41
+    },
+    {
+      "from": "BanelingCocoon",
+      "to": "Zergling",
+      "changes": 39
+    },
+    {
+      "from": "Spire",
+      "to": "GreaterSpire",
+      "changes": 38
+    },
+    {
+      "from": "StarportTechLab",
+      "to": "TechLab",
+      "changes": 37
+    },
+    {
+      "from": "OrbitalCommandFlying",
+      "to": "OrbitalCommand",
+      "changes": 33
+    },
+    {
+      "from": "TechLab",
+      "to": "FactoryTechLab",
+      "changes": 32
+    },
+    {
+      "from": "OverseerSiegeMode",
+      "to": "Overseer",
+      "changes": 30
+    },
+    {
+      "from": "Reactor",
+      "to": "FactoryReactor",
+      "changes": 24
+    },
+    {
+      "from": "FactoryReactor",
+      "to": "Reactor",
+      "changes": 23
+    },
+    {
+      "from": "SwarmHostBurrowedMP",
+      "to": "SwarmHostMP",
+      "changes": 23
+    },
+    {
+      "from": "Reactor",
+      "to": "StarportReactor",
+      "changes": 18
+    },
+    {
+      "from": "WarpPrism",
+      "to": "WarpPrismPhasing",
+      "changes": 16
+    },
+    {
+      "from": "WarpPrismPhasing",
+      "to": "WarpPrism",
+      "changes": 14
+    },
+    {
+      "from": "StarportReactor",
+      "to": "Reactor",
+      "changes": 13
+    },
+    {
+      "from": "TechLab",
+      "to": "BarracksTechLab",
+      "changes": 13
+    },
+    {
+      "from": "Observer",
+      "to": "ObserverSiegeMode",
+      "changes": 11
+    },
+    {
+      "from": "TechLab",
+      "to": "StarportTechLab",
+      "changes": 11
+    },
+    {
+      "from": "LurkerMPEgg",
+      "to": "Hydralisk",
+      "changes": 10
+    },
+    {
+      "from": "Reactor",
+      "to": "BarracksReactor",
+      "changes": 10
+    },
+    {
+      "from": "OverlordTransport",
+      "to": "OverlordCocoon",
+      "changes": 8
+    },
+    {
+      "from": "Hydralisk",
+      "to": "HydraliskBurrowed",
+      "changes": 7
+    },
+    {
+      "from": "CollapsibleRockTowerPushUnit",
+      "to": "CollapsibleRockTowerDebris",
+      "changes": 6
+    },
+    {
+      "from": "HellionTank",
+      "to": "Hellion",
+      "changes": 6
+    },
+    {
+      "from": "OverlordCocoon",
+      "to": "Overlord",
+      "changes": 5
+    },
+    {
+      "from": "BroodLordCocoon",
+      "to": "Corruptor",
+      "changes": 4
+    },
+    {
+      "from": "Ultralisk",
+      "to": "UltraliskBurrowed",
+      "changes": 4
+    },
+    {
+      "from": "HydraliskBurrowed",
+      "to": "Hydralisk",
+      "changes": 3
+    },
+    {
+      "from": "Baneling",
+      "to": "BanelingBurrowed",
+      "changes": 2
+    },
+    {
+      "from": "BanelingBurrowed",
+      "to": "Baneling",
+      "changes": 2
+    },
+    {
+      "from": "ObserverSiegeMode",
+      "to": "Observer",
+      "changes": 2
+    },
+    {
+      "from": "UltraliskBurrowed",
+      "to": "Ultralisk",
+      "changes": 2
+    },
+    {
+      "from": "RavagerCocoon",
+      "to": "Roach",
+      "changes": 1
+    }
   ]
 }

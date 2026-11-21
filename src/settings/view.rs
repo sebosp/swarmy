@@ -40,6 +40,9 @@ fn DesktopConfig() -> impl IntoView {
     let replay_path = RwSignal::new("".to_string());
     let cache_path = RwSignal::new("".to_string());
     let duplicates_path = RwSignal::new("".to_string());
+    let sc2_wine_prefix = RwSignal::new("".to_string());
+    let sc2_proton_path = RwSignal::new("".to_string());
+    let sc2_game_dir = RwSignal::new("".to_string());
     let main_player_name = RwSignal::new("".to_string());
     let disable_parallelism = RwSignal::new(DEFAULT_DISABLE_PARALLELISM);
     let traverse_max_depth = RwSignal::new(DEFAULT_TRAVERSE_MAX_DEPTH);
@@ -69,6 +72,9 @@ fn DesktopConfig() -> impl IntoView {
         cache_path: cache_path.get(),
         replay_path: replay_path.get(),
         duplicates_path: duplicates_path.get(),
+        sc2_wine_prefix: sc2_wine_prefix.get(),
+        sc2_proton_path: sc2_proton_path.get(),
+        sc2_game_dir: sc2_game_dir.get(),
         main_player_name: main_player_name.get(),
         disable_parallelism: disable_parallelism.get(),
         traverse_max_depth: traverse_max_depth.get(),
@@ -101,6 +107,9 @@ fn DesktopConfig() -> impl IntoView {
             *replay_path.write() = settings.replay_path.clone();
             *cache_path.write() = settings.cache_path.clone();
             *duplicates_path.write() = settings.duplicates_path.clone();
+            *sc2_wine_prefix.write() = settings.sc2_wine_prefix.clone();
+            *sc2_proton_path.write() = settings.sc2_proton_path.clone();
+            *sc2_game_dir.write() = settings.sc2_game_dir.clone();
             *main_player_name.write() = settings.main_player_name.clone();
             *disable_parallelism.write() = settings.disable_parallelism;
             *traverse_max_depth.write() = settings.traverse_max_depth;
@@ -342,6 +351,36 @@ fn DesktopConfig() -> impl IntoView {
                     value=duplicates_path
                     optional=true
                     warning=true
+                />
+                </Show>
+                <Show when=crate::replay_list::actions::is_linux>
+                <ConfigStringInput
+                    name="sc2_wine_prefix"
+                    directory=true
+                    label="StarCraft II Wine Prefix"
+                    description="Watch in StarCraft II (the button of a replay) plays the replay in the game itself, offline: no Battle.net, no login. The game of this Wine prefix, the one Battle.net is installed in, is started through umu-run (install umu-launcher). Empty for ~/Games/battlenet, the prefix of Lutris' Battle.net. \
+                    The game opens the version of the replay: Battle.net downloads an old version the first time a replay of it is opened in the game."
+                    value=sc2_wine_prefix
+                    optional=true
+                />
+                <ConfigStringInput
+                    name="sc2_proton_path"
+                    directory=true
+                    label="Proton for StarCraft II"
+                    description="The Proton umu runs StarCraft II with, i.e. /usr/share/steam/compatibilitytools.d/proton-cachyos-slr. Empty for the first Proton of the system's Steam compatibility tools, or else umu's own, downloaded the first time."
+                    value=sc2_proton_path
+                    optional=true
+                />
+                </Show>
+                <Show when=crate::replay_list::actions::is_windows>
+                <ConfigStringInput
+                    name="sc2_game_dir"
+                    directory=true
+                    label="StarCraft II Folder"
+                    description="Watch in StarCraft II (the button of a replay) plays the replay in the game itself, offline: no Battle.net, no login. Empty for C:\\Program Files (x86)\\StarCraft II. \
+                    The game opens the version of the replay: Battle.net downloads an old version the first time a replay of it is opened in the game."
+                    value=sc2_game_dir
+                    optional=true
                 />
                 </Show>
                 <ConfigAppearance />

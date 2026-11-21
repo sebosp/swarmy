@@ -290,8 +290,10 @@ const LOGIC: [Entry; 21] = [
     ),
     (
         "Morphs",
-        "A Drone dying without a killer morphed into a structure, High and Dark Templars dying \
-         without a killer merged into an Archon. They are not losses.",
+        "A unit lost is one killed by the enemy or by its own player. A Drone that became a \
+         structure, a Larva or Egg that hatched, Zerglings that became Banelings, templars that \
+         merged into an Archon, a MULE, AutoTurret or Adept shade whose time ran out, a cancelled \
+         structure and a hallucination are not losses, nor kills of the enemy.",
     ),
     (
         "Focus",

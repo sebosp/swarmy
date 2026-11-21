@@ -20,7 +20,7 @@ use crate::data::QueryMeta;
 use crate::host::SwarmyHost;
 use crate::run_query;
 use crate::settings::load_stored_app_settings;
-use data::try_query_replay_detail;
+use data::{try_query_replay_detail, try_query_replay_detail_quick};
 use swarmy_common::*;
 
 /// The queries of the snapshot a replay is annotated with, for the debug links: the timings of
@@ -55,6 +55,23 @@ pub async fn query_replay_detail(
     .await
 }
 
+/// The replay without the comparisons with the other games of the snapshot, shown first while
+/// [`query_replay_detail`] computes them.
+pub async fn query_replay_detail_quick(
+    host: &dyn SwarmyHost,
+    ext_fs_id: u64,
+) -> Result<ApiResponse, SwarmyError> {
+    let app_config = load_stored_app_settings(host)?;
+    run_query(move || {
+        ApiResponseBuilder::new().process_result(try_query_replay_detail_quick(
+            app_config.replay_path,
+            &app_config.cache_path,
+            ext_fs_id,
+        ))
+    })
+    .await
+}
+
 /// The games the tests of the queries of the annotations share.
 #[cfg(test)]
 pub mod test_games {
@@ -68,8 +85,10 @@ pub mod test_games {
     /// Alice (Terran) starts at (30, 30), lands a Command Center at (30, 60) at 120 s that lifts
     /// and lands again at 400 s; Bob (Zerg) starts at (70, 70) and finishes a Hatchery at
     /// (70, 40) at 100 s. From 300 s to 310 s Alice loses two Marines at (48, 50) and (52, 50)
-    /// and Bob two Zerglings at (50, 48) and (50, 52), a Larva of Bob dies at (70, 70) and a Drone
-    /// morphs; at 450 s an SCV of Alice dies at home and at 500 s an Overlord of Bob at (10, 90).
+    /// and Bob two Zerglings at (50, 48) and (50, 52), a Larva of Bob dies at (70, 70), a Drone
+    /// becomes a building and a Zergling a Baneling (`cause` morphed) and Alice cancels a Supply
+    /// Depot (`cancelled`), none of them losses; at 450 s an SCV of Alice dies at home and at
+    /// 500 s an Overlord of Bob at (10, 90).
     pub fn fight() -> Snapshot {
         Snapshot::new().game(Game {
             id: 1,
@@ -82,9 +101,10 @@ pub mod test_games {
                         Born::at(400, "CommandCenter", 20, (30., 60.)),
                     ],
                     deaths: vec![
-                        Death::new(300, 48, 50, "Marine", 1, true),
-                        Death::new(305, 52, 50, "Marine", 2, true),
-                        Death::new(450, 30, 30, "SCV", 3, true),
+                        Death::new(300, 48, 50, "Marine", 1, "killed"),
+                        Death::new(305, 52, 50, "Marine", 2, "killed"),
+                        Death::new(306, 40, 40, "SupplyDepot", 9, "cancelled"),
+                        Death::new(450, 30, 30, "SCV", 3, "killed"),
                     ],
                     ..Player::won("Alice", "Terran")
                 },
@@ -92,11 +112,12 @@ pub mod test_games {
                     start: Some((70., 70.)),
                     born: vec![Born::at(100, "Hatchery", 40, (70., 40.))],
                     deaths: vec![
-                        Death::new(302, 50, 48, "Zergling", 4, true),
-                        Death::new(310, 50, 52, "Zergling", 5, true),
-                        Death::new(305, 70, 70, "Larva", 6, true),
-                        Death::new(305, 70, 70, "Drone", 7, false),
-                        Death::new(500, 10, 90, "Overlord", 8, true),
+                        Death::new(302, 50, 48, "Zergling", 4, "killed"),
+                        Death::new(310, 50, 52, "Zergling", 5, "killed"),
+                        Death::new(308, 60, 60, "Zergling", 10, "morphed"),
+                        Death::new(305, 70, 70, "Larva", 6, "killed"),
+                        Death::new(305, 70, 70, "Drone", 7, "morphed"),
+                        Death::new(500, 10, 90, "Overlord", 8, "killed"),
                     ],
                     ..Player::lost("Bob", "Zerg")
                 },

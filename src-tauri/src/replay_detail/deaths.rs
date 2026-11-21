@@ -1,7 +1,6 @@
 #![doc = include_str!("deaths/README.md")]
 
 use crate::data::*;
-use crate::replay_rerun::decisions::MORPH_SOURCES;
 use polars::prelude::*;
 use swarmy_common::*;
 
@@ -10,23 +9,15 @@ pub const META: QueryMeta = query_meta!();
 /// Where and when the units of the game died, the ones that cost resources: `x`, `y` (f32, map
 /// units) and `game_seconds` (u32); by time and position. `valued_units` is
 /// `replay_detail::valued_units::valued_units`: a Larva or a Broodling dying is not a loss, nor a
-/// Drone morphing into a structure.
+/// Drone morphing into a structure: the `cause` of the death is killed or own_player.
 pub fn plan(
     source: &dyn SnapshotSource,
     ext_fs_id: u64,
     valued_units: DataFrame,
 ) -> Result<LazyFrame, SwarmyError> {
-    let morph_sources = Series::new("morph_sources".into(), MORPH_SOURCES);
     Ok(source
         .table(UNIT_DIED_IPC)?
-        .filter(
-            is_in_replays(&[ext_fs_id]).and(
-                col("unit_died_name")
-                    .is_in(lit(morph_sources).implode(false), false)
-                    .and(col("killer_unit_tag_index").is_null())
-                    .not(),
-            ),
-        )
+        .filter(is_in_replays(&[ext_fs_id]).and(is_loss_row()))
         .join(
             valued_units.lazy().select([col("variant")]),
             [col("unit_died_name")],

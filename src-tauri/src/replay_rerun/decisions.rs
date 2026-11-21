@@ -151,15 +151,6 @@ pub fn has_cost(balance_units: &VersionedBalanceUnits, name: &str) -> bool {
         .is_some_and(|cost| cost.minerals.unwrap_or(0) > 0 || cost.vespene.unwrap_or(0) > 0)
 }
 
-/// The units that "die" without a killer when they turn into another unit: a Drone morphing into
-/// a structure, two templars merging into an Archon. In combat these always have a killer.
-pub const MORPH_SOURCES: [&str; 3] = ["Drone", "HighTemplar", "DarkTemplar"];
-
-/// Returns true if the death without a killer is the unit turning into another unit, not a loss.
-pub fn is_morph_death(name: &str, has_killer: bool) -> bool {
-    !has_killer && MORPH_SOURCES.contains(&name)
-}
-
 /// Returns the supply cost of a unit, structures and units such as larva or eggs have none.
 pub fn unit_supply(balance_units: &VersionedBalanceUnits, name: &str) -> Option<f32> {
     balance_units
