@@ -104,6 +104,8 @@ const OVERLAY_COLLAPSED_SIZE: (f64, f64) = (18., 44.);
 /// shows the statistics of the moment of the replay; it is moved by dragging it and collapses to
 /// a button. A window over the whole screen that the clicks go through was invisible on KDE
 /// Wayland (2026-11-21): it went to another screen or drew nothing, and took the clicks of swarmy.
+/// Only where the game runs: Android has no such window (the APK of 0.2.6 did not build).
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn open_overlay(app_handle: &AppHandle) -> Result<String, String> {
     use tauri::Manager;
     // The page shows the window once it has something to show (`set_sc2_overlay_layout`).
@@ -123,10 +125,8 @@ fn open_overlay(app_handle: &AppHandle) -> Result<String, String> {
     .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .focused(false);
-    // macOS needs Tauri's private API for a transparent window, the game does not run there.
-    #[cfg(not(target_os = "macos"))]
-    let builder = builder.transparent(true);
+    .focused(false)
+    .transparent(true);
     builder
         .build()
         .map(|_| "Overlay open on top of the game, drag it where you want it".to_string())
