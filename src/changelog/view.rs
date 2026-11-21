@@ -5,6 +5,15 @@ use leptos::prelude::*;
 /// The changes of each day, newest first.
 const CHANGELOG: &[(&str, &[&str])] = &[
     (
+        "2026-11-21",
+        &[
+            "s2protocol 6.1.0, Rebuild from scratch once: a unit that dies is lost only when killed (by the enemy or its own player). A Drone that becomes a building, a Larva or Egg that hatches, Zerglings into Banelings, Templars into an Archon, an expired MULE, Auto-Turret or Adept shade, a cancelled building and a hallucination are no longer units lost or kills, in Replay Detail (units and resources lost, engagements, first kill, deaths map, epicenters), the Player view and the replays in Rerun. The replays of the ladder patch 98745 have their ability names.",
+            "Replay Detail: Watch in StarCraft II opens the replay in the game (Linux through umu and a Wine prefix, Windows directly; Config sets the paths), with an overlay always on top: play, pause, speed and a time slider, the win chance until the moment of the game, the upgrades when they finish against the patch average and the first kills. The overlay is resized with the mouse and collapses to a button.",
+            "Replay Detail opens in half a second: the replay first, then the comparisons with the other games of the snapshot (the patch averages, the winners' medians, the openings, the abilities, the creep, the energy), each with a spinner until it comes. Every view answers faster: the check that the snapshot is complete reads its 2,000 days only when it changes (0.4 s before each query).",
+            "Replay Detail: the win chance of a team of several players in the colors of each player; the Turning Points rows highlight on hover and both players get their triangles.",
+        ],
+    ),
+    (
         "2026-11-15",
         &[
             "s2protocol 6.0.0, Rebuild from scratch once: the target of a command at a unit is named (it was empty for 97% of the commands), the selections and control groups keep the dead units until the game removes them and read the long remove masks as the game does (94% of the selections match the game, 90% before). A replay with a damaged header is skipped instead of stopping Optimize.",

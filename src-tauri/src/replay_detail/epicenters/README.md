@@ -11,7 +11,7 @@ table shows the circle on the map. Computed when the replay is opened.
 
 | Table | Columns | Rows |
 |---|---|---|
-| `unit_died` | `ext_fs_id`, `unit_died_name`, `killer_unit_tag_index`, `x`, `y`, `ext_replay_loop` | one per unit died |
+| `unit_died` | `ext_fs_id`, `unit_died_name`, `cause`, `x`, `y`, `ext_replay_loop` | one per unit died |
 | `engagements` | `engagement`, `start_seconds`, `end_seconds` | one per engagement of the replay; a frame swarmy builds from the analysis of the replay file, `epicenters::engagement_windows` |
 | `valued_units` | `variant` | the units and structures that cost resources, with their variants; a frame swarmy builds, `replay_detail::valued_units::valued_units` |
 
@@ -38,7 +38,7 @@ WITH deaths AS (
     FROM unit_died d
     JOIN valued_units v ON d.unit_died_name = v.variant
     WHERE d.ext_fs_id = 1
-      AND NOT (d.unit_died_name IN ('Drone', 'HighTemplar', 'DarkTemplar') AND d.killer_unit_tag_index IS NULL)
+      AND d.cause IN ('killed', 'own_player')
 ),
 in_window AS (
     SELECT e.engagement, d.x, d.y
@@ -66,8 +66,10 @@ ORDER BY w.engagement
 
 - The deaths are the ones of the engagement's seconds, from its first to its last death: the
   deaths the analysis of the replay file counted, as the snapshot has them.
-- A unit without a cost (a Larva, a Broodling, an Interceptor) is not a death; a Drone or a
-  templar dying without a killer morphed, it is not one either.
+- A unit without a cost (a Larva, a Broodling, an Interceptor) is not a death; a death whose
+  `cause` is not a loss (killed or own_player) is not one either: a Drone that became a
+  building, templars merged into an Archon, a MULE or an AutoTurret that expired, a cancelled
+  structure, a hallucination.
 - An engagement with a single death has radius 0. Two fights at once in different places (a
   drop during a battle) give one center between them and a large radius: the view shows the
   radius, so that a center in the middle of nowhere is read as that.
@@ -83,6 +85,7 @@ milliseconds.
 
 The game of the test (`tests.rs`, `replay_detail::test_games::fight`): a fight from 300 s to
 310 s in which Alice loses two Marines at (48, 50) and (52, 50) and Bob two Zerglings at (50, 48)
-and (50, 52), while a Larva of Bob dies and a Drone morphs; at 500 s an Overlord dies alone at
+and (50, 52), while a Larva of Bob dies, a Drone and a Zergling of Bob morph and Alice cancels
+a Supply Depot; at 500 s an Overlord dies alone at
 (10, 90). Expected: engagement 0 at (50, 50) with radius 2 and 4 deaths, engagement 1 at
 (10, 90) with radius 0 and 1 death.

@@ -32,6 +32,7 @@ pub mod replay_detail;
 pub mod replay_list;
 pub mod replay_rerun;
 pub mod replay_watcher;
+pub mod sc2_game;
 pub mod server;
 pub mod swarmy_bevy;
 pub mod unit_icons;
@@ -123,6 +124,10 @@ pub fn run() {
                 remote::check_remote_backend,
                 swarmy_bevy::exec_swarmy_bevy_map_caches,
                 swarmy_bevy::exec_swarmy_bevy_replay,
+                sc2_game::exec_sc2_replay,
+                sc2_game::get_sc2_replay_state,
+                sc2_game::set_sc2_overlay_layout,
+                sc2_game::sc2_replay_control,
                 copy_path_to_clipboard,
                 open_folder,
                 connect_swarmy_rerun,

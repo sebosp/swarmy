@@ -63,6 +63,33 @@ Every change checks, without a skill to load:
   administrator key (`web::DESKTOP_COMMANDS`, 2026-11-11). Never commit or log them. The profiles
   are kept 30 minutes. Decided with the author on 2026-11-08.
 
+- Watch in StarCraft II (Replay Detail, `src-tauri/src/sc2_game.rs`, decided with the author on
+  2026-11-21): the app plays the replay in the game itself, offline (no Battle.net, no login),
+  through the API of the game (`-listen`, `RequestStartReplay` with real time off, fog off). On Windows
+  the game of `sc2_game_dir` is started directly; on Linux the Windows game of the Wine prefix
+  (`sc2_wine_prefix`, `~/Games/battlenet` by default) through `umu-run` and a Proton. The version
+  of the replay must be installed (Battle.net downloads it when a replay of it is opened once).
+  Never touch Battle.net, its launch options or the account (fear of a ban). Desktop app only,
+  the browser version dims the button.
+- The replay played in StarCraft II (2026-11-21, after the author's tests): swarmy steps it
+  (real time off) at the speed chosen, the controls are in the overlay (play/pause, the speed, a
+  time slider; a jump back starts the replay again). The game's own controls do not work while
+  the API drives a replay: in real time its pause stuck and its timeline crashed the game
+  ("e_success"), stepped too. The game refuses to draw during a replay ("Not allowed during
+  replays"): the overlay is a small window of swarmy, always on top, hidden until the game plays,
+  480×280 at first and resized with the mouse (its edges and a grip at the bottom left, the size
+  kept when collapsed to the button and given back when opened, the window stays resizable; the win chance chart a quarter of the height,
+  the rest for the upgrades and kills), dragged where the player wants it and collapsed to a thin button
+  at its right (» and «), a dark plate whatever the theme (`#/sc2-overlay`, mounted alone by
+  `main.rs`); the window of swarmy is behind the game, it has no controls. It shows only what
+  happened until the moment of the game, no spoiler: the win chance until now (the points of
+  Replay Detail, the same percentages; the first team above, the second below, a band per player
+  of a team), and for 20 seconds of the game an upgrade when it finishes (its time against the
+  patch average in the dataviz status colors and words, "5s faster", "12s slower") and the first
+  kill of a player. A full screen click-through window was tried first and was invisible on KDE
+  Wayland, taking the clicks of swarmy. Next: a "Top 1%" rank of an upgrade (needs the
+  distribution of its times, a new query file), OBS as a Browser Source.
+
 ## Snapshot data
 
 - The views that span games read the aggregations of s2protocol (`game_*.arrow`, the usage tables
@@ -145,6 +172,13 @@ with the author here, explicitly, so that the next agent follows them.
   with the units or abilities of that race only.
 - A list of names (players, maps) is the `NameSelect` combobox, not a `<datalist>`: the webview
   of the app on Linux does not show datalist suggestions.
+
+- Replay Detail shows the replay first and its comparisons with the snapshot after (2026-11-21,
+  the author's idea): `query_replay_detail_quick` answers the replay and its map (about 0.5 s),
+  `query_replay_detail` adds the patch averages, winners' medians, openings, abilities, creep and
+  energy, computed over every game the first time a process asks (4.3 s on 36k games), then from
+  memory. Their panes show a small spinner (`Comparing`) meanwhile; only the players' sections
+  are drawn again when they come.
 
 ### Charts
 - ApexCharts through `src/components/charts.rs` and `public/charts/chart_init.js`. One series in

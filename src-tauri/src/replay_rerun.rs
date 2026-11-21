@@ -29,9 +29,7 @@ pub mod viewer;
 pub use players::{NEUTRAL_PLAYER, ReplayPlayers};
 use terrain::Terrain;
 
-use decisions::{
-    base_unit_name, format_unit_counts, has_cost, is_morph_death, score_unit_choice, unit_supply,
-};
+use decisions::{base_unit_name, format_unit_counts, has_cost, score_unit_choice, unit_supply};
 
 use rerun::{RecordingStream, entity_path};
 use s2protocol::game_events::VersionedBalanceUnits;
@@ -561,7 +559,11 @@ impl ReplayRerunLogger {
         Ok(())
     }
 
-    fn register_unit_died(&mut self, change_hint: &UnitChangeHint) -> Result<(), SwarmyError> {
+    fn register_unit_died(
+        &mut self,
+        died: &UnitDiedEvent,
+        change_hint: &UnitChangeHint,
+    ) -> Result<(), SwarmyError> {
         if let UnitChangeHint::Unregistered { killer, killed } = change_hint {
             let player = self.players.unit_player(killed);
             if player == NEUTRAL_PLAYER {
@@ -573,8 +575,9 @@ impl ReplayRerunLogger {
             if !has_cost(self.balance_units, base_unit_name(&killed.name)) {
                 return Ok(());
             }
-            // A Drone morphing into a structure or templars merging are not losses.
-            if is_morph_death(base_unit_name(&killed.name), killer.is_some()) {
+            // A Drone morphing into a structure, templars merging, an expired, cancelled or
+            // hallucinated unit are not losses.
+            if !died.cause.is_loss() {
                 return Ok(());
             }
             let (x, y) = (killed.pos.x(), killed.pos.y());
@@ -660,7 +663,7 @@ impl ReplayRerunLogger {
             ReplayTrackerEvent::UnitTypeChange(_) => {
                 self.register_unit("Morphed into", change_hint)?
             }
-            ReplayTrackerEvent::UnitDied(_) => self.register_unit_died(change_hint)?,
+            ReplayTrackerEvent::UnitDied(died) => self.register_unit_died(died, change_hint)?,
             ReplayTrackerEvent::PlayerStats(player_stats) => {
                 self.register_player_stats(player_stats)?
             }

@@ -1,5 +1,6 @@
 use polars::prelude::*;
 use s2protocol::arrow_store::partitioned;
+use s2protocol::tracker_events::UnitDiedCause;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use swarmy_common::*;
@@ -189,6 +190,33 @@ pub fn is_in_replays(ext_fs_ids: &[u64]) -> Expr {
         lit(Series::new("ext_fs_ids".into(), ext_fs_ids)).implode(false),
         false,
     )
+}
+
+/// Whether the `cause` of a death in `unit_died.arrow` is a loss for its player
+/// (`UnitDiedCause::is_loss`): killed by another player or by its own player. A morph (a Drone
+/// into a building, a Larva hatching, templars into an Archon), an expired unit (MULE,
+/// AutoTurret, AdeptPhaseShift...), a cancelled building or a hallucination is not.
+pub fn is_loss(cause: &str) -> bool {
+    cause == UnitDiedCause::Killed.as_str() || cause == UnitDiedCause::OwnPlayer.as_str()
+}
+
+/// Whether the `cause` of a death in `unit_died.arrow` is a kill by another player
+/// (`UnitDiedCause::is_kill`): the killer of the row gets it. Never "a killer is present", the
+/// timed units are killed by their own creator.
+pub fn is_kill(cause: &str) -> bool {
+    cause == UnitDiedCause::Killed.as_str()
+}
+
+/// The rows of `unit_died.arrow` that are losses, see [`is_loss`].
+pub fn is_loss_row() -> Expr {
+    col("cause")
+        .eq(lit(UnitDiedCause::Killed.as_str()))
+        .or(col("cause").eq(lit(UnitDiedCause::OwnPlayer.as_str())))
+}
+
+/// The rows of `unit_died.arrow` that are kills by another player, see [`is_kill`].
+pub fn is_kill_row() -> Expr {
+    col("cause").eq(lit(UnitDiedCause::Killed.as_str()))
 }
 
 /// Whether the column is one of the values, as a literal list it is pushed down to the scans.

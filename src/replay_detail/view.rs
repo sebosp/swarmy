@@ -19,7 +19,8 @@ use crate::components::unit_icon::UnitIcon;
 use crate::components::units::UnitsTable;
 use crate::navigation::use_navigation;
 use crate::replay_list::actions::{
-    trigger_swarmy_bevy_on_replay, trigger_swarmy_bevy_on_replay_at, trigger_swarmy_rerun_on_replay,
+    can_watch_in_sc2, trigger_swarmy_bevy_on_replay, trigger_swarmy_bevy_on_replay_at,
+    trigger_swarmy_rerun_on_replay, watch_in_sc2,
 };
 use crate::scan::arrow_ipc_stats::time_ago;
 use crate::*;
@@ -28,7 +29,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use phosphor_leptos::{
     CARET_DOUBLE_RIGHT, CARET_DOWN, CARET_LEFT, CARET_RIGHT, EXPORT, Icon, IconWeight, LOCK_SIMPLE,
-    LOCK_SIMPLE_OPEN,
+    LOCK_SIMPLE_OPEN, PLAY_CIRCLE,
 };
 use swarmy_common::*;
 
@@ -47,6 +48,8 @@ const TABLE_CLASS: &str = "min-w-full text-xs text-muted";
 pub fn ReplayDetailView() -> impl IntoView {
     let navigation = use_navigation();
     let detail = RwSignal::new(None::<ReplayDetail>);
+    // The same replay with the comparisons with the other games of the snapshot, loaded after.
+    let full = RwSignal::new(None::<ReplayDetail>);
     let error = RwSignal::new(None::<String>);
     let loading = RwSignal::new(false);
     let hide_workers = RwSignal::new(false);
@@ -65,19 +68,40 @@ pub fn ReplayDetailView() -> impl IntoView {
         loading.set(true);
         error.set(None);
         spawn_local(async move {
-            match invoke_json::<ReplayDetail>(
-                "query_replay_detail",
-                &ReplayDetailQuery { ext_fs_id },
-            )
-            .await
-            {
-                Ok(response) => detail.set(Some(response)),
+            let query = ReplayDetailQuery { ext_fs_id };
+            // The replay first, the comparisons with the snapshot after: the first query of the
+            // backend computes them over every game, seconds.
+            match invoke_json::<ReplayDetail>("query_replay_detail_quick", &query).await {
+                Ok(response) => {
+                    full.set(None);
+                    detail.set(Some(response));
+                }
                 Err(err) => {
                     detail.set(None);
                     error.set(Some(err));
+                    loading.set(false);
+                    return;
                 }
             }
             loading.set(false);
+            let result = invoke_json::<ReplayDetail>("query_replay_detail", &query).await;
+            // Another replay was chosen meanwhile.
+            if navigation.replay_id.get_untracked() != Some(ext_fs_id) {
+                return;
+            }
+            match result {
+                Ok(response) => full.set(Some(response)),
+                Err(err) => {
+                    // The spinners stop, the replay stays shown without the comparisons.
+                    full.set(detail.get_untracked().map(|detail| ReplayDetail {
+                        comparisons_pending: false,
+                        ..detail
+                    }));
+                    error.set(Some(format!(
+                        "Unable to compare the replay with the snapshot: {err}"
+                    )));
+                }
+            }
         });
     });
     view! {
@@ -121,6 +145,29 @@ pub fn ReplayDetailView() -> impl IntoView {
                 detail
                     .get()
                     .map(|detail| {
+                        let quick = detail.clone();
+                        // Only the players' sections are drawn again when the comparisons come.
+                        let sections = move || {
+                            let shown = full
+                                .get()
+                                .filter(|full| full.ext_fs_id == quick.ext_fs_id)
+                                .unwrap_or_else(|| quick.clone());
+                            view! {
+                                <PlayerSections
+                                    players=shown.players
+                                    snapshot_seconds=shown.snapshot_seconds
+                                    hide_workers
+                                    whole_game
+                                    map=shown.map
+                                    bases=shown.bases
+                                    death_density=shown.death_density
+                                    engagements=shown.engagements
+                                    duration=shown.duration_seconds
+                                    creep=shown.creep
+                                    pending=shown.comparisons_pending
+                                />
+                            }
+                        };
                         view! {
                             <ReplayNavigation detail=detail.clone() error />
                             {crate::components::web_session::use_web_session().admin.get().then(|| view! {
@@ -159,18 +206,7 @@ pub fn ReplayDetailView() -> impl IntoView {
                                         />
                                     }
                                 })}
-                            <PlayerSections
-                                players=detail.players.clone()
-                                snapshot_seconds=detail.snapshot_seconds
-                                hide_workers
-                                whole_game
-                                map=detail.map.clone()
-                                bases=detail.bases.clone()
-                                death_density=detail.death_density.clone()
-                                engagements=detail.engagements.clone()
-                                duration=detail.duration_seconds
-                                creep=detail.creep.clone()
-                            />
+                            {sections}
                             <Engagements engagements=detail.engagements />
                             <Messages messages=detail.messages />
                         }
@@ -270,7 +306,10 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
     let is_latest = navigation.replay_is_latest;
     let location = detail.replay_location.clone();
     let bevy_location = detail.replay_location.clone();
+    let sc2_location = detail.replay_location.clone();
     let exported = RwSignal::new(String::new());
+    // What Watch in StarCraft II is doing: starting the game, playing, or why it could not.
+    let sc2_status = RwSignal::new(None::<Result<String, String>>);
     let export = move |_ev: MouseEvent| {
         #[derive(serde::Serialize)]
         struct Args {
@@ -358,6 +397,14 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
             </span>
             <div class="ml-auto flex items-center gap-1">
                 <span class="text-xs text-muted">{move || exported.get()}</span>
+                {move || {
+                    sc2_status
+                        .get()
+                        .map(|status| match status {
+                            Ok(message) => view! { <span class="text-xs text-muted">{message}</span> }.into_any(),
+                            Err(message) => view! { <span class="text-xs text-error">{message}</span> }.into_any(),
+                        })
+                }}
                 <button
                     class="btn btn-ghost btn-sm btn-square native-only"
                     title=native_title("Open the replay in the Rerun preview: the units, the camera and the events over time")
@@ -372,6 +419,18 @@ fn ReplayNavigation(detail: ReplayDetail, error: RwSignal<Option<String>>) -> im
                 >
                     <BrandIcon name="bevy" />
                 </button>
+                <Show when=can_watch_in_sc2>
+                    <button
+                        class="btn btn-ghost btn-sm btn-square native-only"
+                        title=native_title("Watch in StarCraft II: plays the replay in the game, offline, with the overlay of swarmy on top; the game's own controls move it")
+                        on:click={
+                            let location = sc2_location.clone();
+                            move |_ev: MouseEvent| watch_in_sc2(&location, Some(ext_fs_id), sc2_status)
+                        }
+                    >
+                        <Icon icon=PLAY_CIRCLE weight=IconWeight::Light size="18px" />
+                    </button>
+                </Show>
                 <button
                     class="btn btn-ghost btn-sm btn-square"
                     title="Export a report: saves the game as a single HTML page to share with a coach or a friend, the win chance, the three things to fix, the economy, the build orders and the biggest fights"
@@ -548,8 +607,35 @@ fn opening_spots(summary: &ReplayPlayerSummary) -> Vec<MapHighlight> {
 }
 
 /// How the time compares to the average of the patch, green when faster, red when slower.
+/// Whether the comparisons with the snapshot of the replay shown are still loading, provided by
+/// [`PlayerSections`].
+#[derive(Clone, Copy)]
+struct ComparisonsPending(bool);
+
+/// A small spinner in a pane whose comparison with the snapshot is still loading.
+#[component]
+fn Comparing(#[prop(into)] message: String) -> impl IntoView {
+    view! {
+        <p class="flex items-center gap-1.5 text-xs text-faint" aria-busy="true">
+            <span class="loading loading-spinner loading-xs text-primary"></span>
+            {message}
+        </p>
+    }
+}
+
 #[component]
 fn PatchComparison(seconds: u32, average: Option<PatchAverage>) -> impl IntoView {
+    if use_context::<ComparisonsPending>().is_some_and(|pending| pending.0) {
+        return Some(
+            view! {
+                <span
+                    class="ml-2 loading loading-spinner loading-xs text-faint align-middle"
+                    title="Loading the average of the patch"
+                ></span>
+            }
+            .into_any(),
+        );
+    }
     average.map(|average| {
         let color = match seconds.cmp(&average.seconds) {
             std::cmp::Ordering::Less => "text-success",
@@ -566,6 +652,7 @@ fn PatchComparison(seconds: u32, average: Option<PatchAverage>) -> impl IntoView
                 {average.compare(seconds)}
             </span>
         }
+        .into_any()
     })
 }
 
@@ -820,8 +907,14 @@ fn PlayerSections(
     duration: u32,
     /// The creep of a Zerg 1v1, shown under the header.
     creep: Option<CreepSummary>,
+    /// The comparisons with the snapshot are still loading: their panes show a spinner.
+    pending: bool,
 ) -> impl IntoView {
+    provide_context(ComparisonsPending(pending));
     let locks = use_navigation().replay_locks;
+    let creep_pending = pending
+        && players.len() == 2
+        && players.iter().any(|summary| summary.player.race == "Zerg");
     let chart_scale = CommandsScale::of_players(&players);
     // The kinds of the Focus shown, the same for every player so that they compare.
     let focus_shown = RwSignal::new(Vec::<FocusKind>::new());
@@ -920,6 +1013,7 @@ fn PlayerSections(
             >
                 {header_cells}
             </div>
+            {creep_pending.then(|| view! { <Comparing message="Loading the creep of the Zerg games of the snapshot" /> })}
             {creep.map(|creep| view! { <CreepPanel creep /> })}
 
             {section_band(
@@ -975,6 +1069,10 @@ fn PlayerSections(
                 "h-28",
                 &players,
                 move |summary| {
+                    if pending {
+                        return view! { <Comparing message="Loading the openings that won against this one" /> }
+                            .into_any();
+                    }
                     let answers = summary.opening_answers.clone();
                     if answers.answers.is_empty() {
                         return view! {
@@ -1147,6 +1245,7 @@ fn PlayerSections(
                     }
                     view! {
                         <div class="space-y-2">
+                            {pending.then(|| view! { <Comparing message="Loading the averages of the patch" /> })}
                             {summary
                                 .ability_efficiency
                                 .iter()
@@ -1210,7 +1309,14 @@ fn PlayerSections(
                 "Abilities",
                 "h-48",
                 &players,
-                move |summary| view! { <AbilityUses abilities=summary.abilities.clone() race=summary.player.race.clone() /> },
+                move |summary| {
+                    if pending {
+                        return view! { <Comparing message="Loading the ability uses of the patch" /> }
+                            .into_any();
+                    }
+                    view! { <AbilityUses abilities=summary.abilities.clone() race=summary.player.race.clone() /> }
+                        .into_any()
+                },
             )}
 
             {section_band(
@@ -1230,6 +1336,7 @@ fn PlayerSections(
                     let summary = summary.clone();
                     view! {
                         <Debuggable query="replay_detail::winner_benchmarks::medians" view_source=crate::source!()>
+                        {pending.then(|| view! { <Comparing message="Loading the medians of the winners" /> })}
                         <table class=TABLE_CLASS>
                             <thead>
                                 <tr class="text-left text-muted">
@@ -2017,17 +2124,24 @@ fn WinChanceChart(
             .collect::<Vec<_>>()
             .join(" & ")
     };
-    // A team has the color of its first player.
-    let team_color = |team: &[String]| {
-        players
+    // The colors of the players of a team, joined with "|": the chart splits the side of a team
+    // of several players in one band each (`chart_init.js`).
+    let team_colors = |team: &[String]| {
+        let colors: Vec<String> = team
             .iter()
-            .find(|summary| team.first() == Some(&summary.player.name))
+            .filter_map(|name| players.iter().find(|summary| &summary.player.name == name))
             .map(|summary| {
                 let [r, g, b, _] = summary.player.color;
                 format!("rgb({r},{g},{b})")
             })
-            .unwrap_or_else(|| "var(--chart-muted)".to_string())
+            .collect();
+        if colors.is_empty() {
+            vec!["var(--chart-muted)".to_string()]
+        } else {
+            colors
+        }
     };
+    let team_color = |team: &[String]| team_colors(team).join("|");
     let first = team_name(&chances.first_team);
     let second = team_name(&chances.second_team);
     let points = &chances.points;
@@ -2090,17 +2204,29 @@ fn WinChanceChart(
     .with_tooltips(tooltips);
     let empty = points.is_empty();
     // The team names say which side of the middle is whose, the color is not the only cue.
-    let side_label = |arrow: &'static str, name: String, color: String| {
+    let side_label = |arrow: &'static str, name: String, colors: Vec<String>| {
         view! {
             <p class="flex items-center gap-1 text-xs text-muted">
-                <span class="inline-block size-2.5 rounded-sm" style=format!("background:{color}")></span>
+                {colors
+                    .into_iter()
+                    .map(|color| {
+                        view! {
+                            <span class="inline-block size-2.5 rounded-sm" style=format!("background:{color}")></span>
+                        }
+                    })
+                    .collect_view()}
                 {format!("{arrow} {name} ahead")}
             </p>
         }
     };
-    let above = side_label("▲", first.clone(), team_color(&chances.first_team));
-    let below = side_label("▼", second.clone(), team_color(&chances.second_team));
+    let above = side_label("▲", first.clone(), team_colors(&chances.first_team));
+    let below = side_label("▼", second.clone(), team_colors(&chances.second_team));
     let turning_points = chances.turning_points.clone();
+    // The team of each player, the trades of a turning point are between the teams.
+    let teams: std::collections::HashMap<String, u8> = players
+        .iter()
+        .map(|summary| (summary.player.name.clone(), summary.player.team_id))
+        .collect();
     let collapsed = RwSignal::new(false);
     view! {
         <div class="rounded-md border border-base-content/15 bg-base-200/40">
@@ -2129,7 +2255,7 @@ fn WinChanceChart(
                                 <tbody class="divide-y divide-base-content/10">
                                     {turning_points
                                         .into_iter()
-                                        .flat_map(|point| turning_point_rows(point, &first, &second, &replay_location))
+                                        .flat_map(|point| turning_point_rows(point, &first, &second, &replay_location, &teams))
                                         .collect_view()}
                                 </tbody>
                             </table>
@@ -2152,6 +2278,7 @@ fn turning_point_rows(
     first: &str,
     second: &str,
     replay_location: &str,
+    teams: &std::collections::HashMap<String, u8>,
 ) -> Vec<AnyView> {
     let favored = if point.change > 0. { first } else { second };
     let (start, end) = (point.start_seconds, point.end_seconds);
@@ -2170,11 +2297,50 @@ fn turning_point_rows(
         .map(|loss| loss.resources.total())
         .min()
         .unwrap_or_default();
+    // With teams the trade is between their losses: all the players of the team that lost the
+    // most get the bad trade, the other team the good one (a 1v2 marks both players of a team).
+    let team_of = |player: &str| {
+        teams
+            .get(player)
+            .or_else(|| {
+                teams
+                    .iter()
+                    .find(|(name, _)| clean_player_name_clan_escapes(name) == player)
+                    .map(|(_, team)| team)
+            })
+            .copied()
+    };
+    let mut team_lost: std::collections::BTreeMap<u8, u32> = Default::default();
+    for loss in &point.losses {
+        if let Some(team) = team_of(&loss.player) {
+            *team_lost.entry(team).or_default() += loss.resources.total();
+        }
+    }
+    let all_teamed = point
+        .losses
+        .iter()
+        .all(|loss| team_of(&loss.player).is_some());
+    let (team_most, team_least) = (
+        team_lost.values().copied().max().unwrap_or_default(),
+        team_lost.values().copied().min().unwrap_or_default(),
+    );
+    let teams_traded = all_teamed && team_lost.len() == 2;
     let loss_cells = |loss: &EngagementLoss| {
         let lost = loss.resources.total();
-        let bad_trade = engagement_bad_trade(lost, most_lost, least_lost);
-        let good_trade =
-            lost == least_lost && engagement_bad_trade(most_lost, most_lost, least_lost);
+        let (bad_trade, good_trade) = match team_of(&loss.player).filter(|_| teams_traded) {
+            Some(team) => {
+                let team_total = team_lost.get(&team).copied().unwrap_or_default();
+                (
+                    engagement_bad_trade(team_total, team_most, team_least),
+                    team_total == team_least
+                        && engagement_bad_trade(team_most, team_most, team_least),
+                )
+            }
+            None => (
+                engagement_bad_trade(lost, most_lost, least_lost),
+                lost == least_lost && engagement_bad_trade(most_lost, most_lost, least_lost),
+            ),
+        };
         view! {
             <td class="pr-2 whitespace-nowrap">
                 {bad_trade.then(|| view! { <span class="text-error" title="Bad trade">"▼ "</span> })}
@@ -2203,8 +2369,14 @@ fn turning_point_rows(
             let (from, to, time) = (from.clone(), to.clone(), time.clone());
             let location = location.clone();
             let first_row = idx == 0;
+            // The whole row shows its time span on the chart, as its time does.
+            let (row_from, row_to) = (from.clone(), to.clone());
             view! {
-                <tr>
+                <tr
+                    class="hover:bg-base-content/5"
+                    on:mouseenter=move |_| chart_highlight(WIN_CHANCE_CHART_ID, &row_from, &row_to)
+                    on:mouseleave=move |_| chart_clear_highlight(WIN_CHANCE_CHART_ID)
+                >
                     <td class="pr-2 font-mono whitespace-nowrap">
                         {first_row
                             .then(|| {

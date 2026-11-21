@@ -546,6 +546,11 @@ pub struct ReplayDetail {
     /// The creep of a 1v1 of a Zerg against a Terran or a Protoss, None otherwise.
     #[serde(default)]
     pub creep: Option<CreepSummary>,
+    /// Answered first without the comparisons with the other games of the snapshot (the patch
+    /// averages, the winners' medians, the openings, the abilities, the creep, the energy), which
+    /// the view loads after and shows a spinner for.
+    #[serde(default)]
+    pub comparisons_pending: bool,
     /// The picture of the map of the game, None without its map cache.
     #[serde(default)]
     pub map: Option<MapPicture>,

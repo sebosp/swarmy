@@ -192,11 +192,24 @@ pub async fn connect_swarmy_rerun(
         replay_file_name
     );
     let app_config = load_stored_app_settings(&app_handle)?;
+    // With a remote backend the replay is on its computer: it is copied here with its map caches,
+    // as for swarmy-bevy.
+    let (stream_file_name, cache_path) = if app_config.is_remote() {
+        let dir = crate::remote::local_files_dir(&app_handle, &app_config)?;
+        let replay =
+            crate::remote::download_replay(&app_config, &replay_file_name, &dir.join("replays"))
+                .await?;
+        let cache_ids = crate::swarmy_bevy::replay_cache_ids(&replay)?;
+        let caches =
+            crate::swarmy_bevy::map_caches_dir(&app_handle, &app_config, &cache_ids).await?;
+        (replay.display().to_string(), caches)
+    } else {
+        (replay_file_name.clone(), app_config.cache_path.clone())
+    };
     ensure_viewer_running(&app_handle).await?;
-    let stream_file_name = replay_file_name.clone();
     let streamed = tauri::async_runtime::spawn_blocking(move || {
         // SwarmyError is not Send, so it crosses the thread boundary as a String.
-        stream_replay_to_viewer(&stream_file_name, &app_config.cache_path).map_err(String::from)
+        stream_replay_to_viewer(&stream_file_name, &cache_path).map_err(String::from)
     })
     .await
     .map_err(|e| SwarmyError::Other(format!("Rerun streaming task failed: {e}")))?;

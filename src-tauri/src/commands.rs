@@ -66,6 +66,7 @@ backend_commands! {
     replay_list::query_replay_list(query: ReplayListQuery);
     replay_list::list_replay_filters();
     replay_detail::query_replay_detail(ext_fs_id: u64);
+    replay_detail::query_replay_detail_quick(ext_fs_id: u64);
     replay_detail::query_adjacent_replay(query: AdjacentReplayQuery);
     replay_detail::render_replay_report(ext_fs_id: u64);
     personal_db::get_replay_notes(sha256: String);

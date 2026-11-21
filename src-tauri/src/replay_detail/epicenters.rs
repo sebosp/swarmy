@@ -1,7 +1,6 @@
 #![doc = include_str!("epicenters/README.md")]
 
 use crate::data::*;
-use crate::replay_rerun::decisions::MORPH_SOURCES;
 use polars::prelude::*;
 use swarmy_common::*;
 
@@ -28,24 +27,17 @@ pub fn engagement_windows(engagements: &[Engagement]) -> Result<DataFrame, Swarm
 /// `engagement` (u32), `x` and `y` (f32, the mean position of the deaths of its seconds, in map
 /// units), `radius` (f32, the root mean square distance of the deaths to that center) and
 /// `deaths` (u32); by engagement. `valued_units` is `replay_detail::valued_units::valued_units`:
-/// the deaths that cost resources, a Drone morphing into a structure does not count.
+/// the deaths that cost resources and are losses (`cause` killed or own_player), a Drone
+/// morphing into a structure does not count.
 pub fn plan(
     source: &dyn SnapshotSource,
     ext_fs_id: u64,
     windows: DataFrame,
     valued_units: DataFrame,
 ) -> Result<LazyFrame, SwarmyError> {
-    let morph_sources = Series::new("morph_sources".into(), MORPH_SOURCES);
     let deaths = source
         .table(UNIT_DIED_IPC)?
-        .filter(
-            is_in_replays(&[ext_fs_id]).and(
-                col("unit_died_name")
-                    .is_in(lit(morph_sources).implode(false), false)
-                    .and(col("killer_unit_tag_index").is_null())
-                    .not(),
-            ),
-        )
+        .filter(is_in_replays(&[ext_fs_id]).and(is_loss_row()))
         .join(
             valued_units.lazy().select([col("variant")]),
             [col("unit_died_name")],

@@ -140,20 +140,34 @@ pub struct Death {
     pub unit: &'static str,
     /// The tag index of the unit, unique in the game.
     pub tag: u32,
-    /// Whether an enemy unit killed it; a death without a killer is a morph or a sacrifice.
-    pub killed: bool,
+    /// Why it died, the `cause` column (`s2protocol::tracker_events::UnitDiedCause::as_str`):
+    /// `killed` (by an enemy unit, the killer tag is 999), `own_player`, `morphed`, `expired`,
+    /// `cancelled`, `hallucination` or `removed`.
+    pub cause: &'static str,
 }
 
 impl Death {
-    pub fn new(seconds: u32, x: u8, y: u8, unit: &'static str, tag: u32, killed: bool) -> Self {
+    pub fn new(
+        seconds: u32,
+        x: u8,
+        y: u8,
+        unit: &'static str,
+        tag: u32,
+        cause: &'static str,
+    ) -> Self {
         Self {
             seconds,
             x,
             y,
             unit,
             tag,
-            killed,
+            cause,
         }
+    }
+
+    /// Whether an enemy unit killed it.
+    pub fn killed(&self) -> bool {
+        self.cause == "killed"
     }
 }
 
@@ -1071,8 +1085,8 @@ impl Snapshot {
         .expect("the columns have the same height")
     }
 
-    /// `unit_died.arrow`, the columns the queries read: the deaths of the players' units, the
-    /// killer tag 999 when killed.
+    /// `unit_died.arrow`, the columns the queries read: the deaths of the players' units, their
+    /// `cause`, the killer tag 999 when killed.
     pub fn unit_died(&self) -> DataFrame {
         let rows: Vec<(&Game, &Death)> = self
             .games
@@ -1113,8 +1127,14 @@ impl Snapshot {
                 Column::new(
                     "killer_unit_tag_index".into(),
                     rows.iter()
-                        .map(|(_, death)| death.killed.then_some(999u32))
+                        .map(|(_, death)| death.killed().then_some(999u32))
                         .collect::<Vec<Option<u32>>>(),
+                ),
+                Column::new(
+                    "cause".into(),
+                    rows.iter()
+                        .map(|(_, death)| death.cause)
+                        .collect::<Vec<&str>>(),
                 ),
                 Column::new(
                     "ext_replay_loop".into(),

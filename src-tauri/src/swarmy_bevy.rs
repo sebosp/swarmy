@@ -47,7 +47,7 @@ fn spawn_swarmy_bevy(
 
 /// The directory of the map caches for swarmy-bevy: the Map Caches Path, or with a remote
 /// backend the copy on this computer of its caches, the ones missing are downloaded first.
-async fn map_caches_dir(
+pub(crate) async fn map_caches_dir(
     app_handle: &AppHandle,
     settings: &AppSettings,
     cache_ids: &[String],
@@ -70,7 +70,7 @@ fn split_cache_ids(cache_ids: &str) -> Vec<String> {
 }
 
 /// The cache ids of the map of a replay file, from its init data.
-fn replay_cache_ids(replay: &std::path::Path) -> Result<Vec<String>, SwarmyError> {
+pub(crate) fn replay_cache_ids(replay: &std::path::Path) -> Result<Vec<String>, SwarmyError> {
     let name = replay.display().to_string();
     let (mpq, contents) = s2protocol::read_mpq(&name)
         .map_err(|err| SwarmyError::Other(format!("Unable to read {name}: {err}")))?;

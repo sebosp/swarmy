@@ -15,7 +15,7 @@ use crate::replay_detail::data::{
     is_tech_structure,
 };
 use crate::replay_rerun::decisions::{
-    army_supply, base_unit_name, closest_balance_units, has_cost, is_morph_death, unit_cost,
+    army_supply, base_unit_name, closest_balance_units, has_cost, unit_cost,
 };
 use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
 use polars::prelude::*;
@@ -133,6 +133,8 @@ enum TrackerItem {
         name: String,
         killer_player: Option<u8>,
         killer_name: Option<String>,
+        /// Why the unit died, the `cause` column: `killed`, `own_player`, `morphed`...
+        cause: String,
     },
     Stats {
         player: u8,
@@ -250,6 +252,7 @@ const DAY_COLUMNS: [(&str, &[&str]); 11] = [
             "unit_died_name",
             "killer_player_id",
             "unit_killer_name",
+            "cause",
         ],
     ),
     (
@@ -480,6 +483,7 @@ fn read_games(frames: &DayFrames, ids: &[u64]) -> Result<BTreeMap<u64, GameRows>
             "unit_died_name",
             "killer_player_id",
             "unit_killer_name",
+            "cause",
         ],
     )?;
     {
@@ -488,6 +492,7 @@ fn read_games(frames: &DayFrames, ids: &[u64]) -> Result<BTreeMap<u64, GameRows>
         let tags = u32_values(&died, "unit_tag_index")?;
         let names = str_values(&died, "unit_died_name")?;
         let killers = u8_values(&died, "killer_player_id")?;
+        let causes = str_values(&died, "cause")?;
         // A death without a killer has an empty name.
         let killer_names: Vec<Option<String>> = opt_str_values(&died, "unit_killer_name")?
             .into_iter()
@@ -503,6 +508,7 @@ fn read_games(frames: &DayFrames, ids: &[u64]) -> Result<BTreeMap<u64, GameRows>
                     name: names[idx].clone(),
                     killer_player: killers[idx],
                     killer_name: killer_names[idx].clone(),
+                    cause: causes[idx].clone(),
                 },
             );
         }
@@ -804,6 +810,7 @@ fn game_insights(game: &GameRows) -> Result<Vec<(String, PlayerGameInsight)>, Sw
                 name,
                 killer_player,
                 killer_name,
+                cause,
             } => {
                 registered.remove(tag);
                 alive.remove(tag);
@@ -812,7 +819,8 @@ fn game_insights(game: &GameRows) -> Result<Vec<(String, PlayerGameInsight)>, Sw
                     continue;
                 };
                 let name = base_unit_name(name).to_string();
-                if !has_cost(balance, &name) || is_morph_death(&name, killer_name.is_some()) {
+                // A morph, an expired, cancelled or hallucinated unit is not a loss.
+                if !has_cost(balance, &name) || !is_loss(cause) {
                     continue;
                 }
                 let cost = unit_cost(balance, &name);
@@ -833,16 +841,17 @@ fn game_insights(game: &GameRows) -> Result<Vec<(String, PlayerGameInsight)>, Sw
                 if TOWNHALLS.contains(&name.as_str()) {
                     owner_acc.bases_lost += 1;
                 }
-                if let (Some(killer), Some(killer_name)) = (killer_player, killer_name) {
-                    if is_enemy(owner, *killer) {
-                        *owner_acc
-                            .killed_by
-                            .entry(base_unit_name(killer_name).to_string())
-                            .or_default() += 1;
-                        if let Some(killer_acc) = accumulators.get_mut(killer) {
-                            killer_acc.killed += value;
-                            killer_acc.first_kill_seconds.get_or_insert(seconds);
-                        }
+                if let (Some(killer), Some(killer_name)) = (killer_player, killer_name)
+                    && is_kill(cause)
+                    && is_enemy(owner, *killer)
+                {
+                    *owner_acc
+                        .killed_by
+                        .entry(base_unit_name(killer_name).to_string())
+                        .or_default() += 1;
+                    if let Some(killer_acc) = accumulators.get_mut(killer) {
+                        killer_acc.killed += value;
+                        killer_acc.first_kill_seconds.get_or_insert(seconds);
                     }
                 }
             }

@@ -14,7 +14,7 @@ the replay is opened, when its map cache is there.
 
 | Table | Columns | Rows |
 |---|---|---|
-| `unit_died` | `ext_fs_id`, `unit_died_name`, `killer_unit_tag_index`, `x`, `y`, `ext_replay_loop` | one per unit died |
+| `unit_died` | `ext_fs_id`, `unit_died_name`, `cause`, `x`, `y`, `ext_replay_loop` | one per unit died |
 | `valued_units` | `variant` | the units and structures that cost resources, with their variants; a frame swarmy builds, `replay_detail::valued_units::valued_units` |
 | `kernel_offsets` | `dx`, `dy` | the cells around a death, −14 to 14 each way (three times the largest bandwidth); a frame swarmy builds, `death_density::kernel_offsets` |
 
@@ -40,7 +40,7 @@ WITH deaths AS (
     FROM unit_died d
     JOIN valued_units v ON d.unit_died_name = v.variant
     WHERE d.ext_fs_id = 1
-      AND NOT (d.unit_died_name IN ('Drone', 'HighTemplar', 'DarkTemplar') AND d.killer_unit_tag_index IS NULL)
+      AND d.cause IN ('killed', 'own_player')
 ),
 bandwidth AS (
     -- The population variance written out, Polars SQL has no VAR_POP.

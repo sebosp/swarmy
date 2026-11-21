@@ -7,7 +7,7 @@ use super::win_chance::{
 use crate::data::*;
 use crate::replay_rerun::decisions::{
     UnitCost, WORKERS, army_supply, balance_units, base_unit_name, closest_balance_units,
-    format_unit_counts, has_cost, is_morph_death, score_unit_choice, unit_cost,
+    format_unit_counts, has_cost, score_unit_choice, unit_cost,
 };
 use crate::replay_rerun::viewer::GAME_LOOPS_PER_SECOND;
 use crate::replay_rerun::{NEUTRAL_PLAYER, ReplayPlayers};
@@ -293,6 +293,34 @@ pub fn try_query_replay_detail(
     cache_path: &str,
     ext_fs_id: u64,
 ) -> Result<ReplayDetail, SwarmyError> {
+    query_replay_detail_parts(replay_path, cache_path, ext_fs_id, true)
+}
+
+/// The replay without the comparisons with the other games of the snapshot: their aggregations
+/// take seconds the first time a process reads them, the view shows the replay first.
+pub fn try_query_replay_detail_quick(
+    replay_path: String,
+    cache_path: &str,
+    ext_fs_id: u64,
+) -> Result<ReplayDetail, SwarmyError> {
+    query_replay_detail_parts(replay_path, cache_path, ext_fs_id, false)
+}
+
+fn query_replay_detail_parts(
+    replay_path: String,
+    cache_path: &str,
+    ext_fs_id: u64,
+    comparisons: bool,
+) -> Result<ReplayDetail, SwarmyError> {
+    // The time of each step, logged: the first query of a process computes the aggregations
+    // of the whole snapshot, the next ones read them from memory.
+    let started = std::time::Instant::now();
+    let mut steps: Vec<(&str, std::time::Duration)> = vec![];
+    let mut lap = std::time::Instant::now();
+    let mut step = |name: &'static str| {
+        steps.push((name, lap.elapsed()));
+        lap = std::time::Instant::now();
+    };
     let replay_path = sanitize_replay_path(&replay_path)?;
     let ipc_path = build_ipc_path(&replay_path)?;
     let details = scan_snapshot_ipc(&ipc_path, DETAILS_IPC)?
@@ -317,7 +345,9 @@ pub fn try_query_replay_detail(
     let replay_date = str_values(&details, "replay_date")?.remove(0);
     let sha256 = str_values(&details, "ext_fs_sha256")?.remove(0);
     let cache_handles = str_values(&details, "cache_handles")?.remove(0);
+    step("details");
     let mut detail = (*analyze_replay_cached(&replay_location)?).clone();
+    step("replay");
     detail.ext_fs_id = ext_fs_id;
     detail.sha256 = sha256;
     detail.replay_date = replay_date;
@@ -337,33 +367,57 @@ pub fn try_query_replay_detail(
         (Err(err), _) => tracing::warn!("No snapshot for the map of replay {ext_fs_id}: {err:?}"),
         (_, Err(err)) => tracing::warn!("No date for the map of replay {ext_fs_id}: {err:?}"),
     }
+    step("map");
+    if !comparisons {
+        detail.comparisons_pending = true;
+        tracing::info!(
+            "Replay detail {ext_fs_id} without the comparisons in {} ms",
+            started.elapsed().as_millis()
+        );
+        return Ok(detail);
+    }
     // Without the averages the replay is still shown.
     match super::patch_timings::patch_timings_cached(&ipc_path, detail.protocol_version) {
         Ok(timings) => super::patch_timings::annotate(&mut detail, &timings),
         Err(err) => tracing::warn!("No patch timings for {}: {err:?}", detail.protocol_version),
     }
+    step("patch timings");
     match super::winner_benchmarks::winner_benchmarks_cached(&ipc_path, detail.protocol_version) {
         Ok(benchmarks) => super::winner_benchmarks::annotate(&mut detail, &benchmarks),
         Err(err) => tracing::warn!("No winner benchmarks: {err:?}"),
     }
+    step("winner benchmarks");
     match super::opening_answers::opening_answers_cached(&ipc_path) {
         Ok(answers) => super::opening_answers::annotate(&mut detail, &answers),
         Err(err) => tracing::warn!("No opening answers: {err:?}"),
     }
+    step("opening answers");
     match crate::ability_usage::ability_usage_cached(&ipc_path) {
         Ok(usage) => crate::ability_usage::annotate(&mut detail, &usage),
         Err(err) => tracing::warn!("No ability usage: {err:?}"),
     }
+    step("ability usage");
     match super::creep::creep_stats_cached(&ipc_path) {
         Ok(stats) => super::creep::annotate(&mut detail, &stats),
         Err(err) => tracing::warn!("No creep stats: {err:?}"),
     }
+    step("creep");
     match crate::player_detail::game_insights::energy_averages_cached(&ipc_path) {
         Ok(averages) => {
             crate::player_detail::game_insights::annotate_energy(&mut detail, &averages)
         }
         Err(err) => tracing::warn!("No energy averages: {err:?}"),
     }
+    step("energy");
+    let steps = steps
+        .iter()
+        .map(|(name, time)| format!("{name} {} ms", time.as_millis()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    tracing::info!(
+        "Replay detail {ext_fs_id} in {} ms: {steps}",
+        started.elapsed().as_millis()
+    );
     Ok(detail)
 }
 
@@ -680,14 +734,16 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                     None => {}
                 }
             }
-            (ReplayTrackerEvent::UnitDied(_), UnitChangeHint::Unregistered { killer, killed }) => {
+            (
+                ReplayTrackerEvent::UnitDied(died),
+                UnitChangeHint::Unregistered { killer, killed },
+            ) => {
                 registered_units.remove(&killed.tag_index);
                 let owner = players.unit_player(killed);
                 let name = base_unit_name(&killed.name).to_string();
-                if owner == NEUTRAL_PLAYER
-                    || !has_cost(balance, &name)
-                    || is_morph_death(&name, killer.is_some())
-                {
+                // A morph (a Drone into a building, templars into an Archon), an expired, cancelled
+                // or hallucinated unit is not a loss: the cause of the death says so.
+                if owner == NEUTRAL_PLAYER || !has_cost(balance, &name) || !died.cause.is_loss() {
                     continue;
                 }
                 let cost = unit_cost(balance, &name);
@@ -712,6 +768,7 @@ pub fn analyze_replay_file(replay_location: &str) -> Result<ReplayDetail, Swarmy
                 });
                 let killer_player = killer.as_ref().map(|killer| players.unit_player(killer));
                 if let (Some(killer), Some(killer_player)) = (killer, &killer_player)
+                    && died.cause.is_kill()
                     && players.is_enemy(&owner, killer_player)
                 {
                     let killer_name = base_unit_name(&killer.name).to_string();

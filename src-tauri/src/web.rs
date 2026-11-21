@@ -44,6 +44,7 @@ pub const PUBLIC_COMMANDS: &[&str] = &[
     "query_replay_list",
     "list_replay_filters",
     "query_replay_detail",
+    "query_replay_detail_quick",
     "query_adjacent_replay",
     "render_replay_report",
     "query_player_detail",

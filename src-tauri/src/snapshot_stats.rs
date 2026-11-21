@@ -31,13 +31,35 @@ pub const QUERIES: [QueryMeta; 1] = [summary::META];
 struct SnapshotStateCheck {
     root: PathBuf,
     checked_at: Instant,
+    /// The snapshot as seen by the cheap checks of [`snapshot_signature`].
+    signature: SnapshotSignature,
     message: Option<String>,
+}
+
+/// What changes when a snapshot is written: the marker of a generation in progress (or
+/// interrupted) and the time of the metadata of the root, written last.
+#[derive(Debug, Clone, PartialEq)]
+struct SnapshotSignature {
+    in_progress: bool,
+    metadata_modified: Option<std::time::SystemTime>,
+}
+
+/// The cheap checks of a snapshot, a few file stats.
+fn snapshot_signature(root: &Path) -> SnapshotSignature {
+    SnapshotSignature {
+        in_progress: root
+            .join(s2protocol::snapshot::SNAPSHOT_IN_PROGRESS_FNAME)
+            .exists(),
+        metadata_modified: crate::data::snapshot_generation(&root.display().to_string()),
+    }
 }
 
 static LAST_STATE_CHECK: Mutex<Option<SnapshotStateCheck>> = Mutex::new(None);
 
-/// How long a state check is reused: the views send several queries at once, and the check
-/// reads the metadata of every day partition of the snapshot.
+/// How long a state check is reused while a generation is in progress: the views send several
+/// queries at once. A ready snapshot is checked again only when its signature changes: the full
+/// check reads the metadata of every day partition, 0.4 s on 2,000 days (2026-11-21), before
+/// every query.
 const STATE_CHECK_TTL: Duration = Duration::from_secs(3);
 
 /// Why the snapshot at the directory cannot be queried: being created (by this swarmy or another
@@ -47,10 +69,13 @@ pub fn snapshot_unavailable(root: &Path) -> Option<String> {
     let mut last = LAST_STATE_CHECK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(check) = last.as_ref() {
-        if check.root == root && check.checked_at.elapsed() < STATE_CHECK_TTL {
-            return check.message.clone();
-        }
+    let signature = snapshot_signature(root);
+    if let Some(check) = last.as_ref()
+        && check.root == root
+        && check.signature == signature
+        && (!signature.in_progress || check.checked_at.elapsed() < STATE_CHECK_TTL)
+    {
+        return check.message.clone();
     }
     let message = s2protocol::snapshot::snapshot_state(root).message();
     if let Some(message) = &message {
@@ -59,6 +84,7 @@ pub fn snapshot_unavailable(root: &Path) -> Option<String> {
     *last = Some(SnapshotStateCheck {
         root: root.to_path_buf(),
         checked_at: Instant::now(),
+        signature,
         message: message.clone(),
     });
     message

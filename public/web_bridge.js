@@ -170,6 +170,10 @@
     connect_swarmy_rerun: desktopOnly("The Rerun viewer"),
     exec_swarmy_bevy_map_caches: desktopOnly("swarmy-bevy"),
     exec_swarmy_bevy_replay: desktopOnly("swarmy-bevy"),
+    exec_sc2_replay: desktopOnly("StarCraft II"),
+    get_sc2_replay_state: desktopOnly("StarCraft II"),
+    set_sc2_overlay_layout: desktopOnly("The overlay"),
+    sc2_replay_control: desktopOnly("StarCraft II"),
     query_replay_lesson: desktopOnly("The lesson of a new replay"),
   };
 

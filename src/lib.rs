@@ -12,6 +12,7 @@ pub mod progress;
 pub mod race_detail;
 pub mod replay_detail;
 pub mod replay_list;
+pub mod sc2_replay;
 /// Swarmy Tauri Library
 pub mod scan;
 pub mod tour;
