@@ -1,6 +1,6 @@
 //! The units of each patch from the s2protocol multi versioned balance data.
 
-use crate::replay_rerun::decisions::{balance_units, has_cost, latest_balance_units};
+use crate::replay_rerun::decisions::{balance_units, has_cost};
 use s2protocol::game_events::{Cost, UnitRef, UnitShortRef, UpgradeLevel, VersionedBalanceUnit};
 use std::collections::{BTreeMap, BTreeSet};
 use swarmy_common::*;
@@ -598,6 +598,7 @@ pub fn try_query_patch_changes(version: u32) -> Result<PatchChanges, SwarmyError
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::replay_rerun::decisions::latest_balance_units;
 
     #[test]
     fn it_compares_values_between_patches() {

@@ -9,7 +9,7 @@
 # For a new release: update pkgver and the sha256sums, the digests of the release assets:
 #   gh release view v<pkgver> -R sebosp/swarmy --json assets --jq '.assets[] | "\(.name) \(.digest)"'
 pkgname=swarmy-bin
-pkgver=0.2.5
+pkgver=0.2.6
 pkgrel=1
 pkgdesc="StarCraft II replay collection analyser and visualizer"
 arch=('x86_64' 'aarch64')
@@ -24,8 +24,8 @@ options=('!strip' '!debug')
 # `swarmy --serve`.
 source_x86_64=("${url}/releases/download/v${pkgver}/swarmy_${pkgver}_amd64.deb")
 source_aarch64=("${url}/releases/download/v${pkgver}/swarmy_${pkgver}_arm64.deb")
-sha256sums_x86_64=('897b6122570ce04753a8cc29674b8d170d765334b45a6fa71f8a796197bc66db')
-sha256sums_aarch64=('9f7bee0c5aa2aeecde64bd14837e82f0b92c59ee2496ed80d3d1efb03d88e4ba')
+sha256sums_x86_64=('a85949bb94cc896551e9ef85e42140d244c4869fd9c0bbcb016367c094449f83')
+sha256sums_aarch64=('1630a2022d9183ef22700a4a3b1aa1a280b7832d1d10d933d706f23b89d93531')
 
 package() {
   bsdtar -xf data.tar.* -C "${pkgdir}"
